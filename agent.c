@@ -1,6 +1,8 @@
 #include "proxy.h"
+#include "agent.h"
 
 extern pxy_worker_t *worker;
+int packet_len;
 
 static int 
 agent_send2(pxy_agent_t *agent,int fd)
@@ -23,8 +25,8 @@ agent_send2(pxy_agent_t *agent,int fd)
 	    data = b->data;
 	    len  = b->len;
 	}
-
-	n = send(fd,data,len,0);
+// call zookeeper get proxy send message
+	/*	n = send(fd,data,len,0);
 	D("n:%zu, fd #%d, errno :%d, EAGAIN:%d", n,fd,errno,EAGAIN);
       
 	if(n < 0) {
@@ -37,10 +39,10 @@ agent_send2(pxy_agent_t *agent,int fd)
 		return -1;
 	    }
 	}
+*/
+	}
+ //   pxy_agent_buffer_recycle(agent);
 
-    }
-
-    pxy_agent_buffer_recycle(agent);
     return 0;
 }
 
@@ -50,30 +52,96 @@ pxy_agent_downstream(pxy_agent_t *agent)
     return agent_send2(agent,agent->fd);
 }
 
+int char_to_int(buffer_t* from, int* off, int len)
+{
+	char tmp[4] = {0,0,0,0};
+	int i = 0;
+
+	for(i = 0 ; i < len; i++)
+	{
+		tmp[i] = *buffer_read(from, *off);
+		*off += 1;
+	}
+	return *(int*)tmp;
+}
+
 int 
 agent_echo_read_test(pxy_agent_t *agent)
 {
-    char *c;
-    int i = 0;
     buffer_t *b = agent->buffer;
-  
-    while((c = buffer_read(b,i)) != NULL) {
+	D("recive len b->len = %lu", b->len);
+	while(agent->buf_offset > 3)
+	{
+		int *i;
 
-	if(*c == 'z') {
-	
-	    char *c1 = buffer_read(b,i+1);
-	    char *c2 = buffer_read(b,i+2);
+		int offset = 1;
+		i = &offset;
 
-	    if(c1!=NULL && c2!=NULL && *c1 == '\r' && *c2 =='\n'){
-		agent->buf_parsed = i+2+1;
-		i+=2; 
-	    }
+		rec_msg_t msg;
+		msg.len = char_to_int(b,i,2);
+		D("Parse packet len %d",msg.len);
+		if(packet_len <=0)
+			packet_len = msg.len;
+		if(packet_len > agent->buf_offset)
+		{
+			D("Parse packet_len %d > agent->buf_offset %lu",msg.len,b->len);
+			return 0;
+		}
+		
+		msg.version = *buffer_read(b,*i);
+		*i = *i + 1;
+		D("Parse version %d",msg.version);
+
+		msg.userid = char_to_int(b,i,4);
+		D("Parse userid %d",msg.userid);
+
+		msg.cmd = char_to_int(b,i,2);
+		D("Parse cmd %d",msg.cmd);	
+
+		msg.seq = char_to_int(b,i,2);
+		D("Parse seq %d",msg.seq);
+
+		msg.off = char_to_int(b,i,1);
+		D("Parse off %d",msg.off);
+		
+		int body_len = msg.len - msg.off;
+		
+		D("Body position is %d", body_len);
+		if(body_len >0)
+		{
+			// set body position
+			*i = msg.off;
+			D("body position is %d",*i);
+			int t;
+			for(t = 0; t < body_len; t++)
+				D("body[%d] is %d", t, *buffer_read(b,(*i)+t));
+			msg.body = malloc(msg.len - msg.off);
+			memcpy(msg.body, buffer_read(b,*i), body_len);
+		}else{
+			msg.body = NULL;
+			D("body is NULL");
+		}
+		packet_len = 0;
 	}
 
-	i++;
-    }
+	/*
+    while((c = buffer_read(b,i)) != NULL&&*c!='z')
+	{
+		if(*c == 'z')
+	   	{
+			char *c1 = buffer_read(b,i+1);
+			char *c2 = buffer_read(b,i+2);
 
-    D("the agent->offset:%zu,agent->sent:%zu,agent->parsed:%zu",
+			if(c1!=NULL && c2!=NULL && *c1 == '\r' && *c2 =='\n'){
+				 agent->buf_parsed = i+2+1;
+ 			     i+=2; 
+		    }
+	    }
+		D("the rev date:%-02x",*c);
+		i++;
+    }
+    
+	D("the agent->offset:%zu,agent->sent:%zu,agent->parsed:%zu",
       agent->buf_offset,
       agent->buf_sent,
       agent->buf_parsed);
@@ -83,7 +151,7 @@ agent_echo_read_test(pxy_agent_t *agent)
 	D("down finish < 0");
 	pxy_agent_remove(agent);
 	pxy_agent_close(agent);
-    }
+    }*/
     return 0;
 }
 
@@ -106,7 +174,6 @@ pxy_agent_data_received(pxy_agent_t *agent)
 	idx = agent->buf_sent;
 
 	int cmd = -1,len = 0,s = 0;
-    
     
 	while((i++ < n) && (c=buffer_read(agent->buffer,idx)) != NULL) {
       
@@ -262,59 +329,58 @@ failed:
 void
 agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 {
-    int n;
-    buffer_t *b;
-    pxy_agent_t *agent = fi->data;
+		int n;
+		buffer_t *b;
+		pxy_agent_t *agent = fi->data;
 
-    if(!agent){
-	W("fd has no agent,ev->data is NULL,close the fd");
-	close(fi->fd); return;
-    }
+		if(!agent){
+				W("fd has no agent,ev->data is NULL,close the fd");
+				close(fi->fd); return;
+		}
 
-    while(1) {
+		while(1) 
+		{
 
-	b = agent_get_buf_for_read(agent);
+				b = agent_get_buf_for_read(agent);
 
-	if(b == NULL) {
-	    D("no buf for read");
-	    pxy_agent_close(agent);
-	    pxy_agent_remove(agent);
-	}
+				if(b == NULL) {
+						D("no buf for read");
+						pxy_agent_close(agent);
+						pxy_agent_remove(agent);
+				}
 
-	n = recv(fi->fd,b->data,BUFFER_SIZE,0);
-	D("recv %d bytes",n);
+				n = recv(fi->fd,b->data,BUFFER_SIZE,0);
+				D("recv %d bytes",n);
 
-	if(n < 0){
-	    if(errno == EAGAIN || errno == EWOULDBLOCK) {
-		break;
-	    }
-	    else {
-		D("read error,errno is %d",errno);
-		goto failed;
-	    }
-	}
+				if(n < 0){
+						if(errno == EAGAIN || errno == EWOULDBLOCK) {
+								break;
+						}
+						else {
+								D("read error,errno is %d",errno);
+								goto failed;
+						}
+				}
 
-	if(n == 0){
-	    D("socket fd #%d closed by peer",fi->fd);
-	    goto failed;
-	}
+				if(n == 0){
+						D("socket fd #%d closed by peer",fi->fd);
+						goto failed;
+				}
 
-	b->len = n;
+				b->len = n;
 
-	if(n < BUFFER_SIZE) {
-	    break;
-	}
-    }
+				if(n < BUFFER_SIZE) {
+						break;
+				}
+		}
+		if(agent_echo_read_test(agent) < 0){
+				pxy_agent_close(agent);
+		}
 
-    if(agent_echo_read_test(agent) < 0){
-	pxy_agent_close(agent);
-    }
-
-    return;
+		return;
 
 failed:
-    pxy_agent_close(agent);
-    pxy_agent_remove(agent);
-    return;
+		pxy_agent_close(agent);
+		pxy_agent_remove(agent);
+		return;
 }
-

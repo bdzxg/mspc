@@ -133,7 +133,6 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 
 	    pxy_agent_append(agent,worker->agents);
 	}
-
 	else{ break; }
     }
 }

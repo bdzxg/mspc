@@ -177,8 +177,10 @@ main(int len,char** args)
 	    }
 	    D("worker #%d initialized success", getpid());
 
+		D("socket_pair[0]=%d,socket_pair[1]=%d",w->socket_pair[0],w->socket_pair[1]);
 
 	    close (w->socket_pair[0]); /*child should close the pair[0]*/
+
 	    ev_file_item_t *f = ev_file_item_new(w->socket_pair[1],
 						 worker,
 						 worker_recv_cmd,
@@ -191,7 +193,6 @@ main(int len,char** args)
 		D("add event error"); return -1;
 	    }
 
-
 	    if(!worker_start()) {
 		D("worker #%d started failed", getpid()); return -1;
 	    }
@@ -203,7 +204,7 @@ main(int len,char** args)
 
     }
 
-
+	D("Pid = %d",getpid());
     while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0){ 
     }
 

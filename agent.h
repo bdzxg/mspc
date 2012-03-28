@@ -21,6 +21,19 @@ typedef struct message_s {
     char *body;
 }message_t;
 
+typedef struct rec_message_s{
+    int len;
+	char version;
+    int userid;
+	int cmd;
+    int seq;
+	int off;
+	char format;	
+	int client_type;
+	int client_version;
+	char *body;
+}rec_msg_t;
+
 pxy_agent_t* pxy_agent_new(mp_pool_t *,int,int);
 void pxy_agent_close(pxy_agent_t *);
 int pxy_agent_data_received(pxy_agent_t *);

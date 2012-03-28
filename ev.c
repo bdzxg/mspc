@@ -64,18 +64,15 @@ ev_main(ev_t* ev)
     while(ev->stop <= 0){
 
 	if(ev->ti){
-
 	    long now;
 	    ev_time_item_t* iter;
 
 	    ev_get_current_ms((&now));
       
 	    for(iter=(ev->ti); iter!=NULL; iter=iter->next){
-		if((iter->ms) < now){
-		    iter->func(ev,iter);
-		}
+			if((iter->ms) < now){
+		   		 iter->func(ev,iter);}
 	    }
-
 	}
 
 	int i,j;

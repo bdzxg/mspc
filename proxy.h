@@ -61,7 +61,6 @@ typedef struct pxy_command_s{
     int fd;
 }pxy_command_t;
 
-
 int worker_init();
 int worker_start();
 int worker_close();
