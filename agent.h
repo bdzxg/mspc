@@ -1,17 +1,18 @@
 #ifndef _AGENT_H_
 #define _AGENT_H_
-
+#include <stdio.h>
 #include "proxy.h"
-
 
 typedef struct pxy_agent_s{
     struct buffer_s *buffer;
     int fd;
     int user_id;
+	char* epid;
     size_t buf_offset;/*all data len in buf*/
     size_t buf_parsed;
     size_t buf_sent;
     size_t buf_list_n; /* struct buffer_s count */
+	size_t buf_len;
     list_head_t list;
 }pxy_agent_t;
 
@@ -28,10 +29,18 @@ typedef struct rec_message_s{
 	int cmd;
     int seq;
 	int off;
-	char format;	
+	int format;	
+	int compress;
 	int client_type;
 	int client_version;
+	int logic_pool_id;
+	char *option;
+	int option_len;
 	char *body;
+	int body_len;
+	char *user_context;
+	int user_context_len;
+	char *epid;
 }rec_msg_t;
 
 pxy_agent_t* pxy_agent_new(mp_pool_t *,int,int);
@@ -41,7 +50,7 @@ int pxy_agent_upstream(int ,pxy_agent_t *);
 int pxy_agent_echo_test(pxy_agent_t *);
 int pxy_agent_buffer_recycle(pxy_agent_t *);
 buffer_t* agent_get_buf_for_read(pxy_agent_t*);
-
+int process_received_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg);
 void agent_recv_client(ev_t *,ev_file_item_t*);
 
 #define pxy_agent_for_each(agent,alist)			\

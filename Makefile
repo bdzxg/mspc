@@ -1,20 +1,19 @@
-
 CC = 	gcc
-CFLAGS = -pipe  -O -W -Wall -Wno-unused-parameter -g
+CFLAGS = -pipe  -O -W -Wall -I -Wno-unused-parameter -g
 LINK =	$(CC)
-
-
 
 LIB_OBJS = \
 	./ev.o \
 	./mempool.o \
 	./hashtable.o \
-	./rbtree.o
+	./rbtree.o\
+	./McpAppBeanProto.pb-c.o
 
 PXY_OBJS = \
 	./worker.o \
 	./proxy.o \
 	./agent.o \
+	./ClientHelper.o
 
 PXY_TEST = \
 	./pxy_test.o \
@@ -29,7 +28,7 @@ TEST = \
 OUTPUT = proxy
 
 all:  $(LIB_OBJS) $(PXY_OBJS) 
-	$(LINK) $(LIB_OBJS) $(PXY_OBJS) -o $(OUTPUT)
+	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -o $(OUTPUT) -L./lib -I./include -lrpc_uds -lprotobuf-c -lm 
 
 clean:
 	rm -f $(PXY_OBJS)
