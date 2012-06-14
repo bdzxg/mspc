@@ -1,5 +1,6 @@
 
 #include "proxy.h"
+#include "route.h"
 
 extern pxy_master_t *master;
 extern pxy_worker_t *worker;
@@ -52,6 +53,10 @@ worker_init()
 int 
 worker_start()
 {
+    char *zk_url="192.168.110.231:8998";
+    //char *zk_url = "192.168.199.8:2181";
+    route_init(zk_url);
+    
     ev_file_item_t* fi ;
     int fd = master->listen_fd;
 
@@ -79,11 +84,13 @@ worker_start()
 
 start_failed:
     return -1;
-}
+} 
 
 int
 worker_close()
 {
+    
+    route_close();
     pxy_agent_t *a;
     pxy_agent_for_each(a,worker->agents){
 	pxy_agent_close(a);
@@ -92,7 +99,7 @@ worker_close()
     worker->ev->stop = 1;
     close(master->listen_fd);
     return 0;
-}
+} 
 
 void
 worker_accept(ev_t *ev, ev_file_item_t *ffi)
@@ -119,23 +126,23 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 	    agent = pxy_agent_new(worker->agent_pool,f,0);
 	    if(!agent){
 		D("create new agent error"); return;
-	    }
+ 	    }
 
 	    fi = ev_file_item_new(f,
 				  agent,
 				  agent_recv_client,
 				  NULL,
 				  EV_READABLE | EPOLLET);
-	    if(!fi){
+ 	    if(!fi){
 		D("create file item error");
 	    }
 	    ev_add_file_item(worker->ev,fi);
 
 	    pxy_agent_append(agent,worker->agents);
-	}
-	else{ break; }
-    }
-}
+ 	}
+ 	else{ break; }
+     }
+} 
 
 void 
 worker_recv_cmd(ev_t *ev,ev_file_item_t *fi)

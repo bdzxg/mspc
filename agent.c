@@ -2,6 +2,9 @@
 #include "agent.h"
 #include "include/rpc_client.h"
 #include "McpAppBeanProto.pb-c.h"
+#include "include/zookeeper.h"
+#include <pthread.h>
+#include "route.h"
 //#include "ClientHelper.c"
 
 extern pxy_worker_t *worker;
@@ -327,12 +330,19 @@ int agent_echo_read_test(pxy_agent_t *agent)
 	msg = calloc(sizeof(rec_msg_t), 1);
     parse_client_data(agent, msg);
 	
-	//get proxy uri
-	if(send_rpc_server(msg, "tcp://192.168.110.182:6002", agent) < 0)
+
+    char *url;
+    int ret = get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
+    D("url=%s", url);
+    //get proxy uri
+	if(send_rpc_server(msg, url, agent) < 0)
 	{
     	release_rpc_message(msg);
+        free(url);
 		return -1;
 	}
+
+    free(url);
 	pxy_agent_buffer_recycle(agent);
     release_rpc_message(msg);
 	//pxy_agent_remove(agent);
