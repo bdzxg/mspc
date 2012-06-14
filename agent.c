@@ -335,8 +335,8 @@ int agent_echo_read_test(pxy_agent_t *agent)
 	}
 	pxy_agent_buffer_recycle(agent);
     release_rpc_message(msg);
-	pxy_agent_remove(agent);
-	pxy_agent_close(agent);
+	//pxy_agent_remove(agent);
+	//pxy_agent_close(agent);
     return 0;
 }
 
@@ -564,7 +564,10 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	}
 	D("buffer-len %zu", agent->buf_len);
 	if(agent_echo_read_test(agent) < 0)
+	{
+		D("fail!");
 		pxy_agent_close(agent);
+	}
 	return;
 
 failed:

@@ -362,6 +362,7 @@ main(int len,char** args)
 	}
 	else{ /*parent*/
 	    w->pid = p;
+		D("close worker");
 	    close(w->socket_pair[1]); /*parent close the pair[1]*/
 	}
 
@@ -375,6 +376,7 @@ main(int len,char** args)
     pxy_send_command(w,PXY_CMD_QUIT,-1);
 
     sleep(5);
+	D("pxy_master_close");
     pxy_master_close();
     return 1;
 }
