@@ -28,7 +28,7 @@ TEST = \
 OUTPUT = proxy
 
 all:  $(LIB_OBJS) $(PXY_OBJS) 
-	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -o $(OUTPUT) -L./lib -I./include -lrpc_uds -lprotobuf-c -lm 
+	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -o $(OUTPUT) -Llib -I./include -lrpc_uds -lprotobuf-c -lm -lroute_mt 
 
 clean:
 	rm -f $(PXY_OBJS)

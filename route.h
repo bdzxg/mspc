@@ -37,7 +37,6 @@ typedef struct mcp_appbean_params_s
 
 typedef struct mcp_appbean_value_s
 {
-    //FAEApplication* app;
     char *appworkerid;
 } mcp_appbean_value_t;
 
@@ -56,18 +55,19 @@ typedef struct route_worker_s
 
 typedef struct mcp_runningworker_value_s
 {
-    //FAERunningWorker *workers;
 	route_worker_t *workers;
     int wk_count;
     list_head_t list;
 }mcp_runningworker_value_t;
 
-int get_app_url_mt(const unsigned short cmd, const short protocol, const char* sid, 
-        const char* client_type, const char* client_version, char** url);
-
-int get_app_url_st(const unsigned short cmd, const short protocol, const char* sid, 
-        const char* client_type, const char* client_version, char** url);
-
+/*
+ * cmd: CMD CODE, 
+ * protocol: MCP/3.0 = 1
+ * sid:
+ * client_type:
+ * client_version:
+ * url: url for app rpc call 
+ */
 int get_app_url(const unsigned short cmd, const short protocol, const char* sid,
         const char* client_type, const char* client_version, char** url);
 
