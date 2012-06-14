@@ -288,67 +288,6 @@ int rpc_server_init()
 	rpc_server_register(server, "MSP", "ReceiveMessage", receive_message);
 	return 0;
 }	
-/*
-void test()
-{
-	int len = 28;	int userid = 200063803;
-	char version = 1;	int cmd = 101;
-	int seq = 1;	int off = 24;
-	int format = 1;	int compress = 1;
-	int client_type = 5;int client_version = 100;
-	char opbody[4] = {100, 101, 102, 103};	int option_len = 4;
-	char* option = opbody;
-	char body[3] = {50,60,70};	int body_len = 3;
-	char* pbody = body;
-	char* content = calloc(sizeof(char), len);
-	char* rval = content;
-	int padding =  0;
-	int offset = 24;
-	// start padding 0
-	set2buf(&rval, &padding, 1);
-    // length
-	set2buf(&rval, &len, 2);	
-	// version
-	set2buf(&rval, &version, 1);
-	// userid
-	set2buf(&rval, &userid, 4);
-	// cmd
-	set2buf(&rval, &cmd, 2);
-	// seq
-	set2buf(&rval, &seq, 2);
-	// offset
-	set2buf(&rval, &offset, 1);
-	// format
-	set2buf(&rval, &format, 1);
-	// zipflag compress
-	set2buf(&rval, &compress, 1);
-	// clienttype
-	set2buf(&rval, &client_type, 2);
-	// clientversion
-	set2buf(&rval, &client_version, 2);
-	// 0
-	set2buf(&rval, &padding, 1);
-	// option
-    int i;	
-	for(i = 0; i < option_len; i++)
-	{
-		*(rval++) = *(option++);
-	}
-	// body
-	for(i = 0; i < body_len; i++ )
-	{
-		*(rval++) = *(pbody++);
-	}
-	// end padding 0
-	*rval = 0;
-	rval = content;
-	for(i = 0; i < len; i++)
-	{
-		D("content %d", (unsigned char)*(rval++));
-	}
-	if(body !=NULL)
-		free(body);			
-}*/
  
 int 
 main(int len,char** args)

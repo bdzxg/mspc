@@ -111,7 +111,7 @@ char* GenerateClientEpid(char* type, char* version)
 	for(i = 0; i < 15; i++)
 		t[i] = 0;
 	sprintf(t, "%02d%02d%04s", p->tm_min, p->tm_sec, tep_t);
-	D("epid time part %s", t);
+	//D("epid time part %s", t);
 	char* epid = malloc(20);
 	if(version == NULL)
 	{

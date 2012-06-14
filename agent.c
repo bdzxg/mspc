@@ -241,20 +241,22 @@ int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *agent)
 	rpc_client_close(client);
     free_string_ptr(args.compacturi);
 	free(buf);
-	
+
 	if(ret_code != RPC_CODE_OK || buf_out_size == 0){
 		D("rpc return code %zu, buf_out_size %zu", ret_code, buf_out_size);
 		return -1;
 	}
 
-	D("rpc return code success %zu", ret_code);
-    rec_msg_t* rec_msg;
+	//D("rpc return code success %zu", ret_code);
+    rec_msg_t* rec_msg = calloc(sizeof(rec_msg_t), 1);
 	if(process_received_msg(buf_out_size, buf_out, rec_msg) < 0){
 		rpc_free(buf_out);
+		free(rec_msg);
 		return -1;
 	}
 
 	agent_send_client(rec_msg, agent);
+	free(rec_msg);
 	rpc_free(buf_out);
 	return 0;
 }
@@ -263,7 +265,8 @@ void agent_send_client(rec_msg_t* rec_msg, pxy_agent_t *agent)
 {
 	// send to client
 	int len = 0;
-    char* data =  GetData(rec_msg, len);
+    char* data =  GetData(rec_msg, &len);
+	D("send to client fd %d", agent->fd);
 	send(agent->fd, data, len, 0);
 }
 
@@ -285,7 +288,6 @@ int process_received_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg)
 	msg->user_context = (char*)ret->usercontext.data;
 	msg->compress = ret->zipflag;
 	msg->epid = ret->epid;
-
 	/*	int i = 0;
 	D("msg->cmd %d", msg->cmd);
 	D("msg->body_len %d", msg->body_len);
@@ -326,8 +328,11 @@ int agent_echo_read_test(pxy_agent_t *agent)
     parse_client_data(agent, msg);
 	
 	//get proxy uri
-	if(send_rpc_server(msg, "tcp://192.168.110.182:6101", agent) < 0)
+	if(send_rpc_server(msg, "tcp://192.168.110.182:6002", agent) < 0)
+	{
+    	release_rpc_message(msg);
 		return -1;
+	}
 	pxy_agent_buffer_recycle(agent);
     release_rpc_message(msg);
 	pxy_agent_remove(agent);
