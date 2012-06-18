@@ -110,7 +110,7 @@ char* GenerateClientEpid(char* type, char* version)
 	int i = 0;
 	for(i = 0; i < 15; i++)
 		t[i] = 0;
-	sprintf(t, "%02d%02d%04s", p->tm_min, p->tm_sec, tep_t);
+	sprintf(t, "%02d%02d%4s", p->tm_min, p->tm_sec, tep_t);
 	//D("epid time part %s", t);
 	char* epid = malloc(20);
 	if(version == NULL)
@@ -122,4 +122,126 @@ char* GenerateClientEpid(char* type, char* version)
 		// to do add version process
 	}
 	return epid;
+}
+ 
+char* get_cmd_func_name(int cmd)
+{
+	switch(cmd)
+	{
+		case 101:
+			return "mcore-Reg1V5";
+		case 102:
+			return "mcore-Reg2V5";
+		case 103:
+			return "mcore-UnRegV5";
+		case 104:
+			return "mcore-KeepAliveV5";
+		case 105:
+			return "mcore-FlowV5";
+		case 165:
+			return "muser-HandleContactRequestV5";
+		case 161:
+		    return "muser-AddToBlacklistV5";
+		case 162:
+		    return "muser-RemoveFromBlacklistV5";
+		case 163:
+			return "muser-AddBuddyV5";
+		case 164:
+		    return "muser-DeleteBuddyV5";
+		case 166:
+		    return "muser-CreateBuddyListV5";
+		case 167:
+			return "muser-DeleteBuddyListV5";
+		case 168:
+			return "muser-SetBuddyListInfoV5";
+		case 169:
+			return "muser-AddChatFriendV5";
+		case 170:
+			return "muser-DeleteChatFriendV5";
+		case 171:
+			return "muser-GetContactInfoV5";
+		case 172:
+			return "muser-InviteToDownloadMCV5"; 
+		case 173:
+			return "muser-InviteUserV5";
+		case 174:
+			return "muser-PermissionRequestV5";
+		case 175:
+		    return "muser-PermissionResponseV5";
+		case 176:
+			return "muser-PresenceV5";
+		case 180:
+			return "muser-SmsForwardInfoV5";
+		case 179:
+			return "muser-SetUserInfoV5";
+		case 177:
+			return "muser-SetContactInfoV5";
+		case 142:
+			return "mgroup-PGGetGroupListV5";
+		case 141:
+		    return "mgroup-PGGetGroupInfoV5";
+		case 149:
+		    return "mgroup-PGSearchGroupV5";
+		case 136:
+		    return "mgroup-PGApplyGroupV5";
+		case 137:
+			return "mgroup-PGCancelApplicationV5";
+		case 148:
+		   	return"mgroup-PGQuitGroupV5";
+		case 147:
+		   	return"mgroup-PGInviteJoinGroupV5";
+		case 146:
+		   	return"mgroup-PGHandleInviteJoinGroupV5";
+		case 143:
+		   	return"mgroup-PGGetGroupMembersV5";
+		case 150:
+		   	return"mgroup-PGUpdatePersonalInfoV5";
+		case 144:
+		   	return"mgroup-PGGetPersonalInfoV5";
+		case 145:
+		   	return"mgroup-PGHandleApplicationV5";
+		case 138:
+		   	return"mgroup-PGCreateGroupV5";
+		case 139:
+		   	return"mgroup-PGDeleteGroupV5";
+		case 140:
+		   	return"mgroup-PGDeleteGroupMemberV5";
+		case 135:
+		   	return"mgroup-PGGroupRegV5";
+		case 132:
+		   	return"mgroup-PGUACMsgV5";
+		case 155:
+		   	return"mgroup-PGKeepAlive";
+		case 156:
+		   	return"mgroup-PGPresence";
+		case 181:
+		   	return"mgroup-SubPGPresenceV5";
+		case 182:
+		   	return"mgroup-PGSetPresenceV5";
+		case 183:
+		   	return"mgroup-PGApproveInviteJoinV5";
+		case 185:
+		   	return"mgroup-PGSendSmsV5";
+		case 151:
+		   	return"mmessage-SendOfflineV5";
+		case 152:
+		   	return"mmessage-SendGroupSMSV5";
+		case 153:
+		   	return"mmessage-SendSMSV5";
+		case 154:
+		   	return"mmessage-ShareContentV5";
+		case 191:
+		   	return"mmultimedia-CreateMMConversationV5";
+		case 192:
+		   	return"mmultimedia-FinishMMDownload";
+		case 193:
+		   	return"mmultimedia-RequireMMData";
+		case 194:
+		   	return"mmultimedia-SendMMDataV5McpApp";
+		case 195:
+		   	return"mmultimedia-SendMMDataFinishV5";
+		default:
+			return NULL;
+	}
+	return NULL;
 }

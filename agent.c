@@ -235,10 +235,13 @@ int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *agent)
 	get_rpc_arg(&args, msg);
 
 	uint8_t *buf_out, *buf;
-	buf = calloc(sizeof(args), 1);
+	//buf = calloc(sizeof(args), 1);
+	buf = calloc(500,1);
 	size_t buf_size = mcp_app_bean_proto__pack(&args, buf); 
 	size_t buf_out_size = 0;
-	rpc_int_t ret_code = rpc_client_send_request(client, "MCP", "mcore-Reg1V5", buf, buf_size,
+	char* func_name = get_cmd_func_name(msg->cmd);
+	D("cmd func name is %s", func_name);
+	rpc_int_t ret_code = rpc_client_send_request(client, "MCP", func_name, buf, buf_size,
 				   	(void **)&buf_out, &buf_out_size);
 
 	rpc_client_close(client);
@@ -268,7 +271,7 @@ void agent_send_client(rec_msg_t* rec_msg, pxy_agent_t *agent)
 {
 	// send to client
 	int len = 0;
-    char* data =  GetData(rec_msg, &len);
+    char* data = get_send_data(rec_msg, &len);
 	D("send to client fd %d", agent->fd);
 	send(agent->fd, data, len, 0);
 }
@@ -310,10 +313,8 @@ int process_received_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg)
 void free_string_ptr(char* str)
 {
 	if(str != NULL)
-	{
 		free(str);
-		str = NULL;
-	}	
+	str = NULL;
 }
 
 void release_rpc_message(rec_msg_t* msg)
@@ -321,28 +322,28 @@ void release_rpc_message(rec_msg_t* msg)
 	free_string_ptr(msg->option);
 	free_string_ptr(msg->body);
 	free_string_ptr(msg->user_context);
-	return 0;
 }
 
 int agent_echo_read_test(pxy_agent_t *agent)
 {
+	D("fall in test part");
     rec_msg_t* msg;
 	msg = calloc(sizeof(rec_msg_t), 1);
     parse_client_data(agent, msg);
 	
 
-    char *url;
-    int ret = get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
-    D("url=%s", url);
+    //char *url;
+    //int ret = get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
+    //D("url=%s", url);
     //get proxy uri
-	if(send_rpc_server(msg, url, agent) < 0)
+	if(send_rpc_server(msg, "tcp://192.168.110.182:6002", agent) < 0)
 	{
     	release_rpc_message(msg);
-        free(url);
+        //free(url);
 		return -1;
 	}
 
-    free(url);
+    //free(url);
 	pxy_agent_buffer_recycle(agent);
     release_rpc_message(msg);
 	//pxy_agent_remove(agent);
@@ -492,10 +493,10 @@ agent_get_buf_for_read(pxy_agent_t *agent)
     return b;
 }
 
-int pxy_agent_upstream(int cmd, pxy_agent_t *agent)
+/*int pxy_agent_upstream(int cmd, pxy_agent_t *agent)
 {
     return agent_send2(agent,worker->bfd);
-}
+}*/
 
 pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
 {
@@ -570,9 +571,13 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 		agent->buf_len += n;
 
 		if(n < BUFFER_SIZE)
+		{	
+			D("break from receive loop");	
 			break;
+		}
 	}
 	D("buffer-len %zu", agent->buf_len);
+	return;
 	if(agent_echo_read_test(agent) < 0)
 	{
 		D("fail!");
@@ -581,6 +586,7 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	return;
 
 failed:
+	D("failed!");
 	pxy_agent_close(agent);
 	pxy_agent_remove(agent);
 	return;

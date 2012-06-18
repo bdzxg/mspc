@@ -52,6 +52,7 @@ int pxy_agent_buffer_recycle(pxy_agent_t *);
 buffer_t* agent_get_buf_for_read(pxy_agent_t*);
 int process_received_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg);
 void agent_recv_client(ev_t *,ev_file_item_t*);
+void free_string_ptr(char* str);
 
 #define pxy_agent_for_each(agent,alist)			\
     list_for_each_entry((agent),list,&(alist)->list)	

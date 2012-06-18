@@ -53,9 +53,9 @@ worker_init()
 int 
 worker_start()
 {
-    char *zk_url="192.168.110.231:8998";
+    //char *zk_url="192.168.110.231:8998";
     //char *zk_url = "192.168.199.8:2181";
-    route_init(zk_url);
+    //route_init(zk_url);
     
     ev_file_item_t* fi ;
     int fd = master->listen_fd;

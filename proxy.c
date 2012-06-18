@@ -179,7 +179,7 @@ void set2buf(char** buf, char* source, int len)
 	}
 }
 
-char*  GetData(rec_msg_t* t, int* length)
+char* get_send_data(rec_msg_t* t, int* length)
 {
 	int padding = 0;
 	int offset = 24;
@@ -248,7 +248,7 @@ void process_bn(rec_msg_t* msg)
 			// record usercontextbytes
 		}
 		int len;
-		char* data = GetData(msg, &len);
+		char* data = get_send_data(msg, &len);
 		send(ret->fd, data, len, 0);
 	}
 	else
@@ -320,7 +320,7 @@ main(int len,char** args)
 	if(setnonblocking(w->socket_pair[1]) < 0) {
 	    D("setnonblocking error fd:#%d",w->socket_pair[1]); continue;
 	}
-    
+
 	pid_t p = fork();
 
 	if(p < 0) {
