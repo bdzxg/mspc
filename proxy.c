@@ -161,14 +161,10 @@ int parse_server_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg, char* pr
 pxy_agent_t* get_agent(rec_msg_t* msg)
 {
 	pxy_agent_t* ret = NULL;
-
-	pxy_agent_t *a;
-   	pxy_agent_for_each(a,worker->agents)
+   	pxy_agent_for_each(ret,worker->agents)
 	{
-		if(a->user_id == msg->userid && 0 == strcmp(msg->epid, a->epid))
-		{
-			return a;
-		}
+		if(ret->user_id == msg->userid && 0 == strcmp(msg->epid, ret->epid))
+			return ret;
    	}
 	return ret;
 }
@@ -195,7 +191,7 @@ char*  GetData(rec_msg_t* t, int* length)
 	char* rval = ret;
 	set2buf(&rval, (char*)&padding, 1);
     // length
-	set2buf(&rval, (char*)&length, 2);	
+	set2buf(&rval, (char*)length, 2);	
 	// version
 	set2buf(&rval, (char*)&t->version, 1);
 	// userid
@@ -218,22 +214,21 @@ char*  GetData(rec_msg_t* t, int* length)
 	set2buf(&rval, (char*)&padding, 1);
 	// option
     int i;	
-	for(i = 0; i < t->option_len; i++)
-	{
-		*(rval++) = *(t->option++);
-	}
+	if(t->option_len != 0)
+		for(i = 0; i < t->option_len; i++)
+			*(rval++) = *(t->option++);
+	else
+		rval += 4;
 	// body
 	for(i = 0; i < t->body_len; i++ )
-	{
 		*(rval++) = *(t->body++);
-	}
 	// end padding 0
 	*rval = 0;
-	rval = ret;
+/*	rval = ret;
 	for(i = 0; i < *length; i++)
 	{
 		D("content %d", (unsigned char)*(rval++));
-	}
+	}*/
 	return ret;
 }
 void process_bn(rec_msg_t* msg)
@@ -241,21 +236,20 @@ void process_bn(rec_msg_t* msg)
 	pxy_agent_t* ret = NULL;
 	
 	if(msg->cmd == 105)
+		// TODO add tcp flow
 		return;
 	else 
-	{
 		ret = get_agent(msg);
-	}
 
 	if(ret != NULL)
 	{
 		if(msg->cmd == 102 && msg->user_context!= NULL)
 		{
 			// record usercontextbytes
-			int len;
-			char* data = GetData(msg, &len);
-			send(ret->fd, data, len, 0);
 		}
+		int len;
+		char* data = GetData(msg, &len);
+		send(ret->fd, data, len, 0);
 	}
 	else
 	{
