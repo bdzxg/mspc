@@ -1,63 +1,17 @@
 #include "proxy.h"
 #include "agent.h"
 #include "include/rpc_client.h"
-#include "McpAppBeanProto.pb-c.h"
 #include "include/zookeeper.h"
 #include <pthread.h>
-#include "route.h"
-//#include "ClientHelper.c"
+//#include "route.h"
+#include "include/rpc_args.h"
+#include "ClientHelper.c"
 
 extern pxy_worker_t *worker;
 size_t packet_len;
 static char* PROTOCOL = "MCP/3.0";
 char* agent_epid = NULL;
-static int 
-agent_send2(pxy_agent_t *agent,int fd)
-{
-    int i = 0;
-    ssize_t n;
-    size_t len;
-    void *data;
-    buffer_t *b = agent->buffer;
-  
-    n = agent->buf_parsed - agent->buf_sent;
-
-    for(; b != NULL; agent->buf_sent += n, b = b->next, i++){
-    
-	if(i == 0){
-	    data = (void*)((char*)b->data + agent->buf_sent);
-	   len  = b->len - agent->buf_sent;
-	}
-	else{
-	    data = b->data;
-	    len  = b->len;
-	}
-	// call zookeeper get proxy send message
-	/*	n = send(fd,data,len,0);
-	D("n:%zu, fd #%d, errno :%d, EAGAIN:%d", n,fd,errno,EAGAIN);
-      
-	if(n < 0) {
-	    if(errno == EAGAIN || errno == EWOULDBLOCK) {
-		return 0;
-	    }
-	    else {
-		pxy_agent_close(agent);
-		pxy_agent_remove(agent);
-		return -1;
-	    }
-	}
-*/
-	}
- //   pxy_agent_buffer_recycle(agent);
-
-    return 0;
-}
-
-int
-pxy_agent_downstream(pxy_agent_t *agent)
-{
-    return agent_send2(agent,agent->fd);
-}
+char* agent_usercontext = NULL;
 
 int char_to_int(buffer_t* buf, int* off, int len)
 {
@@ -87,7 +41,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 
 	if(packet_len > agent->buf_len)
 	{
-		D("Parse packet_len %d > agent->buf_len %lu", packet_len ,agent->buf_len);
+		D("Parse packet_len %lu > agent->buf_len %lu", packet_len ,agent->buf_len);
 		return 0;
 	}
 
@@ -102,6 +56,13 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	msg->client_version = char_to_int(b, &index, 2);
 	msg->body_len = msg->len - 1 - msg->off;
 	msg->option_len =  msg->len -21 - msg->body_len;
+	if(agent_usercontext == NULL){
+		msg->user_context_len = 0;
+		msg->user_context = NULL;
+	}else{
+		msg->user_context_len = strlen(agent_usercontext);
+		msg->user_context = agent_usercontext;
+	}
 /* 	
 	D("Parse version %d", msg->version);
 	D("Parse userid %d", msg->userid);
@@ -146,7 +107,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 		for(t = 0; t < msg->body_len; t++)
 		{
 			msg->body[t] = *buffer_read(b, index+t);
-		//	D("body[%d] is %d", t,msg->body[t]); 
+			//D("body[%d] is %d", t,msg->body[t]); 
 		}
 	}else{
 		msg->body = NULL;
@@ -170,100 +131,103 @@ char* Get_CompactUri(rec_msg_t* msg)
  	sprintf(ret, "id:%d;p=%d;", msg->userid,msg->logic_pool_id);	
 	return ret;
 }
-
+ 
 void get_rpc_arg(McpAppBeanProto* args, rec_msg_t* msg)
 {
-	args->protocol = PROTOCOL;
- 	args->cmd = msg->cmd;
-	args->compacturi = Get_CompactUri(msg);
-	args->userid = msg->userid;
-	args->sequence = msg->seq;
-	args->opt = msg->format;
+	args->Protocol.len = strlen(PROTOCOL);
+	args->Protocol.buffer = PROTOCOL;
+ 	args->Cmd = msg->cmd;
+	char* uri = Get_CompactUri(msg);
+	args->CompactUri.len = strlen(uri);
+	args->CompactUri.buffer = uri;
+	args->UserId = msg->userid;
+	args->Sequence = msg->seq;
+	args->Opt = msg->format;
 	
 	if(msg->user_context != NULL){
-		args->usercontext.len = strlen(msg->user_context);
-		args->usercontext.data = (uint8_t*)msg->user_context;
-	}else{
-		args->usercontext.len = 0; 
-		args->usercontext.data = NULL;
-	}
+		args->UserContext.len = strlen(msg->user_context);
+		args->UserContext.buffer = msg->user_context;
+	}else{ args->UserContext.len = 0;  args->UserContext.buffer = NULL;}
 
-	if(msg->body != NULL){	
-		args->content.len = msg->body_len;
-		args->content.data = (uint8_t*)msg->body;
-	}else{
-		args->content.len = 0;
-		args->content.data = NULL;
-	}
-
-	if(msg->epid != NULL)
-		args->epid = msg->epid;
-	else{
-		args->epid = GenerateClientEpid("ANDROID", NULL);
-		agent_epid = args->epid;
-	}
-
-	args->zipflag = msg->compress;
-/*	
-	D("args->protocol %s", args->protocol);
-	D("args->cmd %u", args->cmd);
-	D("args.compacturi %s", args->compacturi);
-	D("args.userid %d", args->userid);
-	D("args.sequence %d", args->sequence);
-	D("args.opt %d", args->opt);
-	D("args->usercontext.len %zu",args->usercontext.len);
-	D("args->usercontext.len %zu", args->usercontext.len);
-	unsigned int i = 0;
-	D("args->content.len %zu", args->content.len);
-	for(i=0; i < args->content.len ; i++)
-		D("args->content.data %d", args->content.data[i]);
-	D("args.epid %s", args->epid);
-	D("args->zipflag %d", args->zipflag);*/
+	if(msg->body_len > 0){	
+		args->Content.len = msg->body_len;
+		args->Content.buffer = msg->body;
+	}else{ args->Content.len = 0; args->Content.buffer = NULL;}
+	
+	if(msg->epid == NULL)
+		msg->epid = agent_epid = generate_client_epid(msg->client_type, msg->client_version);
+	
+	args->Epid.len = strlen(msg->epid);
+	args->Epid.buffer = msg->epid;
+	args->ZipFlag = msg->compress;
+/*	D("args->protocol %s", args->Protocol.buffer); D("args->cmd %u", args->Cmd);
+	D("args->compacturi %s", args->CompactUri.buffer); 	D("args->userid %d", args->UserId);
+	D("args->sequence %d", args->Sequence); D("args->opt %d", args->Opt);
+	D("args->usercontext.len %zu",args->UserContext.len); D("args->content.len %zu", args->Content.len);
+	D("args->content.data %s", args->Content.buffer); D("args->epid %s", args->Epid.buffer);
+	D("args->zipflag %d", args->ZipFlag);*/
 }	
+
+void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t output_len,void *input, size_t input_len, void *data)
+{
+		if(code != RPC_CODE_OK || output_len == 0){
+				D("rpc return code %d,input len %zu, buf_out_size %zu", (int)code, input_len, output_len);
+				return;
+		}
+
+		McpAppBeanProto rsp;
+		rpc_pb_string str = {output, output_len};
+		int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);
+		if (r < 0) {
+				D("rpc response unpack fail");
+				return;
+		}
+
+		rec_msg_t msg;
+		msg.cmd = rsp.Cmd;
+		msg.body_len = rsp.Content.len;
+		msg.body = rsp.Content.buffer;
+		msg.userid = rsp.UserId;
+		msg.seq = rsp.Sequence;
+		msg.format = rsp.Opt;
+		msg.user_context = rsp.UserContext.buffer;
+	    msg.user_context_len = rsp.UserContext.len;	
+		msg.compress = rsp.ZipFlag;
+		msg.epid = calloc(rsp.Epid.len+1, 1); 
+		memcpy(msg.epid, rsp.Epid.buffer, rsp.Epid.len);
+	
+		pxy_agent_t* a = (pxy_agent_t*)data;
+		int len;
+		char* d = get_send_data(&msg, &len);
+		send(a->fd, d, len, 0);
+		free(msg.epid);
+		rpc_free(input);
+}
 
 int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *agent)
 {
-	D("rpc uri %s", proxy_uri);
-	rpc_stack_init("abc");
-    rpc_client_t *client = rpc_client_new_full(proxy_uri, 128000);
-	if(client == NULL){
+    rpc_client_t *c= rpc_client_new();
+	rpc_proxy_t *p = rpc_client_connect(c, proxy_uri);
+	if(p == NULL){
 		D("creat rpc client is NULL");
 		return -1;
 	}
-
-	McpAppBeanProto args = MCP_APP_BEAN_PROTO__INIT; 
+	rpc_args_init();
+	McpAppBeanProto args; 
+	
 	get_rpc_arg(&args, msg);
 
-	uint8_t *buf_out, *buf;
-	//buf = calloc(sizeof(args), 1);
-	buf = calloc(500,1);
-	size_t buf_size = mcp_app_bean_proto__pack(&args, buf); 
-	size_t buf_out_size = 0;
+	D("before pack");
+	rpc_pb_string str_input; 
+	int inputsz = 1024;  
+	str_input.buffer = calloc(inputsz, 1);
+	str_input.len = inputsz;
+	rpc_pb_pattern_pack(rpc_pat_mcpappbeanproto, &args, &str_input);
 	char* func_name = get_cmd_func_name(msg->cmd);
-	D("cmd func name is %s", func_name);
-	rpc_int_t ret_code = rpc_client_send_request(client, "MCP", func_name, buf, buf_size,
-				   	(void **)&buf_out, &buf_out_size);
-
-	rpc_client_close(client);
-    free_string_ptr(args.compacturi);
-	free(buf);
-
-	if(ret_code != RPC_CODE_OK || buf_out_size == 0){
-		D("rpc return code %zu, buf_out_size %zu", ret_code, buf_out_size);
-		return -1;
-	}
-
-	//D("rpc return code success %zu", ret_code);
-    rec_msg_t* rec_msg = calloc(sizeof(rec_msg_t), 1);
-	if(process_received_msg(buf_out_size, buf_out, rec_msg) < 0){
-		rpc_free(buf_out);
-		free(rec_msg);
-		return -1;
-	}
-
-	agent_send_client(rec_msg, agent);
-	free(rec_msg);
-	rpc_free(buf_out);
+	D("get func name %s", func_name);
+	rpc_call_async(p, "MCP", func_name, str_input.buffer, str_input.len, rpc_response, agent); 
+	free(args.CompactUri.buffer);
+	D("start async rpc");
 	return 0;
 }
 
@@ -275,40 +239,6 @@ void agent_send_client(rec_msg_t* rec_msg, pxy_agent_t *agent)
 	D("send to client fd %d", agent->fd);
 	send(agent->fd, data, len, 0);
 }
-
-int process_received_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg)
-{
-	McpAppBeanProto *ret = mcp_app_bean_proto__unpack(NULL, buf_size, buf_ptr);
-	if(ret == NULL)
-	{
-		D("rpc unpacket fail");
-		return -1;
-	}
-	msg->cmd = ret->cmd;
-	msg->body_len = ret->content.len;
-	msg->body = (char*)ret->content.data;
-	msg->userid = ret->userid; 
-	msg->seq = ret->sequence;
-	msg->format = ret->opt;
-	msg->user_context_len = ret->usercontext.len;
-	msg->user_context = (char*)ret->usercontext.data;
-	msg->compress = ret->zipflag;
-	msg->epid = ret->epid;
-	/*	int i = 0;
-	D("msg->cmd %d", msg->cmd);
-	D("msg->body_len %d", msg->body_len);
-	for(i = 0; i < msg->body_len; i++)
-		D("msg->body[%d] = %d", i, (unsigned char) *(msg->body+i));
-	D("msg->userid %d", msg->userid);
-	D("msg->seq %d", msg->seq);
-	D("msg->format %d", msg->format);
-	D("msg->user_context_len %d", msg->user_context_len);
-	for(i = 0; i < msg->user_context_len; i++)
-		D("msg->user_context[%d] = %d", i, (unsigned char) *(msg->user_context+i));
-	D("msg->compress %d", msg->compress);
-	D("msg->epid %s", msg->epid);*/
-	return 0;
-}	
 
 void free_string_ptr(char* str)
 {
@@ -326,84 +256,26 @@ void release_rpc_message(rec_msg_t* msg)
 
 int agent_echo_read_test(pxy_agent_t *agent)
 {
-	D("fall in test part");
     rec_msg_t* msg;
 	msg = calloc(sizeof(rec_msg_t), 1);
     parse_client_data(agent, msg);
-	
 
-    //char *url;
-    //int ret = get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
-    //D("url=%s", url);
+    char *url;
+    int ret = get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
+    D("url=%s", url);
     //get proxy uri
-	if(send_rpc_server(msg, "tcp://192.168.110.182:6002", agent) < 0)
+	if(send_rpc_server(msg, url, agent) < 0)
 	{
     	release_rpc_message(msg);
-        //free(url);
+        free(url);
 		return -1;
 	}
 
-    //free(url);
+    free(url);
 	pxy_agent_buffer_recycle(agent);
     release_rpc_message(msg);
-	//pxy_agent_remove(agent);
-	//pxy_agent_close(agent);
     return 0;
 }
-
-/*
-int pxy_agent_data_received(pxy_agent_t *agent)
-{
-    // *
-    // * parse the data, and send the packet to the upstream
-    // *
-    // * proto format:
-    // * 00|len|cmd|content|00
-    // *
-
-    int idx,n,i = 0;
-    char *c;
-
-    n = agent->buf_offset - agent->buf_sent;
-
-    if(n){
-	idx = agent->buf_sent;
-
-	int cmd = -1,len = 0,s = 0;
-    
-	while((i++ < n) && (c=buffer_read(agent->buffer,idx)) != NULL) {
-      
-	  // parse state machine
-	    switch(s){
-	    case 0:
-		if(*c != 0)
-		    return -1;
-		s++; idx++;
-		break;
-	    case  1:
-		len = (int)*c;
-		s++; idx++;
-		break;
-	    case  2:
-		cmd = (int)*c;
-		s++; idx += len-3;
-		break;
-	    case  3:
-		if(*c !=0)
-		    return -1;
-
-		//on message parse finish
-		s=0; idx++;
-		agent->buf_parsed = idx;
-		break;
-	    }
-	}
-
-	pxy_agent_upstream(cmd,agent);
-    }
-
-    return 0;
-}*/
 
 int 
 pxy_agent_buffer_recycle(pxy_agent_t *agent)
@@ -493,11 +365,6 @@ agent_get_buf_for_read(pxy_agent_t *agent)
     return b;
 }
 
-/*int pxy_agent_upstream(int cmd, pxy_agent_t *agent)
-{
-    return agent_send2(agent,worker->bfd);
-}*/
-
 pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
 {
     pxy_agent_t *agent = mp_alloc(pool);
@@ -542,7 +409,7 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	   	{
 			D("no buf for read");
 			pxy_agent_close(agent);
-			pxy_agent_remove(agent);
+			map_remove(&worker->root, agent->epid);
 		}
 
 		n = recv(fi->fd,b->data,BUFFER_SIZE,0);
@@ -577,7 +444,6 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 		}
 	}
 	D("buffer-len %zu", agent->buf_len);
-	return;
 	if(agent_echo_read_test(agent) < 0)
 	{
 		D("fail!");
@@ -588,6 +454,6 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 failed:
 	D("failed!");
 	pxy_agent_close(agent);
-	pxy_agent_remove(agent);
+	map_remove(&worker->root, agent->epid);
 	return;
 }

@@ -8,11 +8,30 @@
 
 #include "rpc_types.h"
 
-#define RPC_MASK_REQUEST  0x0BADBEE0
-#define RPC_MASK_RESPONSE 0x0BADBEE1
-#define RPC_PACKET_HEADER_LEN sizeof(rpc_packet_head_t)
+BEGIN_DECLS
 
 typedef struct rpc_packet_head_s rpc_packet_head_t;
+
+#define __RPC_MESSAGE_COMMON \
+  rpc_parse_state st; \
+  rpc_packet_head_t *packet_head; \
+  size_t packet_length; \
+  uint8_t *message_head; \
+  size_t message_head_length; \
+  void *body; \
+  size_t  body_length; 
+
+#define RPC_PACKET_HEAD_LEN sizeof(rpc_packet_head_t)
+#define RPC_REQ_MAX_HEAD_LEN 114
+#define RPC_RSP_MAX_HEAD_LEN 24
+
+
+typedef enum {
+  rpc_ps_none =0, //包未开始解析
+  rpc_ps_pheader_done, //包头已解析
+  rpc_ps_header_done, //头已解析
+  rpc_ps_done //包解析完毕
+}rpc_parse_state;
 
 struct rpc_packet_head_s {
   uint32_t  packet_mask;
@@ -21,30 +40,43 @@ struct rpc_packet_head_s {
   uint16_t  packet_options;
 };
 
-struct rpc_packet_s {
-  rpc_pool_t *pool;
-  rpc_packet_head_t *packet_head;
-  size_t packet_length;
-  uint8_t *message_head;
-  size_t message_head_length;
-  void *body;
-  size_t body_length;
+typedef struct {
+  int32_t from_id;
+  int32_t to_id;
+  int32_t sequence;
+  int32_t body_length;
+  int32_t option;
+  rpc_pb_string context_uri;
+  rpc_pb_string from_computer;
+  rpc_pb_string from_service;
+  rpc_pb_string to_service;
+  rpc_pb_string to_method;
+  rpc_pb_array  extensions;
+}rpc_request_head_t;
 
-  void *header;
-};
-rpc_packet_t *rpc_packet_create();
+typedef struct {
+  int32_t id;
+  int32_t length;
+}rpc_request_exension_t;
 
-void rpc_packet_free(rpc_packet_t *pkt);
+typedef struct {
+  int32_t sequence;
+  int32_t response_code;
+  int32_t body_length;
+  int32_t option;
+  int32_t to_id;
+  int32_t from_id;
+}rpc_response_head_t;
 
-rpc_packet_t *rpc_packet_create_req(char *service_name, char *method_name,void *buf,size_t buf_len );
+rpc_int_t rpc_packet_rev(rpc_connection_t *c);
 
-rpc_packet_t *rpc_packet_create_rsp(rpc_packet_t *request, rpc_int_t rsp_code, void *buf, size_t buf_len);
+rpc_int_t rpc_pb_init();
 
-rpc_int_t rpc_packet_req_handler(rpc_connection_t *c);
+extern rpc_pb_pattern *rpc_pat_head_req;
+extern rpc_pb_pattern *rpc_pat_req_ex;
+extern rpc_pb_pattern *rpc_pat_head_rsp;
 
-rpc_int_t rpc_packet_rsp_handler(rpc_connection_t *c, void **buf,size_t *buf_len);
-
-rpc_int_t rpc_packet_receive(rpc_connection_t *c,rpc_msec_t timer, void **buf, size_t *buf_len);
+END_DECLS
 
 #endif
 

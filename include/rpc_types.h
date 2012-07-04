@@ -6,6 +6,25 @@
 #ifndef _RPC_TYPES_H_INCLUDED_
 #define _RPC_TYPES_H_INCLUDED_
 
+#ifdef  __cplusplus
+# define BEGIN_DECLS  extern "C" {
+# define END_DECLS    }
+#else
+# define BEGIN_DECLS
+# define END_DECLS
+#endif
+
+#define rpc_abs(value)  (((value) >= 0) ? (value) : - (value))
+#define rpc_max(val1, val2) ((val1 < val2) ? (val2) : (val1))
+#define rpc_min(val1, val2) ((val1 > val2) ? (val2) : (val1))
+
+#define rpc_ptoi(p) ((int)  (long) (p))
+#define rpc_itop(i) ((void *) (long) (i))
+
+#ifndef __need_IOV_MAX
+#define __need_IOV_MAX
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -20,9 +39,19 @@
 #include <signal.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <pthread.h>
+
+#include <assert.h>
+#include <ev.h>
+
+#include "rpc_log.h"
+#include "pbc.h"
+
+BEGIN_DECLS
 
 /* RPC types */
 typedef intptr_t rpc_int_t;
@@ -30,36 +59,58 @@ typedef uintptr_t rpc_uint_t;
 typedef rpc_uint_t rpc_msec_t;
 typedef rpc_int_t rpc_msec_int_t;
 
+typedef struct rpc_queue_s rpc_queue_t;
+typedef struct rpc_queue_item_s rpc_queue_item_t;
+typedef struct rpc_array_s rpc_array_t;
+typedef struct rpc_hash_s rpc_hash_t;
+typedef struct rpc_sessionpool_s rpc_sessionpool_t;
+
 typedef struct rpc_buf_s  rpc_buf_t;
 typedef struct rpc_pool_s rpc_pool_t;
 typedef struct rpc_endpoint_s rpc_endpoint_t;
 typedef struct rpc_connection_s rpc_connection_t;
-typedef struct rpc_packet_s rpc_packet_t;
-typedef struct rpc_event_s rpc_event_t;
-typedef struct rpc_stack_s rpc_stack_t; 
+
 typedef struct rpc_client_s rpc_client_t;
+typedef struct rpc_proxy_s rpc_proxy_t;
+
+typedef struct rpc_channel_s rpc_channel_t;
 typedef struct rpc_server_s rpc_server_t;
 typedef struct rpc_service_s rpc_service_t;
 
-typedef void (*rpc_callback_ptr)(rpc_connection_t *c, void *input, size_t input_size);
+typedef struct rpc_thread_dispatch_s rpc_thread_dispatch_t;
+typedef struct rpc_thread_worker_s rpc_thread_worker_t;
 
-struct rpc_stack_s {
-  char *service_name;
-  char *computer_name;
+typedef struct rpc_channel_setting_s rpc_channel_setting_t;
+typedef struct rpc_proxy_setting_s rpc_proxy_setting_t;
 
-  rpc_event_t *read_events ;
-  rpc_event_t *write_events ;
+typedef struct rpc_request_s rpc_request_t;
 
-  rpc_connection_t *connections ;
-  rpc_uint_t connection_n ;
+/* pb */
+typedef struct pbc_slice rpc_pb_string;
+typedef pbc_array rpc_pb_array;
+typedef struct pbc_env rpc_pb_env;
+typedef struct pbc_pattern rpc_pb_pattern;
 
-  rpc_connection_t *free_connections ;
-  rpc_uint_t free_connection_n ;
-};
+#define rpc_pb_env_new pbc_new 
+#define rpc_pb_env_regdesc pbc_register
 
-extern rpc_stack_t *rpc_stack;
-extern rpc_server_t *rpc_current_server;
+#define rpc_pb_pattern_new pbc_pattern_new
+#define rpc_pb_pattern_pack pbc_pattern_pack
+#define rpc_pb_pattern_unpack pbc_pattern_unpack
 
+#define rpc_pb_array_size pbc_array_size
+#define rpc_pb_array_slice pbc_array_slice
+#define rpc_pb_array_real pbc_array_real
+#define rpc_pb_array_integer pbc_array_integer
+
+#define rpc_pb_array_push_integer pbc_array_push_integer
+#define rpc_pb_array_push_real pbc_array_push_real 
+#define rpc_pb_array_push_slice pbc_array_push_slice
+
+#define rpc_pb_pattern_close_array pbc_pattern_close_arrays 
+
+typedef void (*rpc_function_ptr)(rpc_connection_t *c, void *input, size_t input_len);
+typedef void (*rpc_callback_ptr)(rpc_connection_t *c,rpc_int_t code, void *output, size_t output_len, void *input, size_t input_len, void *data);
 /* RPC mem alloc*/
 #define RPC_TIMER_INFINITE (rpc_msec_t) -1
 
@@ -77,10 +128,10 @@ extern rpc_server_t *rpc_current_server;
 #define rpc_memzero(buf, n) (void) memset(buf, 0 ,n)
 #define rpc_memset(buf, c, n) (void) memset(buf, c, n)
 #define rpc_memcpy(dst, src, n) (void) memcpy(dst, src, n)
+#define rpc_memmove(dst, src, n) (void) memmove(dst, src, n)
 
-#define rpc_align(d, a) (((d) + (a - 1)) & ~(a - 1))
-#define rpc_align_ptr(p, a) \
-  (u_char *) (((uintptr_t) (p) + ((uintptr_t) a -1)) & ~((uintptr_t) a - 1))
+#define rpc_set_nonblock(fd) fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+#define rpc_set_cloexec(fd) fcntl(fd, F_SETFD, FD_CLOEXEC, 1)
 
 /* RPC return code */
 #define RPC_OK 0
@@ -90,6 +141,7 @@ extern rpc_server_t *rpc_current_server;
 #define RPC_DONE -4
 #define RPC_DECLINED -5
 #define RPC_ABORT -6
+#define RPC_NONE -999
 
 /* RPC error code */
 #define RPC_CODE_OK 200
@@ -111,8 +163,5 @@ extern rpc_server_t *rpc_current_server;
 #define RPC_CODE_SERVER_TRANSFER_FAILED 600
 #define RPC_CODE_UNKOWN 699
 
-#define rpc_abs(value)  (((value) >= 0) ? (value) : - (value))
-#define rpc_max(val1, val2) ((val1 < val2) ? (val2) : (val1))
-#define rpc_min(val1, val2) ((val1 > val2) ? (val2) : (val1))
-
+END_DECLS
 #endif

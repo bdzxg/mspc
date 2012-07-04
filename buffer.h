@@ -13,7 +13,7 @@ typedef struct buffer_s {
 #define buffer_fetch(pool,datapool)		\
     ({						\
 	buffer_t *__buffer;			\
-	__buffer = mp_alloc((pool));		\
+	__buffer = mp_calloc((pool));		\
 	__buffer->data = mp_calloc((datapool));	\
 	__buffer;				\
     })

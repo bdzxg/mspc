@@ -8,10 +8,16 @@
 
 #include "rpc_types.h"
 
+typedef enum {
+  rpc_protocol_tcp,
+  rpc_protocol_uds
+}rpc_protocol_type;
+
 struct rpc_endpoint_s {
   char  *addr_text;
 
   /* tcp uds */
+  rpc_protocol_type type;
   char  *protocol;
   char  *path;
 

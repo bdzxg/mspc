@@ -19,6 +19,7 @@
 #define E(x) printf("ERROR:%s\n",x)
 
 #include "sysinc.h"
+#include "rbtree.h"
 #include "ev.h"
 #include "list.h"
 #include "buffer.h"
@@ -26,6 +27,7 @@
 #include "mempool.h"
 #include "hashtable.h"
 #include "agent.h"
+#include "map.h"
 
 typedef struct pxy_config_s{
     short client_port;
@@ -38,12 +40,12 @@ typedef struct pxy_worker_s{
     ev_t* ev;
     int connection_n;
     pid_t pid;
-    pxy_agent_t *agents;
     mp_pool_t *buf_pool;
     mp_pool_t *buf_data_pool;
     mp_pool_t *agent_pool;
     struct sockaddr_in *baddr;
     int socket_pair[2];
+	struct rb_root root;
 }pxy_worker_t;
 
 typedef struct pxy_master_s{
@@ -68,6 +70,7 @@ void worker_accept(ev_t*,ev_file_item_t*);
 void worker_recv_client(ev_t*,ev_file_item_t*);
 void worker_recv_cmd(ev_t*,ev_file_item_t*);
 char* get_send_data(rec_msg_t* t, int* length);
+void *rpc_server_thread(void *arg);
 
 static inline 
 int setnonblocking(int sock)

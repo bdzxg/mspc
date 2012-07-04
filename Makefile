@@ -3,17 +3,20 @@ CFLAGS = -pipe  -O -W -Wall -I -Wno-unused-parameter -g
 LINK =	$(CC)
 
 LIB_OBJS = \
+	./rbtree.o \
+	./map.o \
 	./ev.o \
 	./mempool.o \
 	./hashtable.o \
-	./rbtree.o\
-	./McpAppBeanProto.pb-c.o
+
+MAP_OBJS = \
+	./rbtree.o \
+	./map.o 
 
 PXY_OBJS = \
 	./worker.o \
 	./proxy.o \
 	./agent.o \
-	./ClientHelper.o
 
 PXY_TEST = \
 	./pxy_test.o \
@@ -21,14 +24,17 @@ PXY_TEST = \
 HT_TEST = \
 	./hashtable_test.o \
 
+MAP_TEST = \
+	./map_test.o
+
 TEST = \
 	$(PXY_TEST) \
 	$(HT_TEST)  \
 
 OUTPUT = proxy
 
-all:  $(LIB_OBJS) $(PXY_OBJS) 
-	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -o $(OUTPUT) -Llib -I./include -lrpc_uds -lprotobuf-c -lm -lroute_mt 
+apl:  $(LIB_OBJS) $(PXY_OBJS) 
+	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -I./include -o $(OUTPUT) -Llib -lrpc_c -lprotobuf-c -lm -lroute_mt -lev -lpthread -lpbc
 
 clean:
 	rm -f $(PXY_OBJS)
@@ -38,4 +44,7 @@ clean:
 
 ht_test: $(LIB_OBJS) $(HT_TEST)
 	$(LINK) $(LIB_OBJS) $(TEST) -o $@
+
+map_test: $(MAP_OBJS) $(MAP_TEST)
+	$(LINK) $(MAP_OBJS) $(MAP_TEST) -o $@
 

@@ -1,6 +1,7 @@
 
 #include "proxy.h"
 #include "route.h"
+#include "map.h"
 
 extern pxy_master_t *master;
 extern pxy_worker_t *worker;
@@ -15,7 +16,7 @@ void worker_recv_cmd(ev_t*,ev_file_item_t*);
 int 
 worker_init()
 {
-    worker = (pxy_worker_t*)malloc(sizeof(*worker));
+    worker = (pxy_worker_t*)pxy_calloc(sizeof(*worker));
 
     if(worker) {
 	worker->ev = ev_create();
@@ -38,12 +39,7 @@ worker_init()
 	    D("create buf_pool error"); return -1;
 	}
     
-	worker->agents = mp_alloc(worker->agent_pool);
-	if(!worker->agents){
-	    D("create agents error"); return -1;
-	}
-
-	INIT_LIST_HEAD(&(worker->agents->list));
+	worker->root = RB_ROOT;
 	return 0;
     }
 
@@ -91,16 +87,28 @@ worker_close()
 {
     
     route_close();
-    pxy_agent_t *a;
-    pxy_agent_for_each(a,worker->agents){
-	pxy_agent_close(a);
-    }
+    //pxy_agent_t *a;
+    //pxy_agent_for_each(a,worker->agents){
+	//pxy_agent_close(a);
+    //}
+	pxy_agent_t *item;
+	struct rb_node *rn;
+	map_walk(&worker->root,rn) {
+		item = rb_entry(rn, struct pxy_agent_s, rbnode);
+		D("queue name is %s:%p\n",item->epid,item);
+		pxy_agent_close(item);
+	}
+
 
     worker->ev->stop = 1;
     close(master->listen_fd);
     return 0;
 } 
 
+int worker_insert_agent(pxy_agent_t *agent)
+{
+	map_insert(&worker->root,agent);
+}
 void
 worker_accept(ev_t *ev, ev_file_item_t *ffi)
 {
@@ -137,9 +145,8 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 		D("create file item error");
 	    }
 	    ev_add_file_item(worker->ev,fi);
-
-	    pxy_agent_append(agent,worker->agents);
- 	}
+		map_insert(&worker->root,agent);/*TODO: check the result*/
+ 	}	
  	else{ break; }
      }
 } 

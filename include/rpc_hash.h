@@ -8,8 +8,6 @@
 
 #include "rpc_types.h"
 
-typedef struct rpc_hash_s rpc_hash_t;
-
 typedef unsigned int  (*rpc_hash_func)(const void *key);
 
 typedef int (*rpc_equal_func)(const void *a, const void *b);

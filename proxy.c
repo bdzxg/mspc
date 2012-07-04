@@ -3,10 +3,10 @@
  */ 
 
 #include "proxy.h"
-#include "include/rpc_server.h"
-#include "McpAppBeanProto.pb-c.h"
 #include "agent.h"
 #include "include/rpc_client.h"
+#include "include/rpc_server.h"
+#include "include/rpc_args.c"
 
 pxy_master_t* master;
 pxy_config_t* config;
@@ -134,38 +134,10 @@ pxy_init_master()
     return pxy_start_listen();
 }
 
-int parse_server_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg, char* protc)
-{
-	McpAppBeanProto *ret; 
-    ret = mcp_app_bean_proto__unpack(NULL, buf_size, buf_ptr);
-	if(ret == NULL)
-	{
-		D("rpc unpacket fail");
-		return 1;
-	}
-	msg->cmd = ret->cmd;
-	msg->body_len = ret->content.len;
-	msg->body = ret->content.data;
-	msg->userid = ret->userid; 
-	msg->seq = ret->sequence;
-	msg->format = ret->opt;
-	msg->user_context_len = ret->usercontext.len;
-	msg->user_context = ret->usercontext.data;
-	msg->compress = ret->zipflag;
-	msg->epid = ret->epid;
-
-	protc = ret->protocol;
-	return 0;
-}	
-
 pxy_agent_t* get_agent(rec_msg_t* msg)
 {
 	pxy_agent_t* ret = NULL;
-   	pxy_agent_for_each(ret,worker->agents)
-	{
-		if(ret->user_id == msg->userid && 0 == strcmp(msg->epid, ret->epid))
-			return ret;
-   	}
+	ret = map_search(&worker->root,msg->epid);
 	return ret;
 }
 
@@ -183,11 +155,12 @@ char* get_send_data(rec_msg_t* t, int* length)
 {
 	int padding = 0;
 	int offset = 24;
-	char* ret = NULL;
-	*length = 25+t->body_len;
-	ret = calloc(sizeof(char), *length);
+	*length = 25 + t->body_len;
+	char* ret = calloc(sizeof(char), *length);
 	if(ret == NULL)
 		return ret;
+
+	t->version = 0;//msp use 0.
 	char* rval = ret;
 	set2buf(&rval, (char*)&padding, 1);
     // length
@@ -213,28 +186,31 @@ char* get_send_data(rec_msg_t* t, int* length)
 	// 0
 	set2buf(&rval, (char*)&padding, 1);
 	// option
-    int i;	
-	if(t->option_len != 0)
-		for(i = 0; i < t->option_len; i++)
+	set2buf(&rval, (char*)&t->format, 4);
+    /*
+	 int i;
+	 if(t->option_len != 0)
+	 for(i = 0; i < t->option_len; i++)
 			*(rval++) = *(t->option++);
-	else
-		rval += 4;
+	 else rval += 4;*/
+
 	// body
+    int i;
 	for(i = 0; i < t->body_len; i++ )
 		*(rval++) = *(t->body++);
 	// end padding 0
 	*rval = 0;
-/*	rval = ret;
+	/*rval = ret;
 	for(i = 0; i < *length; i++)
 	{
 		D("content %d", (unsigned char)*(rval++));
 	}*/
 	return ret;
 }
+
 void process_bn(rec_msg_t* msg)
 {
 	pxy_agent_t* ret = NULL;
-	
 	if(msg->cmd == 105)
 		// TODO add tcp flow
 		return;
@@ -243,10 +219,9 @@ void process_bn(rec_msg_t* msg)
 
 	if(ret != NULL)
 	{
-		if(msg->cmd == 102 && msg->user_context!= NULL)
-		{
-			// record usercontextbytes
-		}
+		/*  can not be 102
+		if(msg->cmd == 102 && msg->user_context!= NULL){
+			// record usercontextbytes	}*/
 		int len;
 		char* data = get_send_data(msg, &len);
 		send(ret->fd, data, len, 0);
@@ -257,52 +232,84 @@ void process_bn(rec_msg_t* msg)
 	}
 }
 
-void receive_message(rpc_connection_t* c, void *buf, size_t buf_size)
+void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 {
-	rec_msg_t rec_msg;
-	char* protocol;
-    if(1 == parse_server_msg(buf_size, buf, &rec_msg, protocol))
-		rpc_return_error(c, "400", "protobuffer parse error");
-	
-	ReceiveResult ret = RECEIVE_RESULT__INIT;
-    ret.protocol = protocol; 
-	uint8_t out[256];
-	size_t size;
-	size = receive_result__pack(&ret, out);
+		McpAppBeanProto input;
+		rpc_pb_string str = {buf, buf_size};
+		int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &input);
 
-	rpc_return(c, out, size);
+		if ( r < 0) {
+				rpc_return_error(c, RPC_CODE_INVALID_REQUEST_ARGS, "input decode failed!");
+				return;
+		}
+
+		rec_msg_t msg;
+		msg.cmd = input.Cmd;
+		msg.body_len = input.Content.len;
+		msg.body = input.Content.buffer;
+		msg.userid = input.UserId;
+		msg.seq = input.Sequence;
+		msg.format = input.Opt;
+		msg.user_context = input.UserContext.buffer;
+	    msg.user_context_len = input.UserContext.len;	
+		msg.compress = input.ZipFlag;
+		msg.epid = calloc(input.Epid.len+1, 1); 
+		memcpy(msg.epid, input.Epid.buffer, input.Epid.len);
+
+		process_bn(&msg);
+		free(msg.epid);
+		retval output;
+		output.option.len = input.Protocol.len;
+		output.option.buffer = input.Protocol.buffer;
+		rpc_pb_string str_out;
+		int outsz = 256;  
+		str_out.buffer = rpc_connection_alloc(c, outsz);
+		str_out.len = outsz;
+		r = rpc_pb_pattern_pack(rpc_pat_retval, &output, &str_out);
+
+		if (r >= 0) {
+				rpc_return(c, str_out.buffer, str_out.len);
+		} else {
+				rpc_return_error(c, RPC_CODE_SERVER_ERROR, "output encode failed!");
+		}
 }
 
 int rpc_server_init()
 {
-	rpc_stack_init("MSP");
-	rpc_server_t* server = rpc_server_new("tcp://127.0.0.1:9999");
-	if(server == NULL)
-		return 1;
-	rpc_server_register(server, "MSP", "ReceiveMessage", receive_message);
-	return 0;
+	pthread_t id;
+	if(pthread_create(&id, NULL, (void*)rpc_server_thread, NULL))
+		return -1;
+	else 
+		return 0;	
 }	
  
-int 
-main(int len,char** args)
+void* rpc_server_thread(void* args)
+{
+	rpc_server_t* s = rpc_server_new();
+	//s->is_main_dispatch_th = 0;
+	rpc_server_regchannel(s, "tcp://0.0.0.0:9999");
+	rpc_server_regservice(s, "IMSPRpcService", "ReceiveMessage", receive_message);
+	rpc_args_init();
+	if(rpc_server_start(s)!=RPC_OK)
+		D("init rpc server fail");
+	else
+		D("init rpc server ok");
+}
+
+//int main(int len,char** args)
+int main()
 {
     /* char p[80]; */
     int i=0;
     char ch[80];
     pxy_worker_t *w;
-
+	
     if(pxy_init_master() < 0){
 	D("master initialize failed");
 	return -1;
     }
     D("master initialized");
 
-    if(1 == rpc_server_init())
-	{
-		D("rpc server initial fail");
-		return;
-	}
-	D("rpc server initial success");
     /*spawn worker*/
 
     for(;i<config->worker_count;i++){
@@ -324,54 +331,50 @@ main(int len,char** args)
 	pid_t p = fork();
 
 	if(p < 0) {
-	    D("%s","forkerror");
+			D("%s","forkerror");
 	}
 	else if(p == 0){/*child*/
-
-	    if(worker_init()<0){
-		D("worker #%d initialized failed" , getpid());
-		return -1;
-	    }
-	    D("worker #%d initialized success", getpid());
-
+		if(worker_init()<0){
+			D("worker #%d initialized failed" , getpid());
+			return -1;
+		}
+		D("worker #%d initialized success", getpid());
 		D("socket_pair[0]=%d,socket_pair[1]=%d",w->socket_pair[0],w->socket_pair[1]);
+		//rpc_server_init();
+		close (w->socket_pair[0]); /*child should close the pair[0]*/
 
-	    close (w->socket_pair[0]); /*child should close the pair[0]*/
-
-	    ev_file_item_t *f = ev_file_item_new(w->socket_pair[1],
-						 worker,
-						 worker_recv_cmd,
-						 NULL,
-						 EV_READABLE | EPOLLET);
-	    if(!f){ 
-		D("new file item error"); return -1; 
-	    }
-	    if(ev_add_file_item(worker->ev,f) < 0) {
-		D("add event error"); return -1;
-	    }
-
-	    if(!worker_start()) {
-		D("worker #%d started failed", getpid()); return -1;
-	    }
+		ev_file_item_t *f = ev_file_item_new(w->socket_pair[1],
+						worker,
+						worker_recv_cmd,
+						NULL,
+						EV_READABLE | EPOLLET);
+		if(!f){ 
+			D("new file item error"); return -1; 
+		}
+		if(ev_add_file_item(worker->ev,f) < 0) {
+			D("add event error"); return -1;
+		}
+			
+		if(!worker_start()) {
+			D("worker #%d started failed", getpid()); return -1;
+		}
 	}
 	else{ /*parent*/
-	    w->pid = p;
+		w->pid = p;
 		D("close worker");
-	    close(w->socket_pair[1]); /*parent close the pair[1]*/
+		close(w->socket_pair[1]); /*parent close the pair[1]*/
+	}
+	}
+	D("Pid = %d",getpid());
+	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0){ 
 	}
 
-    }
+	w = (pxy_worker_t*)master->workers;
+	pxy_send_command(w,PXY_CMD_QUIT,-1);
 
-	D("Pid = %d",getpid());
-    while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0){ 
-    }
-
-    w = (pxy_worker_t*)master->workers;
-    pxy_send_command(w,PXY_CMD_QUIT,-1);
-
-    sleep(5);
+	sleep(5);
 	D("pxy_master_close");
-    pxy_master_close();
-    return 1;
+	pxy_master_close();
+	return 1;
 }
 

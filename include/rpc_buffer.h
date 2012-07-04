@@ -7,7 +7,6 @@
 #define _RPC_BUFFER_H_INCLUDED_
 
 #include "rpc_types.h"
-#include "rpc_pool.h"
 
 struct rpc_buf_s {
   u_char  *pos;
@@ -16,17 +15,34 @@ struct rpc_buf_s {
   u_char  *end;
   size_t size;
 
-  rpc_pool_t *pool;
 };
 
-#define rpc_buf_alloc(pool) rpc_palloc(pool, sizeof(rpc_buf_t))
-#define rpc_buf_calloc(pool) rpc_pcalloc(pool, sizeof(rpc_buf_t))
-
-rpc_buf_t *rpc_buf_create(rpc_pool_t *pool,size_t size);
+rpc_buf_t *rpc_buf_create(size_t size);
 
 /* buf reset */
-rpc_int_t rpc_buf_reset(rpc_buf_t *b);
+//rpc_int_t rpc_buf_reset(rpc_buf_t *b);
+#define rpc_buf_reset(b) do {                         \
+  b->pos = b->start;                                  \
+  b->last = b->start;                                 \
+} while(0)
 
-/* buf chain */
-rpc_buf_t *rpc_buf_expand(rpc_buf_t *b);
+#define rpc_buf_move(b)  do {                         \
+  if (b->pos == b->last) {                            \
+    rpc_buf_reset(b);                                 \
+    break;                                            \
+  }                                                   \
+  if((b->pos != b->start) && (b->last > b->pos)) {    \
+    rpc_log_debug("rpc: buf memmove");                     \
+    rpc_memmove(b->start, b->pos, b->last - b->pos);  \
+    b->last = b->start + (b->last - b->pos);          \
+    b->pos = b->start;                                \
+  }                                                   \
+}while(0)
+
+rpc_int_t rpc_buf_expand(rpc_buf_t *b);
+
+#define rpc_buf_free(b) do {                          \
+  rpc_free(b->start);                                 \
+  rpc_free(b);                                        \
+}while(0)
 #endif

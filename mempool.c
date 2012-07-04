@@ -101,7 +101,7 @@ void* pxy_calloc(size_t size)
 
 void mp_dump(mp_pool_t *pool)
 {
-    printf ("[dump pool]name:%s,size:%d,allocted:%d,used:%d\n",
+    printf ("[dump pool]name:%s,size:%zu,allocted:%zu,used:%zu\n",
 	    pool->name,
 	    pool->size,
 	    pool->allocated,
