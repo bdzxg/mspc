@@ -8,7 +8,7 @@ static list_head_t pools = LIST_HEAD_INIT(pools);
 
 mp_pool_t* mp_create(int size,int max,char* name)
 {
-    mp_pool_t* p = malloc(sizeof(mp_pool_t));
+    mp_pool_t* p = calloc(sizeof(mp_pool_t),1);
   
     if(p){
 	p->size = size;
@@ -35,7 +35,8 @@ void mp_flush(mp_pool_t *pool)
 	tmp  = next;
 	next = *(void**)tmp;
 	pool->allocated--;
-	FREE(tmp);
+	if(tmp != NULL)
+		FREE(tmp);
     }
     pool->freelist = NULL;
 }
@@ -55,7 +56,7 @@ void* mp_alloc(mp_pool_t* p)
 	p->freelist = *(void**)p->freelist;
     }
     else{
-	d = malloc(p->size);
+	d = calloc(p->size, 1);
 	p->allocated++;
 	p->used++;
     }

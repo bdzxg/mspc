@@ -91,9 +91,11 @@ static char* get_cmd_func_name(int cmd)
 		case 174: return "muser-PermissionRequestV5";
 		case 175: return "muser-PermissionResponseV5";
 		case 176: return "muser-PresenceV5";
+		case 178: return "muser-SetPresenceV5";
 		case 180: return "muser-SmsForwardInfoV5";
 		case 179: return "muser-SetUserInfoV5";
 		case 177: return "muser-SetContactInfoV5";
+
 		case 142: return "mgroup-PGGetGroupListV5";
 		case 141: return "mgroup-PGGetGroupInfoV5";
 		case 149: return "mgroup-PGSearchGroupV5";
@@ -240,7 +242,7 @@ static char* generate_client_epid(int type, int version)
 	p = gmtime(&timesec);
 	gettimeofday(&tv, NULL);
 	char* tep = calloc(7, 1);
-	sprintf(tep, "%d", tv.tv_usec);
+	sprintf(tep, "%lu", tv.tv_usec);
 	char* tep_t = calloc(5, 1);
 	strncpy(tep_t, tep, 4);
 	char* t = calloc(15, 1);	

@@ -24,10 +24,11 @@
 #include "include/list.h"
 #include <time.h>
 #include "include/zookeeper.h"
-
+/*
 static  char *PROTO_RPC = "rpc";
 static  char *PROTO_HTTP = "http";
 static  zhandle_t *zh;
+*/
 
 typedef struct mcp_appbean_params_s
 {

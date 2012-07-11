@@ -2,7 +2,7 @@
 #define _PROXY_H_
 
 #define MAX_EVENTS 1000
-#define BUFFER_SIZE 20
+#define BUFFER_SIZE 500
 #define pxy_memzero(buf, n)       (void) memset(buf, 0, n)
 
 #define D(format,...)						\
@@ -46,6 +46,7 @@ typedef struct pxy_worker_s{
     struct sockaddr_in *baddr;
     int socket_pair[2];
 	struct rb_root root;
+	FILE* fid;
 }pxy_worker_t;
 
 typedef struct pxy_master_s{

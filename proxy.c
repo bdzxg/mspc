@@ -18,7 +18,7 @@ pxy_init_config()
     config = (pxy_config_t*)pxy_calloc(sizeof(*config));
 
     if(config){
-	config->client_port = 9000;
+	config->client_port = 8014;
 	config->backend_port = 9001;
 	config->worker_count = 1;
 
@@ -185,8 +185,8 @@ char* get_send_data(rec_msg_t* t, int* length)
 	set2buf(&rval, (char*)&t->client_version, 2);
 	// 0
 	set2buf(&rval, (char*)&padding, 1);
-	// option
-	set2buf(&rval, (char*)&t->format, 4);
+	// option use 0 template
+	set2buf(&rval, (char*)&padding, 4);
     /*
 	 int i;
 	 if(t->option_len != 0)
@@ -250,12 +250,12 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 		msg.userid = input.UserId;
 		msg.seq = input.Sequence;
 		msg.format = input.Opt;
-		msg.user_context = input.UserContext.buffer;
-	    msg.user_context_len = input.UserContext.len;	
+		//msg.user_context = input.UserContext.buffer;
+	    //msg.user_context_len = input.UserContext.len;	
 		msg.compress = input.ZipFlag;
 		msg.epid = calloc(input.Epid.len+1, 1); 
 		memcpy(msg.epid, input.Epid.buffer, input.Epid.len);
-
+		D("bn cmd is %d, seq is %d, len is %d", msg.cmd, msg.seq, msg.body_len);
 		process_bn(&msg);
 		free(msg.epid);
 		retval output;
@@ -290,10 +290,13 @@ void* rpc_server_thread(void* args)
 	rpc_server_regchannel(s, "tcp://0.0.0.0:9999");
 	rpc_server_regservice(s, "IMSPRpcService", "ReceiveMessage", receive_message);
 	rpc_args_init();
+
+	D("rpc server start!");
 	if(rpc_server_start(s)!=RPC_OK)
 		D("init rpc server fail");
 	else
 		D("init rpc server ok");
+	return NULL;
 }
 
 //int main(int len,char** args)
@@ -340,7 +343,7 @@ int main()
 		}
 		D("worker #%d initialized success", getpid());
 		D("socket_pair[0]=%d,socket_pair[1]=%d",w->socket_pair[0],w->socket_pair[1]);
-		//rpc_server_init();
+		rpc_server_init();
 		close (w->socket_pair[0]); /*child should close the pair[0]*/
 
 		ev_file_item_t *f = ev_file_item_new(w->socket_pair[1],

@@ -40,6 +40,7 @@ worker_init()
 	}
     
 	worker->root = RB_ROOT;
+	worker->fid =fopen("a.txt", "a+");
 	return 0;
     }
 
@@ -49,9 +50,9 @@ worker_init()
 int 
 worker_start()
 {
-    //char *zk_url="192.168.110.231:8998";
+    char *zk_url="192.168.110.231:8998";
     //char *zk_url = "192.168.199.8:2181";
-    //route_init(zk_url);
+    route_init(zk_url);
     
     ev_file_item_t* fi ;
     int fd = master->listen_fd;
@@ -107,8 +108,9 @@ worker_close()
 
 int worker_insert_agent(pxy_agent_t *agent)
 {
-	map_insert(&worker->root,agent);
+	return map_insert(&worker->root,agent);
 }
+
 void
 worker_accept(ev_t *ev, ev_file_item_t *ffi)
 {
