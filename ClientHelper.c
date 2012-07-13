@@ -245,9 +245,9 @@ static char* generate_client_epid(int type, int version)
 	sprintf(tep, "%lu", tv.tv_usec);
 	char* tep_t = calloc(5, 1);
 	strncpy(tep_t, tep, 4);
-	char* t = calloc(15, 1);	
+	char* t = calloc(18, 1);	
 	sprintf(t, "%02d%02d%4s", p->tm_min, p->tm_sec, tep_t);
-	char* epid = malloc(20);
+	char* epid = calloc(strlen(t), 1);
 	char* cltype = get_inner_cltype(cl_type);
 	sprintf(epid, "%s%s%s", cltype,  cl_version, t);
 	free(tep);

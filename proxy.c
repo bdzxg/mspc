@@ -134,10 +134,10 @@ pxy_init_master()
     return pxy_start_listen();
 }
 
-pxy_agent_t* get_agent(rec_msg_t* msg)
+pxy_agent_t* get_agent(char* key)
 {
 	pxy_agent_t* ret = NULL;
-	ret = map_search(&worker->root,msg->epid);
+	ret = map_search(&worker->root, key);
 	return ret;
 }
 
@@ -200,36 +200,18 @@ char* get_send_data(rec_msg_t* t, int* length)
 		*(rval++) = *(t->body++);
 	// end padding 0
 	*rval = 0;
-	/*rval = ret;
-	for(i = 0; i < *length; i++)
-	{
-		D("content %d", (unsigned char)*(rval++));
-	}*/
 	return ret;
 }
 
-void process_bn(rec_msg_t* msg)
+void process_bn(rec_msg_t* msg, pxy_agent_t* a)
 {
-	pxy_agent_t* ret = NULL;
 	if(msg->cmd == 105)
 		// TODO add tcp flow
 		return;
-	else 
-		ret = get_agent(msg);
-
-	if(ret != NULL)
-	{
-		/*  can not be 102
-		if(msg->cmd == 102 && msg->user_context!= NULL){
-			// record usercontextbytes	}*/
-		int len;
-		char* data = get_send_data(msg, &len);
-		send(ret->fd, data, len, 0);
-	}
-	else
-	{
-		D("BN cann't find connection!!!");
-	}
+	// can not be 102
+	int len;
+	char* data = get_send_data(msg, &len);
+	send(a->fd, data, len, 0);
 }
 
 void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
@@ -248,15 +230,21 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 		msg.body_len = input.Content.len;
 		msg.body = input.Content.buffer;
 		msg.userid = input.UserId;
-		msg.seq = input.Sequence;
 		msg.format = input.Opt;
-		//msg.user_context = input.UserContext.buffer;
-	    //msg.user_context_len = input.UserContext.len;	
 		msg.compress = input.ZipFlag;
 		msg.epid = calloc(input.Epid.len+1, 1); 
 		memcpy(msg.epid, input.Epid.buffer, input.Epid.len);
-		D("bn cmd is %d, seq is %d, len is %d", msg.cmd, msg.seq, msg.body_len);
-		process_bn(&msg);
+		D("bn epid %s cmd %d userid %d", msg.epid, msg.cmd, msg.userid);
+		pxy_agent_t* a = NULL;
+		a = get_agent(msg.epid);
+		if(a == NULL)
+		{
+				free(msg.epid);
+				D("BN cann't find connection!!!");
+				return;
+		}
+		msg.seq = a->bn_seq++;
+		process_bn(&msg, a);
 		free(msg.epid);
 		retval output;
 		output.option.len = input.Protocol.len;
@@ -267,11 +255,10 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 		str_out.len = outsz;
 		r = rpc_pb_pattern_pack(rpc_pat_retval, &output, &str_out);
 
-		if (r >= 0) {
+		if (r >= 0) 
 				rpc_return(c, str_out.buffer, str_out.len);
-		} else {
+		else
 				rpc_return_error(c, RPC_CODE_SERVER_ERROR, "output encode failed!");
-		}
 }
 
 int rpc_server_init()
@@ -299,10 +286,8 @@ void* rpc_server_thread(void* args)
 	return NULL;
 }
 
-//int main(int len,char** args)
 int main()
 {
-    /* char p[80]; */
     int i=0;
     char ch[80];
     pxy_worker_t *w;

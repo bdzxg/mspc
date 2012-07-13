@@ -8,6 +8,7 @@ typedef struct pxy_agent_s{
     struct buffer_s *buffer;
     int fd;
     int user_id;
+	int bn_seq;
 	char* epid;
     size_t buf_offset;/*all data len in buf*/
     size_t buf_parsed;

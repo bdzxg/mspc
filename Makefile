@@ -12,6 +12,8 @@ LIB_OBJS = \
 MAP_OBJS = \
 	./rbtree.o \
 	./map.o 
+FUNC_OBJS = \
+	./func_test.o 
 
 PXY_OBJS = \
 	./worker.o \
@@ -27,6 +29,9 @@ HT_TEST = \
 MAP_TEST = \
 	./map_test.o
 
+FUNC_TEST = \
+	./func_test.o
+
 TEST = \
 	$(PXY_TEST) \
 	$(HT_TEST)  \
@@ -41,6 +46,8 @@ clean:
 	rm -f $(LIB_OBJS)
 	rm -f $(OUTPUT)
 	rm -f $(TEST)
+	rm -f $(MAP_TEST) 
+	rm -f $(FUNC_TEST)
 
 ht_test: $(LIB_OBJS) $(HT_TEST)
 	$(LINK) $(LIB_OBJS) $(TEST) -o $@

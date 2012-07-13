@@ -29,7 +29,7 @@ ev_add_file_item(ev_t* ev,ev_file_item_t* item)
     struct epoll_event epev;
 
     epev.events = item->events;
-    epev.data.fd = item->fd;
+    //epev.data.fd = item->fd;
     epev.data.ptr = item;
   
     int i = epoll_ctl(ev->fd,EV_CTL_ADD,item->fd, &epev);
@@ -60,48 +60,43 @@ ev_time_item_ctl(ev_t* ev,int op,ev_time_item_t* item)
 void
 ev_main(ev_t* ev)
 {
-    D("ev_main started");
-    while(ev->stop <= 0){
+		D("ev_main started");
+		while(ev->stop <= 0)
+		{
+				if(ev->ti)
+				{
+						// i think this part will never run
+						D("ev_ti in not null");
+						long now;
+						ev_time_item_t* iter;
+						ev_get_current_ms((&now));
+						for(iter=(ev->ti); iter!=NULL; iter=iter->next){
+								if((iter->ms) < now){
+										iter->func(ev,iter);}
+						}
+				}
+				int i,j;
+				struct epoll_event* e = ev->api_data;
 
-	if(ev->ti){
-	    long now;
-	    ev_time_item_t* iter;
+				j = epoll_wait(ev->fd,e,EV_COUNT,100);
 
-	    ev_get_current_ms((&now));
-      
-	    for(iter=(ev->ti); iter!=NULL; iter=iter->next){
-			if((iter->ms) < now){
-		   		 iter->func(ev,iter);}
-	    }
-	}
+				for(i=0;i<j;i++){
+						ev_file_item_t* fi = (ev_file_item_t*)e[i].data.ptr; 
 
-	int i,j;
-	struct epoll_event* e = ev->api_data;
+						if((e[i].events) | EPOLLIN) {
+								if(fi->rfunc){
+										D("RFUNC");
+										fi->rfunc(ev,fi);
+								}
+						}
 
-	j = epoll_wait(ev->fd,e,EV_COUNT,100);
-
-	for(i=0;i<j;i++){
-
-	    ev_file_item_t* fi = (ev_file_item_t*)e[i].data.ptr; 
-
-	    if((e[i].events) | EPOLLIN) {
-
-		if(fi->rfunc){
-		    D("RFUNC");
-		    fi->rfunc(ev,fi);
-		}
-	    }
-    
-	    if(e[i].events | EPOLLOUT){ 
-
-		if(fi->wfunc) {
-		    D("WFUNC");
-		    fi->wfunc(ev,fi);
-		}
-	    }
-	}
-
-    } /*while*/
-
-    D("worker EV_MAIN stopped");
+						if(e[i].events | EPOLLOUT){ 
+								if(fi->wfunc) {
+										D("WFUNC");
+										fi->wfunc(ev,fi);
+								}
+						}
+				}
+		} /*while*/
+		D("worker EV_MAIN stopped");
 }

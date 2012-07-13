@@ -8,7 +8,6 @@ int map_insert(struct rb_root *root, pxy_agent_t *q)
 	while(*new) {
 		pxy_agent_t *data = rb_entry(*new,struct pxy_agent_s,rbnode);
 		int result = strcmp(data->epid,q->epid);
-
 		parent = *new;
 		if(result < 0)
 			new = &((*new)->rb_left);

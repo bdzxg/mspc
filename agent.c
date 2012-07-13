@@ -10,7 +10,6 @@
 extern pxy_worker_t *worker;
 size_t packet_len;
 static char* PROTOCOL = "MCP/3.0";
-//char* agent_epid = NULL;
 
 int char_to_int(buffer_t* buf, int* off, int len)
 {
@@ -133,25 +132,22 @@ void get_rpc_arg(McpAppBeanProto* args, rec_msg_t* msg, pxy_agent_t* a)
 		args->Content.buffer = msg->body;
 	}else{ args->Content.len = 0; args->Content.buffer = NULL;}
 	
-	if(a->epid == NULL)
-		msg->epid = a->epid = generate_client_epid(msg->client_type, msg->client_version);
+	if(strlen(a->epid) == 0)
+	{
+			free(a->epid);
+			msg->epid = a->epid = generate_client_epid(msg->client_type, msg->client_version);
+	}
 	
 	args->Epid.len = strlen(msg->epid);
 	args->Epid.buffer = msg->epid;
 	args->ZipFlag = msg->compress;
 }	
 
-/*  void writefile(char* filename, char* buf, int len)
-{
-	int fd = open( filename, O_WRONLY|O_CREAT|O_APPEND, S_IRWXU); 
-	write(fd, buf, len);
-	close(fd);
-}*/
-
 void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t output_len,void *input, size_t input_len, void *data)
 {
 		if(code != RPC_CODE_OK || output_len == 0){
-				D("rpc return code %d,input len %zu, buf_out_size %zu", (int)code, input_len, output_len);
+				D("rpc return code %d, buf_out_size %zu", (int)code, output_len);
+				rpc_free(input);
 				return;
 		}
 
@@ -160,6 +156,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 		int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);
 		if (r < 0) {
 				D("rpc response unpack fail");
+				rpc_free(input);
 				return;
 		}
 
@@ -207,9 +204,8 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 
 void release_rpc_message(rec_msg_t* msg)
 {
-	free_string_ptr(msg->option);
-	free_string_ptr(msg->body);
-	//free_string_ptr(msg->user_context);
+	free(msg->option);
+	free(msg->body);
 	free(msg);
 }
 
@@ -248,15 +244,6 @@ void agent_send_client(rec_msg_t* rec_msg, pxy_agent_t *agent)
 	send(agent->fd, data, len, 0);
 }
 
-void free_string_ptr(char* str)
-{
-	char* tmp = str;
-	str = NULL;
-	if(tmp != NULL)
-		free(tmp);
-}
-
-
 int agent_echo_read_test(pxy_agent_t *agent)
 {
     rec_msg_t* msg;
@@ -273,7 +260,7 @@ int agent_echo_read_test(pxy_agent_t *agent)
         free(url);
 	   	return -1;
 	}
-	free_string_ptr(url);
+	free(url);
 	pxy_agent_buffer_recycle(agent);
     return 0;
 }
@@ -318,9 +305,9 @@ pxy_agent_buffer_recycle(pxy_agent_t *agent)
 void 
 pxy_agent_close(pxy_agent_t *a)
 {
-	free_string_ptr(a->epid);
+	free(a->epid);
 	a->user_ctx_len = 0;
-	free_string_ptr(a->user_ctx);
+	free(a->user_ctx);
     D("pxy_agent_close fired, release epid and user context");
     buffer_t *b;
 
@@ -382,7 +369,8 @@ pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
     agent->buf_offset = 0;
     agent->buf_list_n = 0;
 	agent->buf_len = 0;
-	agent->epid = NULL;
+	agent->bn_seq = 10000;
+	agent->epid = calloc(1, 1);
 	agent->user_ctx = NULL;
     return agent;
 
@@ -400,6 +388,7 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	buffer_t *b;
 	pxy_agent_t *agent = fi->data;
 
+	D("inter agent_recv_client"); 
 	if(!agent)
 	{
 		W("fd has no agent,ev->data is NULL,close the fd");
