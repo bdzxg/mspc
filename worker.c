@@ -123,7 +123,6 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 
 				if(f>0){
 
-						D("f %d", f);
 						/* FIXME:maybe we should try best to accept and 
 						 * delay add events */
 						err = setnonblocking(f);
@@ -136,7 +135,6 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 								D("create new agent error"); return;
 						}
 
-						D("create new agent success");
 						fi = ev_file_item_new(f,
 										agent,
 										agent_recv_client,
@@ -145,17 +143,13 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 						if(!fi){
 								D("create file item error");
 						}
-						D("ev add file item");
 						ev_add_file_item(worker->ev,fi);
 
-						D("map_insert");
-						map_insert(&worker->root,agent);
-						D("map_insert over");
+						//map_insert(&worker->root,agent);
 						/*TODO: check the result*/
 				}	
 				else
 				{
-					D("set fd < 0"); 
 					break;
 				}
 		}

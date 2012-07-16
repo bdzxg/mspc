@@ -92,7 +92,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	agent->buf_parsed += packet_len;
 	packet_len = 0;
     
-	if(agent->epid != NULL)
+	if(strlen(agent->epid) != 0)
 		msg->epid = agent->epid; 
 	
 	msg->logic_pool_id = agent->user_context.LogicalPool;
@@ -222,6 +222,7 @@ int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *a)
 	
 	get_rpc_arg(&args, msg, a);
 
+	map_insert(&worker->root, a);
 	rpc_pb_string str_input; 
 	int inputsz = 1024;  
 	str_input.buffer = calloc(inputsz, 1);
