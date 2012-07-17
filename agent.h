@@ -19,6 +19,8 @@ typedef struct pxy_agent_s{
 	char* user_ctx;
 	int user_ctx_len;
 	UserContext user_context;  
+	int msp_unreg;
+	int logic_pool_id;
 }pxy_agent_t;
 
 typedef struct message_s {

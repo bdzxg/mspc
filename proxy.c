@@ -234,13 +234,14 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 		msg.compress = input.ZipFlag;
 		msg.epid = calloc(input.Epid.len+1, 1); 
 		memcpy(msg.epid, input.Epid.buffer, input.Epid.len);
-		D("bn epid %s cmd %d userid %d", msg.epid, msg.cmd, msg.userid);
+	    //D("bn epid %s cmd %d userid %d", msg.epid, msg.cmd, msg.userid);
 		pxy_agent_t* a = NULL;
 		a = get_agent(msg.epid);
 		if(a == NULL)
 		{
+				if(msg.epid != NULL)
+					D("BN cann't find epid %s connection!!!", msg.epid);
 				free(msg.epid);
-				D("BN cann't find connection!!!");
 				return;
 		}
 		msg.seq = a->bn_seq++;

@@ -87,7 +87,6 @@ start_failed:
 int
 worker_close()
 {
-    
     route_close();
 	pxy_agent_t *item;
 	struct rb_node *rn;
@@ -96,7 +95,6 @@ worker_close()
 		D("queue name is %s:%p\n",item->epid,item);
 		pxy_agent_close(item);
 	}
-
 
     worker->ev->stop = 1;
     close(master->listen_fd);

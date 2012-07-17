@@ -30,7 +30,7 @@ static inline void
 buffer_append(buffer_t *b,buffer_t *head)
 {
     buffer_t *bb = head;
-    while(bb->next) { bb = bb->next; }
+    while(bb->next != NULL)	{bb = bb->next;	}
     bb->next = b;
 }
 
