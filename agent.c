@@ -202,8 +202,8 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 		send(a->fd, d, len, 0);
 		if(msg.cmd == 103)
 		{
-			pxy_agent_close(a);
 			map_remove(&worker->root, a->epid);
+			pxy_agent_close(a);
 		}
 		rpc_free(input);
 }
@@ -218,8 +218,9 @@ void release_rpc_message(rec_msg_t* msg)
 
 int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *a)
 {
+	/* async cann't use
     rpc_client_t *c= rpc_client_new();
-	rpc_proxy_t *p = rpc_client_connect(c, proxy_uri);
+    rpc_proxy_t *p = rpc_client_connect(c, proxy_uri);
 	if(p == NULL){
 		D("creat rpc client is NULL");
 		return -1;
@@ -238,6 +239,98 @@ int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *a)
 	D("rpc call func name %s", func_name);
 	rpc_call_async(p, "MCP", func_name, str_input.buffer, str_input.len, rpc_response, a); 
 	free(args.CompactUri.buffer);
+	return 0;
+	*/
+	
+	// sync rpc method
+	rpc_proxy_t *p = rpc_proxy_new(proxy_uri);
+	p->setting.connect_timeout = 500;
+	p->setting.request_timeout = 500;
+
+	void *out;
+	size_t outsize;
+
+	rpc_args_init();
+	McpAppBeanProto args; 
+	
+	get_rpc_arg(&args, msg);
+
+	rpc_pb_string str_input; 
+	int inputsz = 1024;  
+	str_input.buffer = calloc(inputsz, 1);
+	str_input.len = inputsz;
+	rpc_pb_pattern_pack(rpc_pat_mcpappbeanproto, &args, &str_input);
+	char* func_name = get_cmd_func_name(msg->cmd);
+	D("rpc call func name %s", func_name);
+	int code = rpc_call(p,"MCP", func_name, str_input.buffer, str_input.len, &out, &outsize);
+	if (code == RPC_CODE_OK) {
+			McpAppBeanProto rsp;
+			rpc_pb_string str = {out, outsize};
+			int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);
+			if (r < 0) {
+					D("rpc response unpack fail");
+					free(str_input.buffer);
+					free(args.CompactUri.buffer);
+					rpc_proxy_close(p);
+					rpc_proxy_free(p);
+					return -1;
+			}
+
+			char* func = get_cmd_func_name(rsp.Cmd);
+			if(rsp.Cmd == 103 && a->msp_unreg == 1)
+			{
+					free(str_input.buffer);
+					free(args.CompactUri.buffer);
+					rpc_proxy_close(p);
+					rpc_proxy_free(p);
+					D("socket close msp send unreg!");
+					return 0;
+			}
+
+			rec_msg_t msg;
+			msg.cmd = rsp.Cmd;
+			msg.body_len = rsp.Content.len;
+			msg.body = rsp.Content.buffer;
+			msg.userid = rsp.UserId;
+			msg.seq = rsp.Sequence;
+			msg.format = rsp.Opt;
+			msg.compress = rsp.ZipFlag;
+
+			D("rpc %s func response, seq is %d", func, msg.format);
+			//client needn't usercontext
+			// client needn't epid
+			if(msg.cmd == 102 && a->user_ctx == NULL)
+			{
+					a->user_ctx_len = rsp.UserContext.len;
+					a->user_ctx = calloc(rsp.UserContext.len, 1);
+					memcpy(a->user_ctx, rsp.UserContext.buffer, rsp.UserContext.len);
+
+					UserContext us_ctx;
+					rpc_pb_string str_uc = {rsp.UserContext.buffer, rsp.UserContext.len};
+					int t = rpc_pb_pattern_unpack(rpc_pat_usercontext, &str_uc, &us_ctx);
+					if(t<0)
+							D("unpack user context fail");
+					else {
+							a->user_id = a->user_context.UserId = us_ctx.UserId;
+							a->user_context.LogicalPool = us_ctx.LogicalPool;
+					}
+			}
+			int len;
+			char* d = get_send_data(&msg, &len);
+			D("a %p", a);
+			D("fd %d, d %p, len %d", a->fd, d, len);
+			send(a->fd, d, len, 0);
+			free(d);
+			if(msg.cmd == 103)
+			{
+					map_remove(&worker->root, a->epid);
+					pxy_agent_close(a);
+			}
+		}
+	free(str_input.buffer);
+	free(args.CompactUri.buffer);
+	rpc_proxy_close(p);
+	rpc_proxy_free(p);
 	return 0;
 }
 
@@ -340,8 +433,8 @@ pxy_agent_buffer_recycle(pxy_agent_t *agent)
 void 
 pxy_agent_close(pxy_agent_t *a)
 {
-	if(a->epid != NULL)
-		D("pxy_agent_close release epid %s and user context", a->epid);
+	//if(a->epid != NULL)
+	//	D("pxy_agent_close release epid %s and user context", a->epid);
 	free(a->epid);
 	a->epid = NULL;
 	a->user_ctx_len = 0;
@@ -442,8 +535,8 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	   	{
 			D("no buf for read");
 			msp_send_unreg(agent);
-			pxy_agent_close(agent);
 			map_remove(&worker->root, agent->epid);
+			pxy_agent_close(agent);
 		}
 
 		n = recv(fi->fd,b->data,BUFFER_SIZE,0);
@@ -490,5 +583,6 @@ failed:
 	msp_send_unreg(agent);
 	map_remove(&worker->root, agent->epid);
 	pxy_agent_close(agent);
+	free(fi);
 	return;
 }

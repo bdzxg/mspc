@@ -68,10 +68,12 @@ pxy_send_command(pxy_worker_t *w,int cmd,int fd)
 
     int a;
     if((a=sendmsg(w->socket_pair[0],&m,0)) < 0) {
+	free(c);
 	D("send failed%d",a);
 	return  -1 ;
     }
 
+	free(c);
     D("master sent cmd:%d to pid:%d fd:%d", cmd, w->pid, fd);
     return 0;
 }
@@ -212,6 +214,7 @@ void process_bn(rec_msg_t* msg, pxy_agent_t* a)
 	int len;
 	char* data = get_send_data(msg, &len);
 	send(a->fd, data, len, 0);
+	free(data);
 }
 
 void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
