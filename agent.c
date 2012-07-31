@@ -10,6 +10,10 @@
 extern pxy_worker_t *worker;
 size_t packet_len;
 static char* PROTOCOL = "MCP/3.0";
+// 504
+static char OVERTIME[3] = {8, 248, 3};
+// 500
+static char SERVERERROR[3] = {8, 244, 3};
 
 int char_to_int(buffer_t* buf, int* off, int len)
 {
@@ -216,7 +220,7 @@ void release_rpc_message(rec_msg_t* msg)
 		free(msg->body);
 }
 
-int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *a)
+int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 {
 	/* async cann't use
     rpc_client_t *c= rpc_client_new();
@@ -244,6 +248,12 @@ int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *a)
 	
 	// sync rpc method
 	rpc_proxy_t *p = rpc_proxy_new(proxy_uri);
+	
+	if(p == NULL)
+	{
+		D("fuck get proxy_uri fail");
+		return -1;
+	}	
 	p->setting.connect_timeout = 500;
 	p->setting.request_timeout = 500;
 
@@ -252,86 +262,132 @@ int send_rpc_server(rec_msg_t* msg, char* proxy_uri, pxy_agent_t *a)
 
 	rpc_args_init();
 	McpAppBeanProto args; 
-	
-	get_rpc_arg(&args, msg);
+	get_rpc_arg(&args, req);
 
 	rpc_pb_string str_input; 
 	int inputsz = 1024;  
 	str_input.buffer = calloc(inputsz, 1);
 	str_input.len = inputsz;
 	rpc_pb_pattern_pack(rpc_pat_mcpappbeanproto, &args, &str_input);
-	char* func_name = get_cmd_func_name(msg->cmd);
+	char* func_name = get_cmd_func_name(req->cmd);
 	D("rpc call func name %s", func_name);
 	int code = rpc_call(p,"MCP", func_name, str_input.buffer, str_input.len, &out, &outsize);
-	if (code == RPC_CODE_OK) {
-			McpAppBeanProto rsp;
-			rpc_pb_string str = {out, outsize};
-			int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);
-			if (r < 0) {
-					D("rpc response unpack fail");
-					free(str_input.buffer);
-					free(args.CompactUri.buffer);
-					rpc_proxy_close(p);
-					rpc_proxy_free(p);
-					return -1;
-			}
+	if (code == RPC_CODE_OK)
+   	{
+		McpAppBeanProto rsp;
+		rpc_pb_string str = {out, outsize};
+		int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);
+		if (r < 0) 
+		{
+			D("rpc response unpack fail");
+			// send 500 to client
+			send_response_client(req, a, 504);
+			free(str_input.buffer);
+			free(args.CompactUri.buffer);
+			rpc_proxy_close(p);
+			rpc_proxy_free(p);
+			return -1;
+		}
 
-			char* func = get_cmd_func_name(rsp.Cmd);
-			if(rsp.Cmd == 103 && a->msp_unreg == 1)
+		if(rsp.Cmd == 103 && a->msp_unreg == 1)
+		{
+			free(str_input.buffer);
+			free(args.CompactUri.buffer);
+			rpc_proxy_close(p);
+			rpc_proxy_free(p);
+			D("socket closed msp send unreg!");
+			return 0;
+		}
+
+		char* func = get_cmd_func_name(rsp.Cmd);
+		rec_msg_t rp_msg;
+		rp_msg.cmd = rsp.Cmd;
+		rp_msg.body_len = rsp.Content.len;
+		rp_msg.body = rsp.Content.buffer;
+		rp_msg.userid = rsp.UserId;
+		rp_msg.seq = rsp.Sequence;
+		rp_msg.format = rsp.Opt;
+		rp_msg.compress = rsp.ZipFlag;
+		D("rpc %s func response, seq is %d", func, rp_msg.format);
+		if(rp_msg.cmd == 102 && a->user_ctx == NULL)
+		{
+			a->user_ctx_len = rsp.UserContext.len;
+			a->user_ctx = calloc(rsp.UserContext.len, 1);
+			memcpy(a->user_ctx, rsp.UserContext.buffer, rsp.UserContext.len);
+			UserContext us_ctx;
+			rpc_pb_string str_uc = {rsp.UserContext.buffer, rsp.UserContext.len};
+			int t = rpc_pb_pattern_unpack(rpc_pat_usercontext, &str_uc, &us_ctx);
+			if(req->epid != NULL)
+				D("REG2 response epid is %s", req->epid);
+			if(t<0)
 			{
-					free(str_input.buffer);
-					free(args.CompactUri.buffer);
-					rpc_proxy_close(p);
-					rpc_proxy_free(p);
-					D("socket close msp send unreg!");
-					return 0;
+				D("unpack user context fail");
 			}
-
-			rec_msg_t msg;
-			msg.cmd = rsp.Cmd;
-			msg.body_len = rsp.Content.len;
-			msg.body = rsp.Content.buffer;
-			msg.userid = rsp.UserId;
-			msg.seq = rsp.Sequence;
-			msg.format = rsp.Opt;
-			msg.compress = rsp.ZipFlag;
-
-			D("rpc %s func response, seq is %d", func, msg.format);
-			//client needn't usercontext
-			// client needn't epid
-			if(msg.cmd == 102 && a->user_ctx == NULL)
-			{
-					a->user_ctx_len = rsp.UserContext.len;
-					a->user_ctx = calloc(rsp.UserContext.len, 1);
-					memcpy(a->user_ctx, rsp.UserContext.buffer, rsp.UserContext.len);
-
-					UserContext us_ctx;
-					rpc_pb_string str_uc = {rsp.UserContext.buffer, rsp.UserContext.len};
-					int t = rpc_pb_pattern_unpack(rpc_pat_usercontext, &str_uc, &us_ctx);
-					if(t<0)
-							D("unpack user context fail");
-					else {
-							a->user_id = a->user_context.UserId = us_ctx.UserId;
-							a->user_context.LogicalPool = us_ctx.LogicalPool;
-					}
-			}
-			int len;
-			char* d = get_send_data(&msg, &len);
-			D("a %p", a);
-			D("fd %d, d %p, len %d", a->fd, d, len);
-			send(a->fd, d, len, 0);
-			free(d);
-			if(msg.cmd == 103)
-			{
-					map_remove(&worker->root, a->epid);
-					pxy_agent_close(a);
+			else {
+				a->user_id = a->user_context.UserId = us_ctx.UserId;
+				a->user_context.LogicalPool = us_ctx.LogicalPool;
 			}
 		}
-	free(str_input.buffer);
+		int len;
+		char* d = get_send_data(&rp_msg, &len);
+		D("fd %d, d %p, len %d", a->fd, d, len);
+		send(a->fd, d, len, 0);
+		free(d);
+		if(rp_msg.cmd == 103)
+		{
+			map_remove(&worker->root, a->epid);
+			pxy_agent_close(a);
+		}
+		free(str_input.buffer);
+	}else
+	{
+		free(str_input.buffer);
+		if(req->cmd == 103 && a->msp_unreg == 1)
+		{
+			free(args.CompactUri.buffer);
+			rpc_proxy_close(p);
+			rpc_proxy_free(p);
+			D("socket closed msp send unreg!");
+			return 0;
+		}
+
+		// send 504 overtime to client
+		send_response_client(req, a, 504);
+		D("send rpc response fail");
+		if(req->cmd == 103)
+		{
+			map_remove(&worker->root, a->epid);
+			pxy_agent_close(a);
+		}
+	}
 	free(args.CompactUri.buffer);
 	rpc_proxy_close(p);
 	rpc_proxy_free(p);
 	return 0;
+}
+
+void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code) 
+{
+	rec_msg_t rp_msg;
+	rp_msg.cmd = req->cmd;
+	rp_msg.body_len = 3;
+	char by[3];
+	if(code == 504)
+		rp_msg.body = OVERTIME;
+	else if(code == 500)
+		rp_msg.body = SERVERERROR;
+	rp_msg.body = by;
+	rp_msg.userid = req->userid;
+	rp_msg.seq = req->seq;
+	rp_msg.format = 128;
+	rp_msg.compress = 0; 
+	rp_msg.client_type = req->client_type;
+	rp_msg.client_version = req->client_version;
+	int len;
+	char* d = get_send_data(&rp_msg, &len);
+	D("fd %d, d %p, len %d", a->fd, d, len);
+	send(a->fd, d, len, 0);
+	free(d);
 }
 
 void agent_send_client(rec_msg_t* rec_msg, pxy_agent_t *agent)

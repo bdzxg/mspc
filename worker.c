@@ -97,6 +97,7 @@ worker_close()
 	}
 
     worker->ev->stop = 1;
+	free(worker->ev->api_data);
     close(master->listen_fd);
     return 0;
 } 
@@ -149,6 +150,7 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 				else
 				{
 					break;
+					perror("accept");
 				}
 		}
 }

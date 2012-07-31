@@ -61,6 +61,7 @@ int process_received_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg);
 void agent_recv_client(ev_t *,ev_file_item_t*);
 void free_string_ptr(char* str);
 void agent_send_client(rec_msg_t* rec_msg, pxy_agent_t *agent);
+void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code); 
 
 #define pxy_agent_for_each(agent,alist)			\
     list_for_each_entry((agent),list,&(alist)->list)	

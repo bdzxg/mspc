@@ -359,6 +359,15 @@ int main()
 	}
 	D("Pid = %d",getpid());
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0){ 
+			if(strcmp(ch,"nowcount") == 0)
+			{
+				long i = 0;
+				struct rb_node *rn;
+				map_walk(&worker->root,rn) {
+						i++;
+				}
+				D("agent count is %ld",i);
+			}
 	}
 
 	w = (pxy_worker_t*)master->workers;
