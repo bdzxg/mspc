@@ -1,5 +1,5 @@
 CC = 	gcc
-CFLAGS = -pipe  -O -W -Wall -I -Wno-unused-parameter -g
+CFLAGS = -pipe  -O0 -Wall -I -g -Werror -ggdb
 LINK =	$(CC)
 
 LIB_OBJS = \
@@ -36,10 +36,10 @@ TEST = \
 	$(PXY_TEST) \
 	$(HT_TEST)  \
 
-OUTPUT = proxy
+OUTPUT = mspc
 
 apl:  $(LIB_OBJS) $(PXY_OBJS) 
-	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -I./include -o $(OUTPUT) -Llib -lrpc_c -lprotobuf-c -lm -lroute_mt -lev -lpthread -lpbc
+	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -I./include -o $(OUTPUT) -Llib -lrpc_c -lzookeeper_mt -lprotobuf-c -lm -lroute_mt -lev -lpthread -lpbc
 
 clean:
 	rm -f $(PXY_OBJS)

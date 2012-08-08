@@ -4,19 +4,7 @@
 #define MAX_EVENTS 1000
 #define BUFFER_SIZE 500
 #define pxy_memzero(buf, n)       (void) memset(buf, 0, n)
-
-#define D(format,...)						\
-    do {							\
-	struct timeval __xxts;					\
-	gettimeofday(&__xxts,NULL);				\
-	printf("[DEBUG] %03d.%06d %s L%d P%d " format "\n",	\
-	       (int)__xxts.tv_sec % 1000, (int) __xxts.tv_usec,	\
-	       __FUNCTION__,__LINE__,getpid(),##__VA_ARGS__);	\
-    }while(0)							\
-
-#define I(x) printf("INFO:%s\n",x)
-#define W(x) printf("WARN:%s\n",x)
-#define E(x) printf("ERROR:%s\n",x)
+#define UNUSED(x) (void)(x)
 
 #include "sysinc.h"
 #include "rbtree.h"
@@ -28,6 +16,7 @@
 #include "hashtable.h"
 #include "agent.h"
 #include "map.h"
+#include "log.h"
 
 typedef struct pxy_config_s{
     short client_port;
