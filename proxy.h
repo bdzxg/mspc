@@ -17,6 +17,7 @@
 #include "agent.h"
 #include "map.h"
 #include "log.h"
+#include "upstream.h"
 
 typedef struct pxy_config_s{
     short client_port;

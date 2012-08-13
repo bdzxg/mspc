@@ -19,6 +19,7 @@ PXY_OBJS = \
 	./worker.o \
 	./proxy.o \
 	./agent.o \
+	./upstream.o
 
 PXY_TEST = \
 	./pxy_test.o \

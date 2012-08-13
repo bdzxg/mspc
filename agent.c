@@ -8,6 +8,8 @@
 #include "ClientHelper.c"
 
 extern pxy_worker_t *worker;
+extern upstream_map_t *upstream_root;
+
 size_t packet_len;
 static char* PROTOCOL = "MCP/3.0";
 // 504
@@ -153,15 +155,33 @@ void release_rpc_message(rec_msg_t* msg)
 
 int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 {
-	// sync rpc method
-	rpc_proxy_t *p = rpc_proxy_new(proxy_uri);
-	
-	if(p == NULL) {
-		D("fuck get proxy_uri fail");
-		return -1;
-	}	
-	p->setting.connect_timeout = 500;
-	p->setting.request_timeout = 500;
+	W("prxy uri %s", proxy_uri);
+	rpc_proxy_t *p ;
+	upstream_t *us = us_get_upstream(upstream_root, proxy_uri);
+	if(!us) {
+		W("no proxy,malloc one");
+		us = pxy_calloc(sizeof(*us));
+		if(!us) {
+			E("cannot malloc for upstream_t");
+			return -1;
+		}
+
+		// sync rpc method
+		p = rpc_proxy_new(proxy_uri);
+		if(p == NULL) {
+			D("fuck get proxy_uri fail");
+			return -1;
+		}	
+		p->setting.connect_timeout = 500;
+		p->setting.request_timeout = 6000;
+		
+		us->uri = strdup(proxy_uri);
+		us->proxy = p;
+		us_add_upstream(upstream_root, us);
+	}
+	p = us->proxy;
+
+	//TODO: check if proxy is available both in tcp and ZK
 
 	void *out;
 	size_t outsize;
@@ -189,16 +209,12 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 			send_response_client(req, a, 504);
 			free(str_input.buffer);
 			free(args.CompactUri.buffer);
-			rpc_proxy_close(p);
-			rpc_proxy_free(p);
 			return -1;
 		}
 
 		if(rsp.Cmd == 103 && a->msp_unreg == 1) {
 			free(str_input.buffer);
 			free(args.CompactUri.buffer);
-			rpc_proxy_close(p);
-			rpc_proxy_free(p);
 			D("socket closed msp send unreg!");
 			return 0;
 		}
@@ -250,8 +266,6 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 		free(str_input.buffer);
 		if(req->cmd == 103 && a->msp_unreg == 1) {
 			free(args.CompactUri.buffer);
-			rpc_proxy_close(p);
-			rpc_proxy_free(p);
 			D("socket closed msp send unreg!");
 			return 0;
 		}
@@ -264,9 +278,8 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 			pxy_agent_close(a);
 		}
 	}
+
 	free(args.CompactUri.buffer);
-	rpc_proxy_close(p);
-	rpc_proxy_free(p);
 	return 0;
 }
 
@@ -275,12 +288,11 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 	rec_msg_t rp_msg;
 	rp_msg.cmd = req->cmd;
 	rp_msg.body_len = 3;
-	char by[3];
 	if(code == 504)
 		rp_msg.body = OVERTIME;
-	else if(code == 500)
+	else 
 		rp_msg.body = SERVERERROR;
-	rp_msg.body = by;
+
 	rp_msg.userid = req->userid;
 	rp_msg.seq = req->seq;
 	rp_msg.format = 128;

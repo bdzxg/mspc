@@ -90,6 +90,9 @@ pxy_start_listen()
 		return -1;
 	}
 
+	int reuse = 1;
+	setsockopt(master->listen_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+	
 	if(setnonblocking(master->listen_fd) < 0){
 		D("set nonblocling error");
 		return -1;
@@ -198,12 +201,6 @@ char* get_send_data(rec_msg_t* t, int* length)
 	  else rval += 4;*/
 
 	// body
-	if(t->cmd == 101) {
-		W("length is %d", t->body_len);
-		if(t->body_len == 3) {
-			W("body is %d %d %d", t->body[0], t->body[1], t->body[2]);
-		}
-	}
 
 	int i;
 	for(i = 0; i < t->body_len; i++ )

@@ -2,9 +2,11 @@
 #include "proxy.h"
 #include "route.h"
 #include "map.h"
+#include "upstream.h"
 
 extern pxy_master_t *master;
 extern pxy_worker_t *worker;
+upstream_map_t *upstream_root;
 
 int worker_init();
 int worker_start();
@@ -41,6 +43,13 @@ int worker_init()
 			D("create buf_pool error");
 			return -1;
 		}
+
+		upstream_root = (upstream_map_t*) pxy_calloc(sizeof(*upstream_root));
+		if(!upstream_root) {
+			E("cannnot malloc for upstream_root");
+			return -1;
+		}
+		upstream_root->root = RB_ROOT;
 
 		worker->root = RB_ROOT;
 		return 0;
