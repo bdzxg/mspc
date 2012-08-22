@@ -55,3 +55,9 @@ static pxy_agent_t* us_remove_upstream(struct rb_root *root, char *name)
 	return data;
 }
   */
+void release_upstream(upstream_t* us)
+{
+	free(us->uri);
+	rpc_proxy_close(us->proxy);
+	rpc_proxy_free(us->proxy);
+}

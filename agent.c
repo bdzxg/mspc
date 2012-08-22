@@ -17,45 +17,68 @@ static char OVERTIME[3] = {8, 248, 3};
 // 500
 static char SERVERERROR[3] = {8, 244, 3};
 
-int char_to_int(buffer_t* buf, int* off, int len)
+void char_to_int(int*v, buffer_t* buf, int* off, int len)
 {
+	*v = 0;
+	char* t = (char*)v;
 	int i;
-	char tmp[4] = {0,0,0,0};
-	for(i = 0 ; i < len; i++) {
-		tmp[i] = *buffer_read(buf, *off);
-		(*off)++;
+	for(i = 0 ; i < len; i++)
+	{
+			*(t+i)= *buffer_read(buf, *off);
+			(*off)++;
 	}
-	return *(int*)tmp;
+}
+
+int worker_insert_agent(pxy_agent_t *agent)
+{
+	int ret = 0;
+	pthread_mutex_lock (&worker->mutex);
+	ret = map_insert(&worker->root,agent);
+	pthread_mutex_unlock(&worker->mutex);
+	return ret;
+}
+
+void worker_remove_agent(pxy_agent_t *agent)
+{
+	if(agent->epid != NULL)
+	{
+		pthread_mutex_lock(&worker->mutex);	
+		map_remove(&worker->root, agent->epid);
+		pthread_mutex_unlock(&worker->mutex);
+	}
 }
 
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 {
 	buffer_t *b = agent->buffer;
 	D("recive len b->len = %lu", b->len);
-	if(agent->buf_len - agent->buf_parsed < 3){
+	if(b->len < 3){
 		D("length not enough!");
-		return 0;
+		return -1;
 	}
 	int index = 1;
-	msg->len = char_to_int(b, &index, 2);
+	char_to_int(&msg->len, b, &index, 2);
 	D("Parse packet len %d",msg->len);
+	if(msg->len > (int)b->len)
+		return -1;
+
 	if(packet_len <=0)
 		packet_len = msg->len;
 
 	if(packet_len > agent->buf_len) {
 		D("Parse packet_len %lu > agent->buf_len %lu", packet_len ,agent->buf_len);
-		return 0;
+		return -1;
 	}
 
 	msg->version = *buffer_read(b, index++);
-	msg->userid = char_to_int(b, &index, 4);
-	msg->cmd = char_to_int(b, &index, 2);
-	msg->seq = char_to_int(b, &index, 2);
-	msg->off = char_to_int(b, &index, 1);
-	msg->format = char_to_int(b, &index, 1);
-	msg->compress = char_to_int(b, &index, 1);
-	msg->client_type = char_to_int(b, &index, 2);
-	msg->client_version = char_to_int(b, &index, 2);
+	char_to_int(&msg->userid, b, &index, 4);
+	char_to_int(&msg->cmd, b, &index, 2);
+	char_to_int(&msg->seq, b, &index, 2);
+	char_to_int(&msg->off, b, &index, 1);
+	char_to_int(&msg->format, b, &index, 1);
+	char_to_int(&msg->compress, b, &index, 1);
+	char_to_int(&msg->client_type, b, &index, 2);
+	char_to_int(&msg->client_version, b, &index, 2);
 	msg->body_len = msg->len - 1 - msg->off;
 	//msg->option_len =  msg->len -21 - msg->body_len;
 	if(agent->user_ctx_len == 0){
@@ -98,10 +121,20 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	packet_len = 0;
     
 	if(agent->epid != NULL)
-		msg->epid = agent->epid; 
+	{
+		if(msg->cmd == 102)
+			msg->epid = agent->epidr2; 
+		else
+			msg->epid = agent->epid; 
+	}
 	else {
 		msg->epid = agent->epid = generate_client_epid(msg->client_type, msg->client_version);
-		map_insert(&worker->root, agent);
+		agent->epidr2 = calloc(strlen(agent->epid)+strlen(LISTENERPORT)+2, 1);
+		strncat(agent->epidr2, agent->epid, strlen(agent->epid));
+		strncat(agent->epidr2, ",", 1);
+		strncat(agent->epidr2, LISTENERPORT, strlen(LISTENERPORT));
+
+		worker_insert_agent(agent);
 	}
 	msg->logic_pool_id = agent->user_context.LogicalPool;
 	return 1;
@@ -220,7 +253,7 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 		}
 
 		
-		//char* func = get_cmd_func_name(rsp.Cmd);
+		char* func = get_cmd_func_name(rsp.Cmd);
 		rec_msg_t rp_msg;
 		rp_msg.cmd = rsp.Cmd;
 		rp_msg.body_len = rsp.Content.len;
@@ -257,12 +290,13 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 		}
 		free(d);
 		if(rp_msg.cmd == 103) {
-			map_remove(&worker->root, a->epid);
+			worker_remove_agent(a);
 			pxy_agent_close(a);
 		}
 		free(str_input.buffer);
 	}
 	else {
+		D("code is %d", code);
 		free(str_input.buffer);
 		if(req->cmd == 103 && a->msp_unreg == 1) {
 			free(args.CompactUri.buffer);
@@ -274,7 +308,7 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 		send_response_client(req, a, 504);
 		D("send rpc response fail");
 		if(req->cmd == 103) {
-			map_remove(&worker->root, a->epid);
+			worker_remove_agent(a);
 			pxy_agent_close(a);
 		}
 	}
@@ -306,10 +340,8 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 	if( n < len) {
 		W("send %d-%d", len , n);
 	}
-
 	free(d);
 }
-
 
 int agent_to_server(pxy_agent_t *a, rec_msg_t* msg)
 {
@@ -327,7 +359,7 @@ int agent_to_server(pxy_agent_t *a, rec_msg_t* msg)
 
 void msp_send_unreg(pxy_agent_t* a)
 {
-	if(a->epid != NULL)
+	if(a->user_ctx != NULL)
 		{
 			rec_msg_t msg;
 			msg.cmd = 103;
@@ -349,7 +381,12 @@ int agent_echo_read_test(pxy_agent_t *agent)
 {
 	rec_msg_t msg;
 	//msg = calloc(sizeof(rec_msg_t), 1);
-	parse_client_data(agent, &msg);
+	if(parse_client_data(agent, &msg) < 0)
+	{	
+		release_rpc_message(&msg);
+		return -1;
+	}
+
 	if(agent_to_server(agent,&msg) < 0) {
 		release_rpc_message(&msg);
 		return -1;
@@ -547,9 +584,7 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
  failed:
 	W("failed, prepare close!");
 	msp_send_unreg(agent);
-	if(agent->epid != NULL)  {
-		map_remove(&worker->root, agent->epid);
-	}
+	worker_insert_agent(agent);
 	pxy_agent_close(agent);
 	free(fi);
 	return;

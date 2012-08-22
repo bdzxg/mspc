@@ -52,6 +52,7 @@ int worker_init()
 		upstream_root->root = RB_ROOT;
 
 		worker->root = RB_ROOT;
+		pthread_mutex_init(&worker->mutex, NULL);
 		return 0;
 	}
 
@@ -61,8 +62,10 @@ int worker_init()
 int worker_start()
 {
 	//TODO: Hard coding 
-	char *zk_url= "192.168.110.231:8998";
+	//char *zk_url= "192.168.110.231:8998"; //sitec
 	//char *zk_url = "192.168.199.8:2181";
+	
+	char *zk_url= "192.168.110.125:8998";// sitea
 	route_init(zk_url);
 
 	ev_file_item_t* fi ;
@@ -87,6 +90,7 @@ int worker_start()
 	   }  */
 
 	ev_main(worker->ev);
+	free(fi);
 	return 1;
 
  start_failed:
@@ -104,17 +108,20 @@ worker_close()
 		D("queue name is %s:%p\n",item->epid,item);
 		pxy_agent_close(item);
 	}
+	upstream_t *us;
+	struct rb_node *r;
+	map_walk(&upstream_root->root, r)
+	{
+		us = rb_entry(r, struct upstream_s, rbnode);
+		release_upstream(us);
+	}
 
 	worker->ev->stop = 1;
 	free(worker->ev->api_data);
 	close(master->listen_fd);
 	return 0;
 } 
-
-int worker_insert_agent(pxy_agent_t *agent)
-{
-	return map_insert(&worker->root,agent);
-}
+ 
 
 void
 worker_accept(ev_t *ev, ev_file_item_t *ffi)

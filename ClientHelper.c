@@ -75,6 +75,9 @@ static char* get_cmd_func_name(int cmd)
 		case 103: return "mcore-UnRegV5";
 		case 104: return "mcore-KeepAliveV5";
 		case 105: return "mcore-FlowV5";
+ 		case 198: return "mcore-Reg3V5";
+	    case 199: return "mcore-OffStateV5";
+				  
 		case 165: return "muser-HandleContactRequestV5";
 		case 161: return "muser-AddToBlacklistV5";
 		case 162: return "muser-RemoveFromBlacklistV5";
@@ -95,6 +98,8 @@ static char* get_cmd_func_name(int cmd)
 		case 180: return "muser-SmsForwardInfoV5";
 		case 179: return "muser-SetUserInfoV5";
 		case 177: return "muser-SetContactInfoV5";
+   		case 186: return "muser-GetContactsInfoV5";
+		case 187: return "muser-SubContactInfoV5";
 
 		case 142: return "mgroup-PGGetGroupListV5";
 		case 141: return "mgroup-PGGetGroupInfoV5";
@@ -128,6 +133,8 @@ static char* get_cmd_func_name(int cmd)
 		case 193: return "mmultimedia-RequireMMData";
 		case 194: return "mmultimedia-SendMMDataV5McpApp";
 		case 195: return "mmultimedia-SendMMDataFinishV5";
+		case 196: return "mmultimedia-mmsendimage";
+		case 197: return "mmultimedia-MMSendImageNotif";
 		default: return NULL;
 	}
 }

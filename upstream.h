@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include "proxy.h"
+#include "include/rpc_client.h"
 
 typedef struct upstream_s {
 	char *uri;
@@ -18,5 +19,5 @@ typedef struct upstream_map_s {
 
 int us_add_upstream(upstream_map_t*, upstream_t*);
 upstream_t* us_get_upstream(upstream_map_t *, char*);
-
+void release_upstream(upstream_t* us);
 #endif

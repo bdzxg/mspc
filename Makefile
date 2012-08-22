@@ -1,5 +1,5 @@
 CC = 	gcc
-CFLAGS = -pipe  -O0 -Wall -I -g -Werror -ggdb
+CFLAGS = -pipe -O0 -W -Wall -I -Wno-unused-parameter -g
 LINK =	$(CC)
 
 LIB_OBJS = \

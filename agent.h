@@ -21,6 +21,7 @@ typedef struct pxy_agent_s{
 	UserContext user_context;  
 	int msp_unreg;
 	int logic_pool_id;
+	char* epidr2;
 }pxy_agent_t;
 
 typedef struct message_s {

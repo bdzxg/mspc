@@ -5,6 +5,7 @@
 #define BUFFER_SIZE 500
 #define pxy_memzero(buf, n)       (void) memset(buf, 0, n)
 #define UNUSED(x) (void)(x)
+#define LISTENERPORT "tcp://192.168.119.8:9999"
 
 #include "sysinc.h"
 #include "rbtree.h"
@@ -18,6 +19,7 @@
 #include "map.h"
 #include "log.h"
 #include "upstream.h"
+
 
 typedef struct pxy_config_s{
     short client_port;
@@ -37,6 +39,7 @@ typedef struct pxy_worker_s{
     int socket_pair[2];
 	struct rb_root root;
 	FILE* fid;
+	pthread_mutex_t mutex;
 }pxy_worker_t;
 
 typedef struct pxy_master_s{

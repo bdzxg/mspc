@@ -233,7 +233,6 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 		return;
 	}
 
-	/*
 	rec_msg_t msg;
 	msg.cmd = input.Cmd;
 	msg.body_len = input.Content.len;
@@ -271,7 +270,6 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 		rpc_return(c, str_out.buffer, str_out.len);
 	else
 		rpc_return_error(c, RPC_CODE_SERVER_ERROR, "output encode failed!");
-	*/
 }
 
 int rpc_server_init()
@@ -289,7 +287,7 @@ void* rpc_server_thread(void* args)
 
 	rpc_server_t* s = rpc_server_new();
 	//s->is_main_dispatch_th = 0;
-	rpc_server_regchannel(s, "tcp://0.0.0.0:9999");
+	rpc_server_regchannel(s, LISTENERPORT);
 	rpc_server_regservice(s, "IMSPRpcService", "ReceiveMessage", receive_message);
 	rpc_args_init();
 
@@ -323,13 +321,11 @@ int main()
 	}
 	D("worker inited");
 
-	/*
 	if(rpc_server_init() < 0) {
 		E("rpc server start failed");
 		return -1;
 	}
 	D("rpc server inited");
-	*/
 		
 	if(!worker_start()) {
 		D("worker #%d started failed", getpid()); return -1;
@@ -338,15 +334,6 @@ int main()
 		
 
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0){ 
-		if(strcmp(ch,"nowcount") == 0)
-			{
-				long i = 0;
-				struct rb_node *rn;
-				map_walk(&worker->root,rn) {
-					i++;
-				}
-				D("agent count is %ld",i);
-			}
 	}
 
 	w = (pxy_worker_t*)master->workers;
