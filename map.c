@@ -51,5 +51,54 @@ pxy_agent_t* map_remove(struct rb_root *root, char *name)
 	return data;
 }
 
+int map_insert_reg3(struct rb_root *root, reg3_t *q)
+{
+	struct rb_node **new = &(root->rb_node), *parent = NULL;
+
+	while(*new) {
+		reg3_t* data = rb_entry(*new, struct reg3_s, rbnode);
+		int result = strcmp(data->epid,q->epid);
+		parent = *new;
+		if(result < 0)
+			new = &((*new)->rb_left);
+		else if(result > 0)
+			new = &((*new)->rb_right);
+		else 
+			return -1;
+	}
+
+	rb_link_node(&q->rbnode,parent,new);
+	rb_insert_color(&q->rbnode,root);
+	return 1;
+}
+
+reg3_t* map_search_reg3(struct rb_root *root, char *name)
+{
+	struct rb_node *node = root->rb_node;
+
+	while(node) {
+		reg3_t* q = rb_entry(node, struct reg3_s, rbnode);
+		int result = strcmp(q->epid,name);
+
+		if (result < 0)
+			node = node->rb_left;
+		else if (result > 0)
+			node = node->rb_right;
+		else 
+			return q;
+	}
+
+	return NULL;
+}
+
+reg3_t* map_remove_reg3(struct rb_root *root, char *name)
+{
+	reg3_t* data = map_search_reg3(root,name);
+
+	if(data) {
+		rb_erase(&data->rbnode,root);
+	}
+	return data;
+}
 
 

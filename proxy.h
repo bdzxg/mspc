@@ -40,6 +40,8 @@ typedef struct pxy_worker_s{
 	struct rb_root root;
 	FILE* fid;
 	pthread_mutex_t mutex;
+	pthread_mutex_t r3_mutex;
+	struct rb_root r3_root;
 }pxy_worker_t;
 
 typedef struct pxy_master_s{

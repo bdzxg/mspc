@@ -15,6 +15,7 @@ void worker_accept(ev_t*,ev_file_item_t*);
 void worker_recv_client(ev_t*,ev_file_item_t*);
 void worker_recv_cmd(ev_t*,ev_file_item_t*);
 
+
 int worker_init()
 {
 	worker = (pxy_worker_t*)pxy_calloc(sizeof(*worker));

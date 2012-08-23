@@ -48,6 +48,50 @@ void worker_remove_agent(pxy_agent_t *agent)
 	}
 }
 
+void worker_insert_reg3(reg3_t* r3)
+{
+	pthread_mutex_lock(&worker->r3_mutex);
+	map_insert_reg3(&worker->r3_root, r3);	
+	pthread_mutex_unlock(&worker->r3_mutex);
+}
+
+reg3_t* worker_remove_reg3(char* key)
+{
+	pthread_mutex_lock(&worker->r3_mutex);
+	reg3_t* r3 = map_remove_reg3(&worker->r3_root, key);
+	pthread_mutex_unlock(&worker->r3_mutex);
+	return r3;
+}
+
+void release_reg3(reg3_t* r3)
+{
+	free(r3->epid);
+	free(r3->user_context);
+	free(r3);
+}
+
+int store_connection_context_reg3(pxy_agent_t *a)
+{
+		if(a->epid != NULL && a->user_ctx_len > 0)
+		{
+				reg3_t* r3 = calloc(sizeof(reg3_t), 1);
+				r3->epid = calloc(strlen(a->epid)+1, 1);
+				memcpy(r3->epid, a->epid, strlen(a->epid));
+
+				r3->user_context_len = a->user_ctx_len;
+				r3->user_context = calloc(r3->user_context_len, 1);
+				memcpy(r3->user_context, a->user_ctx, r3->user_context_len);
+				
+				r3->user_id = a->user_id;
+				r3->logic_pool_id = a->logic_pool_id;
+
+				worker_insert_reg3(r3);
+				return 1;
+		}
+		else
+				return 0;
+}
+
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 {
 	buffer_t *b = agent->buffer;
@@ -136,7 +180,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 
 		worker_insert_agent(agent);
 	}
-	msg->logic_pool_id = agent->user_context.LogicalPool;
+	msg->logic_pool_id = agent->logic_pool_id;
 	return 1;
 }
 
@@ -277,8 +321,8 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 					D("unpack user context fail");
 				}
 			else {
-				a->user_id = a->user_context.UserId = us_ctx.UserId;
-				a->user_context.LogicalPool = us_ctx.LogicalPool;
+				a->user_id = us_ctx.UserId;
+				a->logic_pool_id = us_ctx.LogicalPool;
 			}
 		}
 		int len;
@@ -364,7 +408,7 @@ void msp_send_unreg(pxy_agent_t* a)
 			rec_msg_t msg;
 			msg.cmd = 103;
 			msg.userid = a->user_id;
-			msg.logic_pool_id = a->user_context.LogicalPool;
+			msg.logic_pool_id = a->logic_pool_id;
 			msg.seq = 100000;
 			msg.format = 0;
 			msg.user_context_len = a->user_ctx_len;
@@ -377,7 +421,7 @@ void msp_send_unreg(pxy_agent_t* a)
 		}
 }
 
-int agent_echo_read_test(pxy_agent_t *agent)
+int process_client_req(pxy_agent_t *agent)
 {
 	rec_msg_t msg;
 	//msg = calloc(sizeof(rec_msg_t), 1);
@@ -574,17 +618,19 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 				}
 		}
 	D("buffer-len %zu", agent->buf_len);
-	if(agent_echo_read_test(agent) < 0)
-		{
+	if(process_client_req(agent) < 0)
+	{
 			W("echo read test fail!");
 			goto failed;
-		}
+	}
 	return;
 
  failed:
 	W("failed, prepare close!");
-	msp_send_unreg(agent);
-	worker_insert_agent(agent);
+	//msp_send_unreg(agent);
+	// todo Add to reg3 rbtree
+	store_connection_context_reg3(agent);
+	worker_remove_agent(agent);
 	pxy_agent_close(agent);
 	free(fi);
 	return;

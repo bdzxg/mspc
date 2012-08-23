@@ -18,11 +18,19 @@ typedef struct pxy_agent_s{
 	struct rb_node rbnode;
 	char* user_ctx;
 	int user_ctx_len;
-	UserContext user_context;  
 	int msp_unreg;
 	int logic_pool_id;
 	char* epidr2;
 }pxy_agent_t;
+
+typedef struct reg3_s{
+	int user_id;
+	char* epid;
+	int logic_pool_id;
+	char *user_context;
+	int user_context_len;
+	struct rb_node rbnode;
+}reg3_t;
 
 typedef struct message_s {
     uint32_t len;
@@ -63,6 +71,14 @@ void agent_recv_client(ev_t *,ev_file_item_t*);
 void free_string_ptr(char* str);
 void agent_send_client(rec_msg_t* rec_msg, pxy_agent_t *agent);
 void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code); 
+
+int worker_insert_agent(pxy_agent_t *agent);
+void worker_remove_agent(pxy_agent_t *agent);
+void worker_insert_reg3(reg3_t* r3);
+reg3_t* worker_remove_reg3(char* key);
+void release_reg3(reg3_t* r3);
+int store_connection_context(pxy_agent_t *a);
+
 
 #define pxy_agent_for_each(agent,alist)			\
     list_for_each_entry((agent),list,&(alist)->list)	
