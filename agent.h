@@ -21,6 +21,7 @@ typedef struct pxy_agent_s{
 	int msp_unreg;
 	int logic_pool_id;
 	char* epidr2;
+	size_t isreg;
 }pxy_agent_t;
 
 typedef struct reg3_s{
