@@ -60,6 +60,13 @@ typedef struct rec_message_s{
 	char *epid;
 }rec_msg_t;
 
+typedef struct rpc_async_req_s{
+	pxy_agent_t* a;
+	rec_msg_t* req;
+	void* rpc_bf;
+}rpc_async_req_t;
+
+
 pxy_agent_t* pxy_agent_new(mp_pool_t *,int,int);
 void pxy_agent_close(pxy_agent_t *);
 int pxy_agent_data_received(pxy_agent_t *);

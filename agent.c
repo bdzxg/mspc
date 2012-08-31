@@ -280,10 +280,103 @@ void release_rpc_message(rec_msg_t* msg)
 				free(msg->body);
 }
 
+void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t output_len,void *input, size_t input_len, void *data)
+{
+		UNUSED(c);
+		UNUSED(input);
+		UNUSED(input_len);
+		rpc_async_req_t* rt = (rpc_async_req_t*)data;
+		D("code is %d", (int)code);
+
+		if (code == RPC_CODE_OK) {
+				McpAppBeanProto rsp;
+				rpc_pb_string str = {output, output_len};
+				int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);
+				if (r < 0) {
+						D("rpc response unpack fail");
+						// send 500 to client
+						send_response_client(rt->req, rt->a, 504);
+						free(rt->rpc_bf);
+						free(data);
+						return;
+				}
+
+				if(rsp.Cmd == 103 && rt->a->msp_unreg == 1) {
+						D("socket closed msp send unreg!");
+						free(rt->rpc_bf);
+						free(data);
+						return;
+				}
+
+				char* func = get_cmd_func_name(rsp.Cmd);
+				rec_msg_t rp_msg;
+				rp_msg.cmd = rsp.Cmd;
+				rp_msg.body_len = rsp.Content.len;
+				rp_msg.body = rsp.Content.buffer;
+				rp_msg.userid = rsp.UserId;
+				rp_msg.seq = rsp.Sequence;
+				rp_msg.format = rsp.Opt;
+				rp_msg.compress = rsp.ZipFlag;
+				D("rpc %s func response, seq is %d", func, rp_msg.format);
+				// reg2 response
+				if(rp_msg.cmd == 102 && rt->a->user_ctx == NULL) {
+						rt->a->isreg = 1;
+						rt->a->user_ctx_len = rsp.UserContext.len;
+						rt->a->user_ctx = calloc(rsp.UserContext.len, 1);
+						memcpy(rt->a->user_ctx, rsp.UserContext.buffer, rsp.UserContext.len);
+						UserContext us_ctx;
+						rpc_pb_string str_uc = {rsp.UserContext.buffer, rsp.UserContext.len};
+						int t = rpc_pb_pattern_unpack(rpc_pat_usercontext, &str_uc, &us_ctx);
+
+						if(t<0)
+						{
+								D("unpack user context fail");
+						}
+						else {
+								rt->a->user_id = us_ctx.UserId;
+								rt->a->logic_pool_id = us_ctx.LogicalPool;
+						}
+				}
+
+				int len;
+				char* d = get_send_data(&rp_msg, &len);
+				D("fd %d, d %p, len %d", rt->a->fd, d, len);
+				int n  = send(rt->a->fd, d, len, 0);
+				if( n < len ) {
+						W("send %d:%d", n , len);
+				}
+				free(d);
+				if(rp_msg.cmd == 103) {
+						rt->a->isreg = 0;
+						worker_remove_agent(rt->a);
+						pxy_agent_close(rt->a);
+				}
+		}
+		else {
+				if(rt->req->cmd == 103 && rt->a->msp_unreg == 1) {
+						D("socket closed msp send unreg!");
+					free(rt->rpc_bf);
+					free(data);
+					return;
+				}
+
+				// send 500 server error
+				send_response_client(rt->req, rt->a, 500);
+				D("send rpc response fail");
+				if(rt->req->cmd == 103) {
+						worker_remove_agent(rt->a);
+						pxy_agent_close(rt->a);
+				}
+		}
+		free(rt->rpc_bf);
+		free(data);
+}
+
 int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 {
 	W("prxy uri %s", proxy_uri);
 	rpc_proxy_t *p ;
+
 	upstream_t *us = us_get_upstream(upstream_root, proxy_uri);
 	if(!us) {
 		W("no proxy,malloc one");
@@ -293,6 +386,7 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 			return -1;
 		}
 
+		/* 同步处理逻辑 
 		// sync rpc method
 		p = rpc_proxy_new(proxy_uri);
 		if(p == NULL) {
@@ -301,7 +395,11 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 		}	
 		p->setting.connect_timeout = 500;
 		p->setting.request_timeout = 6000;
-		
+		*/
+		// 异步处理逻辑
+		rpc_client_t *cnt = rpc_client_new();
+		p = rpc_client_connect(cnt, proxy_uri);
+		// end 异步处理逻辑
 		us->uri = strdup(proxy_uri);
 		us->proxy = p;
 		us_add_upstream(upstream_root, us);
@@ -309,9 +407,10 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 	p = us->proxy;
 
 	//TODO: check if proxy is available both in tcp and ZK
-
+	/* 同步处理逻辑
 	void *out;
 	size_t outsize;
+	*/
 
 	rpc_args_init();
 	McpAppBeanProto args; 
@@ -324,8 +423,18 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 	rpc_pb_pattern_pack(rpc_pat_mcpappbeanproto, &args, &str_input);
 	char* func_name = get_cmd_func_name(req->cmd);
 	D("rpc call func name %s", func_name);
-	int code = rpc_call(p,"MCP", func_name, str_input.buffer, str_input.len, &out, &outsize);
+	rpc_async_req_t* rt = calloc(sizeof(rpc_async_req_t), 1);
+	rt->a = a;
+	rt->req = req;
+	rt->rpc_bf = str_input.buffer;
+	rpc_call_async(p, "MCP", func_name, str_input.buffer, str_input.len, rpc_response, rt);
+	free(args.CompactUri.buffer);
+	return 0;
 
+	
+	/* 同步处理逻辑
+	int code = rpc_call(p,"MCP", func_name, str_input.buffer, str_input.len, &out, &outsize);
+	
 	if (code == RPC_CODE_OK) {
 		McpAppBeanProto rsp;
 		rpc_pb_string str = {out, outsize};
@@ -413,6 +522,7 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 	}
 
 	free(args.CompactUri.buffer);
+	*/
 	return 0;
 }
 
@@ -448,9 +558,15 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 
 int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg)
 {
-	char *url;
+	char *url = NULL;
 	get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
-	D("cmd %d url=%s", msg->cmd, url);
+	if(url == NULL || msg->cmd == NULL)
+	{
+		D("cmd %d url is null", msg->cmd);
+		return -1;
+	}
+	else
+		D("cmd %d url=%s", msg->cmd, url);
 	//get proxy uri
 	if(send_rpc_server(msg, url, a) < 0) {
 		free(url);
