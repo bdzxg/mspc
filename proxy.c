@@ -267,7 +267,10 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 	r = rpc_pb_pattern_pack(rpc_pat_retval, &output, &str_out);
 
 	if (r >= 0) 
-		rpc_return(c, str_out.buffer, str_out.len);
+	{
+ 		 rpc_return(c, str_out.buffer, str_out.len);
+		 free(str_out.buffer);
+	}
 	else
 		rpc_return_error(c, RPC_CODE_SERVER_ERROR, "output encode failed!");
 }

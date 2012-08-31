@@ -126,6 +126,7 @@ int process_reg3_req(rec_msg_t* msg, pxy_agent_t* a)
 				a->epid = epid;
 				a->user_ctx_len = r3->user_context_len;
 				memcpy(a->user_ctx, r3->user_context, a->user_ctx_len);
+				release_reg3(r3);
 		}
 		return 1;
 }
@@ -338,7 +339,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 						}
 				}
 
-				int len;
+				int len = 0;
 				char* d = get_send_data(&rp_msg, &len);
 				D("fd %d, d %p, len %d", rt->a->fd, d, len);
 				int n  = send(rt->a->fd, d, len, 0);
@@ -560,7 +561,7 @@ int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg)
 {
 	char *url = NULL;
 	get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
-	if(url == NULL || msg->cmd == NULL)
+	if(url == NULL)
 	{
 		D("cmd %d url is null", msg->cmd);
 		return -1;
