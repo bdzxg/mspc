@@ -254,6 +254,7 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 	}
 	msg.seq = a->bn_seq++;
 	process_bn(&msg, a);
+	W("BN epid %s!", msg.epid);
 	free(msg.epid);
 
 	retval output;

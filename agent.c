@@ -70,9 +70,21 @@ reg3_t* worker_remove_reg3(char* key)
 void worker_recycle_reg3()
 {
 	time_t now_time = time(NULL);
-	pthread_mutex_lock(&worker->r3_mutex);
-	map_remove_timeout_reg3(&worker->r3_root, &now_time); 
-	pthread_mutex_unlock(&worker->r3_mutex);
+	// loop find overtime reg3, unreg and clean from reg3 queue	
+	struct rb_node *node = worker->r3_root.rb_node;
+	while(node)
+   	{
+		reg3_t* q = rb_entry(node, struct reg3_s, rbnode);
+		if(q->remove_time < now_time)
+		{
+			// unreg
+			pthread_mutex_lock(&worker->r3_mutex);
+			msp_send_unreg(q);
+			rb_erase(&q->rbnode, &worker->r3_root);
+			pthread_mutex_unlock(&worker->r3_mutex);
+			release_reg3(q);
+		}		
+	}
 }
 
 void release_reg3(reg3_t* r3)
@@ -253,7 +265,7 @@ char* Get_CompactUri(rec_msg_t* msg)
 		char* ret;
 		ret = malloc(36);
 		if(ret == NULL)
-				return ret;
+			return ret;
 		sprintf(ret, "id:%d;p=%d;", msg->userid,msg->logic_pool_id);	
 		return ret;
 }
@@ -313,7 +325,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 						return;
 				}
 
-				if(rsp.Cmd == 103 && rt->a->msp_unreg == 1) {
+				if(rsp.Cmd == 103 && rt->msp_unreg == 1) {
 						D("socket closed msp send unreg!");
 						free(rt->rpc_bf);
 						free(data);
@@ -367,7 +379,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 				}
 		}
 		else {
-				if(rt->req->cmd == 103 && rt->a->msp_unreg == 1) {
+				if(rt->req->cmd == 103 && rt->msp_unreg == 1) {
 						D("socket closed msp send unreg!");
 					free(rt->rpc_bf);
 					free(data);
@@ -386,7 +398,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 		free(data);
 }
 
-int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
+int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unreg)
 {
 	W("cmd %d prxy uri %s", req->cmd, proxy_uri);
 	rpc_proxy_t *p ;
@@ -441,6 +453,7 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 	rt->a = a;
 	rt->req = req;
 	rt->rpc_bf = str_input.buffer;
+	rt->msp_unreg = msp_unreg;
 	rpc_call_async(p, "MCP", func_name, str_input.buffer, str_input.len, rpc_response, rt);
 	free(args.CompactUri.buffer);
 	return 0;
@@ -570,7 +583,7 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 	free(d);
 }
 
-int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg)
+int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 {
 	char *url = NULL;
 	get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
@@ -584,7 +597,7 @@ int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg)
 		D("cmd %d url=%s", msg->cmd, url);
 	}
 	//get proxy uri
-	if(send_rpc_server(msg, url, a) < 0) {
+	if(send_rpc_server(msg, url, a, msp_unreg) < 0) {
 		free(url);
 		return -1;
 	}
@@ -592,6 +605,26 @@ int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg)
 	return 0;
 }
 
+void msp_send_unreg(reg3_t* a)
+{
+	if(a->user_context!= NULL)
+		{
+			rec_msg_t msg;
+			msg.cmd = 103;
+			msg.userid = a->user_id;
+			msg.logic_pool_id = a->logic_pool_id;
+			msg.seq = 100000;
+			msg.format = 0;
+			msg.user_context_len = a->user_context_len;
+			msg.user_context = a->user_context;
+			msg.body_len = 0;
+			msg.epid = a->epid;
+			msg.compress = 0;
+			agent_to_beans(NULL, &msg, 1);
+		}
+}
+
+/* recycle reg3 thread unreg  
 void msp_send_unreg(pxy_agent_t* a)
 {
 	if(a->user_ctx != NULL)
@@ -608,9 +641,9 @@ void msp_send_unreg(pxy_agent_t* a)
 			msg.epid = a->epid;
 			msg.compress = 0;
 			a->msp_unreg = 1;
-			agent_to_beans(a, &msg);
+			agent_to_beans(a, &msg, 1);
 		}
-}
+}*/
 
 int process_client_req(pxy_agent_t *agent)
 {
@@ -621,7 +654,7 @@ int process_client_req(pxy_agent_t *agent)
 		return -1;
 	}
 
-	if(agent_to_beans(agent,&msg) < 0) {
+	if(agent_to_beans(agent,&msg,0) < 0) {
 		release_rpc_message(&msg);
 		return -1;
 	}
@@ -739,7 +772,6 @@ pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
 	agent->epid = NULL;
 	agent->user_ctx = NULL;
 	agent->buffer = NULL;
-	agent->msp_unreg = 0;
 	agent->isreg = 0;
 	return agent;
 

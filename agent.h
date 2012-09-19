@@ -18,7 +18,7 @@ typedef struct pxy_agent_s{
 	struct rb_node rbnode;
 	char* user_ctx;
 	int user_ctx_len;
-	int msp_unreg;
+//	int msp_unreg;
 	int logic_pool_id;
 	char* epidr2;
 	size_t isreg;
@@ -65,6 +65,7 @@ typedef struct rpc_async_req_s{
 	pxy_agent_t* a;
 	rec_msg_t* req;
 	void* rpc_bf;
+	int msp_unreg;
 }rpc_async_req_t;
 
 
@@ -88,6 +89,7 @@ reg3_t* worker_remove_reg3(char* key);
 void release_reg3(reg3_t* r3);
 int store_connection_context(pxy_agent_t *a);
 void worker_recycle_reg3();
+void msp_send_unreg(reg3_t* a);
 
 #define pxy_agent_for_each(agent,alist)			\
     list_for_each_entry((agent),list,&(alist)->list)	
