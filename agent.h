@@ -30,6 +30,7 @@ typedef struct reg3_s{
 	int logic_pool_id;
 	char *user_context;
 	int user_context_len;
+	time_t remove_time;
 	struct rb_node rbnode;
 }reg3_t;
 
@@ -86,7 +87,7 @@ void worker_insert_reg3(reg3_t* r3);
 reg3_t* worker_remove_reg3(char* key);
 void release_reg3(reg3_t* r3);
 int store_connection_context(pxy_agent_t *a);
-
+void worker_recycle_reg3();
 
 #define pxy_agent_for_each(agent,alist)			\
     list_for_each_entry((agent),list,&(alist)->list)	

@@ -13,4 +13,5 @@ int map_insert(struct rb_root *, pxy_agent_t *);
 int map_insert_reg3(struct rb_root *root, reg3_t *q);
 reg3_t* map_search_reg3(struct rb_root *root, char *name);
 reg3_t* map_remove_reg3(struct rb_root *root, char *name);
+void map_remove_timeout_reg3(struct rb_root *root, time_t* time);
 #endif

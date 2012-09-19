@@ -67,6 +67,14 @@ reg3_t* worker_remove_reg3(char* key)
 	return r3;
 }
 
+void worker_recycle_reg3()
+{
+	time_t now_time = time(NULL);
+	pthread_mutex_lock(&worker->r3_mutex);
+	map_remove_timeout_reg3(&worker->r3_root, &now_time); 
+	pthread_mutex_unlock(&worker->r3_mutex);
+}
+
 void release_reg3(reg3_t* r3)
 {
 	free(r3->epid);
@@ -78,10 +86,12 @@ int store_connection_context_reg3(pxy_agent_t *a)
 {
 		if(a->isreg == 1 && a->epid != NULL && a->user_ctx_len > 0)
 		{
+				// epid
 				reg3_t* r3 = calloc(sizeof(reg3_t), 1);
 				r3->epid = calloc(strlen(a->epid)+1, 1);
 				memcpy(r3->epid, a->epid, strlen(a->epid));
 
+				// context
 				r3->user_context_len = a->user_ctx_len;
 				r3->user_context = calloc(r3->user_context_len, 1);
 				memcpy(r3->user_context, a->user_ctx, r3->user_context_len);
@@ -89,6 +99,7 @@ int store_connection_context_reg3(pxy_agent_t *a)
 				r3->user_id = a->user_id;
 				r3->logic_pool_id = a->logic_pool_id;
 
+				r3->remove_time = time(NULL)+REG3_REMOVE_INTERVAL_MIN*60; 
 				worker_insert_reg3(r3);
 				return 1;
 		}
@@ -287,8 +298,8 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 		UNUSED(input);
 		UNUSED(input_len);
 		rpc_async_req_t* rt = (rpc_async_req_t*)data;
-		D("code is %d", (int)code);
 
+		W("cmd %d code %d", rt->req->cmd, (int)code);
 		if (code == RPC_CODE_OK) {
 				McpAppBeanProto rsp;
 				rpc_pb_string str = {output, output_len};
@@ -309,7 +320,6 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 						return;
 				}
 
-				char* func = get_cmd_func_name(rsp.Cmd);
 				rec_msg_t rp_msg;
 				rp_msg.cmd = rsp.Cmd;
 				rp_msg.body_len = rsp.Content.len;
@@ -318,6 +328,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 				rp_msg.seq = rsp.Sequence;
 				rp_msg.format = rsp.Opt;
 				rp_msg.compress = rsp.ZipFlag;
+				char* func = get_cmd_func_name(rsp.Cmd);
 				D("rpc %s func response, seq is %d", func, rp_msg.format);
 				// reg2 response
 				if(rp_msg.cmd == 102 && rt->a->user_ctx == NULL) {
@@ -340,9 +351,11 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 				}
 
 				int len = 0;
-				char* d = get_send_data(&rp_msg, &len);
+				char* d = NULL;
+				d = get_send_data(&rp_msg, &len);
 				D("fd %d, d %p, len %d", rt->a->fd, d, len);
-				int n  = send(rt->a->fd, d, len, 0);
+				int n  = 0;
+				n = send(rt->a->fd, d, len, 0);
 				if( n < len ) {
 						W("send %d:%d", n , len);
 				}
@@ -375,7 +388,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 
 int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a)
 {
-	W("prxy uri %s", proxy_uri);
+	W("cmd %d prxy uri %s", req->cmd, proxy_uri);
 	rpc_proxy_t *p ;
 
 	upstream_t *us = us_get_upstream(upstream_root, proxy_uri);
@@ -567,7 +580,9 @@ int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg)
 		return -1;
 	}
 	else
+	{
 		D("cmd %d url=%s", msg->cmd, url);
+	}
 	//get proxy uri
 	if(send_rpc_server(msg, url, a) < 0) {
 		free(url);

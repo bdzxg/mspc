@@ -284,6 +284,15 @@ int rpc_server_init()
 		return 0;	
 }	
  
+int reg3_recycle_init()
+{
+	pthread_t id;
+	if(pthread_create(&id, NULL, (void*)recycle_connection_reg3_thread, NULL))
+		return -1;
+	else 
+		return 0;	
+}
+
 void* rpc_server_thread(void* args)
 {
 	UNUSED(args);
@@ -302,6 +311,16 @@ void* rpc_server_thread(void* args)
 		D("init rpc server ok");
 	}
 	return NULL;
+}
+
+void* recycle_connection_reg3_thread(void* args)
+{
+	UNUSED(args);
+	while(1)
+	{
+		worker_recycle_reg3();		
+		sleep(90*1000);
+	}		
 }
 
 int main()
@@ -324,12 +343,19 @@ int main()
 	}
 	D("worker inited");
 
+
 	if(rpc_server_init() < 0) {
 		E("rpc server start failed");
 		return -1;
 	}
 	D("rpc server inited");
-		
+	if(reg3_recycle_init()<0)
+	{
+		E("reg3 recycle init start failed");
+		return -1;
+	}
+	D("reg3 recycle inited");
+
 	if(!worker_start()) {
 		D("worker #%d started failed", getpid()); return -1;
 	}

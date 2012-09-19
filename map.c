@@ -101,4 +101,16 @@ reg3_t* map_remove_reg3(struct rb_root *root, char *name)
 	return data;
 }
 
+void map_remove_timeout_reg3(struct rb_root *root, time_t* time)
+{
+	struct rb_node *node = root->rb_node;
+
+	while(node) {
+		reg3_t* q = rb_entry(node, struct reg3_s, rbnode);
+		if(q->remove_time < *time)
+		{
+			rb_erase(&q->rbnode, root);
+		}		
+	}
+}
 

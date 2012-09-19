@@ -250,15 +250,15 @@ static char* generate_client_epid(int type, int version)
 	gettimeofday(&tv, NULL);
 	char* tep = calloc(7, 1);
 	sprintf(tep, "%lu", tv.tv_usec);
-	char* tep_t = calloc(5, 1);
-	strncpy(tep_t, tep, 4);
-	char* t = calloc(18, 1);	
-	sprintf(t, "%02d%02d%4s", p->tm_min, p->tm_sec, tep_t);
+	//char* tep_t = calloc(5, 1);
+	//strncpy(tep_t, tep, 4);
+	char* t = calloc(20, 1);	
+	sprintf(t, "%02d%02d%6s", p->tm_min, p->tm_sec, tep);
 	char* cltype = get_inner_cltype(cl_type);
 	char* epid = calloc(strlen(t)+ strlen(cltype) + strlen(cl_version) + 1, 1);
 	sprintf(epid, "%s%s%s", cltype,  cl_version, t);
 	free(tep);
-	free(tep_t);
+	//free(tep_t);
 	free(t);
 	return epid;
 }
