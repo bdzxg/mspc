@@ -31,6 +31,7 @@ typedef struct {
   u_char  *last;
   u_char  *end;
   rpc_pool_t  *next;
+  rpc_uint_t  failed;
 } rpc_pool_data_t;
 
 struct rpc_pool_s {

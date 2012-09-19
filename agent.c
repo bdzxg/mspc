@@ -254,6 +254,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 				strncat(agent->epidr2, agent->epid, strlen(agent->epid));
 				strncat(agent->epidr2, ",", 1);
 				strncat(agent->epidr2, LISTENERPORT, strlen(LISTENERPORT));
+				W("REG2 epid %s", agent->epidr2);
 				worker_insert_agent(agent);
 		}
 		msg->logic_pool_id = agent->logic_pool_id;
