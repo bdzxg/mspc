@@ -262,4 +262,16 @@ static char* generate_client_epid(int type, int version)
 	free(t);
 	return epid;
 }
- 
+
+static char* get_now_time()
+{
+	time_t tmp_time;
+	struct tm *ptime;
+	tmp_time = time(NULL);//获取当前时间
+	ptime = localtime(&tmp_time);
+	char* t = calloc(50, 1);	
+	sprintf(t, "%d-%d-%d %d:%d:%d\n",(1900+ptime->tm_year),(1+ptime->tm_mon),ptime->tm_mday,	ptime->tm_hour,ptime->tm_min,ptime->tm_sec);
+	W("%d-%d-%d %d:%d:%d\n",(1900+ptime->tm_year),(1+ptime->tm_mon),ptime->tm_mday,	ptime->tm_hour,ptime->tm_min,ptime->tm_sec);
+	return t;
+}
+

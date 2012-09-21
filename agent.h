@@ -18,10 +18,14 @@ typedef struct pxy_agent_s{
 	struct rb_node rbnode;
 	char* user_ctx;
 	int user_ctx_len;
-//	int msp_unreg;
 	int logic_pool_id;
 	char* epidr2;
 	size_t isreg;
+	int clienttype;
+	long upflow;
+	long downflow;
+	char* logintime;
+	char* logouttime;
 }pxy_agent_t;
 
 typedef struct reg3_s{
@@ -89,7 +93,8 @@ reg3_t* worker_remove_reg3(char* key);
 void release_reg3(reg3_t* r3);
 int store_connection_context(pxy_agent_t *a);
 void worker_recycle_reg3();
-void msp_send_unreg(reg3_t* a);
+void send_to_client(pxy_agent_t* a, char* data, int* len );
+int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg);
 
 #define pxy_agent_for_each(agent,alist)			\
     list_for_each_entry((agent),list,&(alist)->list)	

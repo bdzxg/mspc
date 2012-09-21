@@ -1,7 +1,7 @@
 /*
  * rpc_args.h
  *
- *  Created on: 2012-08-23
+ *  Created on: 2012-09-21
  *      Author: likai
  */
 
@@ -53,6 +53,21 @@ typedef struct {
   rpc_pb_string option;
 }retval;
 
+typedef struct {
+  rpc_pb_string LogoffTime;
+  rpc_pb_string LoginTime;
+  int32_t OwnerId;
+  int32_t OwnerSid;
+  int32_t ClientType;
+  rpc_pb_string ClientVersion;
+  int32_t Apn;
+  int64_t UpFlow;
+  int64_t DownFlow;
+  rpc_pb_string OwnerRegion;
+  rpc_pb_string OwnerCarrier;
+  rpc_pb_string IpAddress;
+}MobileFlowEventArgs;
+
 
 rpc_int_t rpc_args_init();
 
@@ -60,6 +75,7 @@ rpc_pb_pattern *rpc_pat_reg3v5reqargs;
 rpc_pb_pattern *rpc_pat_mcpappbeanproto;
 rpc_pb_pattern *rpc_pat_usercontext;
 rpc_pb_pattern *rpc_pat_retval;
+rpc_pb_pattern *rpc_pat_mobilefloweventargs;
 
 #endif
 

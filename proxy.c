@@ -218,7 +218,7 @@ void process_bn(rec_msg_t* msg, pxy_agent_t* a)
 	// can not be 102
 	int len;
 	char* data = get_send_data(msg, &len);
-	send(a->fd, data, len, 0);
+	send_to_client(a, data, &len);
 	free(data);
 }
 

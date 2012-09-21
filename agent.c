@@ -21,6 +21,16 @@ static char REQERROR[3] = {8, 144, 3};
 // 411
 static char NOTEXIST[3] = {8, 155, 3};
 
+char* get_compact_uri(rec_msg_t* msg)
+{
+		char* ret;
+		ret = malloc(36);
+		if(ret == NULL)
+			return ret;
+		sprintf(ret, "id:%d;p=%d;", msg->userid,msg->logic_pool_id);	
+		return ret;
+}
+
 void char_to_int(int*v, buffer_t* buf, int* off, int len)
 {
 	*v = 0;
@@ -67,6 +77,45 @@ reg3_t* worker_remove_reg3(char* key)
 	return r3;
 }
 
+void msp_send_unreg(reg3_t* a)
+{
+	if(a->user_context!= NULL)
+		{
+			rec_msg_t msg;
+			msg.cmd = 103;
+			msg.userid = a->user_id;
+			msg.logic_pool_id = a->logic_pool_id;
+			msg.seq = 100001;
+			msg.format = 0;
+			msg.user_context_len = a->user_context_len;
+			msg.user_context = a->user_context;
+			msg.body_len = 0;
+			msg.epid = a->epid;
+			msg.compress = 0;
+			agent_to_beans(NULL, &msg, 1);
+		}
+}
+
+void msp_send_req_to_bean(pxy_agent_t* a, int cmd, int bodylen, char* body)
+{
+	if(a->user_ctx != NULL)
+		{
+			rec_msg_t msg;
+			msg.cmd = cmd;
+			msg.userid = a->user_id;
+			msg.logic_pool_id = a->logic_pool_id;
+			msg.seq = 100000;
+			msg.format = 0;
+			msg.user_context_len = a->user_ctx_len;
+			msg.user_context = a->user_ctx;
+			msg.body_len = bodylen;
+			msg.body = body;
+			msg.epid = a->epid;
+			msg.compress = 0;
+			agent_to_beans(a, &msg, 1);
+		}
+}
+
 void worker_recycle_reg3()
 {
 	time_t now_time = time(NULL);
@@ -94,6 +143,16 @@ void release_reg3(reg3_t* r3)
 	free(r3);
 }
 
+void send_to_client(pxy_agent_t* a, char* data, int* len )
+{
+	int n  = 0;
+	n = send(a->fd, data, *len, 0);
+	a->downflow += *len;
+	if( n < *len ) {
+		W("send %d:%d", n , *len);
+	}
+}
+
 int store_connection_context_reg3(pxy_agent_t *a)
 {
 		if(a->isreg == 1 && a->epid != NULL && a->user_ctx_len > 0)
@@ -113,6 +172,9 @@ int store_connection_context_reg3(pxy_agent_t *a)
 
 				r3->remove_time = time(NULL)+REG3_REMOVE_INTERVAL_MIN*60; 
 				worker_insert_reg3(r3);
+
+				// send 199 to appbean
+				msp_send_req_to_bean(a, 199, 0, NULL);
 				return 1;
 		}
 		else
@@ -152,6 +214,28 @@ int process_reg3_req(rec_msg_t* msg, pxy_agent_t* a)
 				release_reg3(r3);
 		}
 		return 1;
+}
+
+void send_client_flow_to_bean(pxy_agent_t *a)
+{
+	MobileFlowEventArgs args;
+	args.ClientType = a->clienttype;
+	args.DownFlow = a->downflow;
+	args.UpFlow = a->upflow;
+	args.LoginTime.len = strlen(a->logintime);
+	args.LoginTime.buffer = a->logintime;
+	args.LogoffTime.buffer = get_now_time();
+	args.LogoffTime.len = strlen(args.LogoffTime.buffer);
+	
+	rpc_pb_string str_input; 
+	int inputsz = 1024;  
+	str_input.buffer = calloc(inputsz, 1);
+	str_input.len = inputsz;
+	rpc_pb_pattern_pack(rpc_pat_mobilefloweventargs, &args, &str_input);
+	
+	W("105 len %d", str_input.len);
+	msp_send_req_to_bean(a, 105, str_input.len, str_input.buffer);
+	free(str_input.buffer);
 }
 
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
@@ -209,6 +293,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 
 		//index++;// last padding byte
 		agent->buf_parsed += packet_len;
+		agent->upflow += packet_len;
 		packet_len = 0;
 
 		//user is reg state
@@ -221,7 +306,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 						int ret = process_reg3_req(msg, agent);
 						if(ret < 0)
 						{
-								// todo close socket
+								//collection not reg3, close socket
 								free(msg->body);
 								worker_remove_agent(agent);
 								pxy_agent_close(agent);
@@ -255,28 +340,20 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 				strncat(agent->epidr2, ",", 1);
 				strncat(agent->epidr2, LISTENERPORT, strlen(LISTENERPORT));
 				W("REG2 epid %s", agent->epidr2);
+				agent->clienttype = msg->client_type;
 				worker_insert_agent(agent);
 		}
 		msg->logic_pool_id = agent->logic_pool_id;
 		return 1;
 }
 
-char* Get_CompactUri(rec_msg_t* msg)
-{
-		char* ret;
-		ret = malloc(36);
-		if(ret == NULL)
-			return ret;
-		sprintf(ret, "id:%d;p=%d;", msg->userid,msg->logic_pool_id);	
-		return ret;
-}
 
 void get_rpc_arg(McpAppBeanProto* args, rec_msg_t* msg) 
 {
 		args->Protocol.len = strlen(PROTOCOL);
 		args->Protocol.buffer = PROTOCOL;
 		args->Cmd = msg->cmd;
-		char* uri = Get_CompactUri(msg);
+		char* uri = get_compact_uri(msg);
 		args->CompactUri.len = strlen(uri);
 		args->CompactUri.buffer = uri;
 		args->UserId = msg->userid;
@@ -326,7 +403,8 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 						return;
 				}
 
-				if(rsp.Cmd == 103 && rt->msp_unreg == 1) {
+				// 109 msp send reg3, 105 msp send flow, 103 & unreg reg3 overtime msp send unreg;
+				if(rsp.Cmd == 199 || rsp.Cmd == 105 || (rsp.Cmd == 103 && rt->msp_unreg == 1)) {
 						D("socket closed msp send unreg!");
 						free(rt->rpc_bf);
 						free(data);
@@ -343,6 +421,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 				rp_msg.compress = rsp.ZipFlag;
 				char* func = get_cmd_func_name(rsp.Cmd);
 				D("rpc %s func response, seq is %d", func, rp_msg.format);
+				UNUSED(func);
 				// reg2 response
 				if(rp_msg.cmd == 102 && rt->a->user_ctx == NULL) {
 						rt->a->isreg = 1;
@@ -360,6 +439,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 						else {
 								rt->a->user_id = us_ctx.UserId;
 								rt->a->logic_pool_id = us_ctx.LogicalPool;
+								rt->a->logintime = get_now_time();
 						}
 				}
 
@@ -367,11 +447,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 				char* d = NULL;
 				d = get_send_data(&rp_msg, &len);
 				D("fd %d, d %p, len %d", rt->a->fd, d, len);
-				int n  = 0;
-				n = send(rt->a->fd, d, len, 0);
-				if( n < len ) {
-						W("send %d:%d", n , len);
-				}
+				send_to_client(rt->a, d, &len);
 				free(d);
 				if(rp_msg.cmd == 103) {
 						rt->a->isreg = 0;
@@ -380,8 +456,9 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 				}
 		}
 		else {
-				if(rt->req->cmd == 103 && rt->msp_unreg == 1) {
-						D("socket closed msp send unreg!");
+				if(rt->req == NULL || rt->req->cmd == 199 || rt->req->cmd == 105 ||( rt->req->cmd == 103 && rt->msp_unreg == 1))
+				{
+					D("socket closed msp send unreg!");
 					free(rt->rpc_bf);
 					free(data);
 					return;
@@ -413,31 +490,14 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unr
 			return -1;
 		}
 
-		/* 同步处理逻辑 
-		// sync rpc method
-		p = rpc_proxy_new(proxy_uri);
-		if(p == NULL) {
-			D("fuck get proxy_uri fail");
-			return -1;
-		}	
-		p->setting.connect_timeout = 500;
-		p->setting.request_timeout = 6000;
-		*/
-		// 异步处理逻辑
 		rpc_client_t *cnt = rpc_client_new();
 		p = rpc_client_connect(cnt, proxy_uri);
-		// end 异步处理逻辑
+		
 		us->uri = strdup(proxy_uri);
 		us->proxy = p;
 		us_add_upstream(upstream_root, us);
 	}
 	p = us->proxy;
-
-	//TODO: check if proxy is available both in tcp and ZK
-	/* 同步处理逻辑
-	void *out;
-	size_t outsize;
-	*/
 
 	rpc_args_init();
 	McpAppBeanProto args; 
@@ -457,100 +517,6 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unr
 	rt->msp_unreg = msp_unreg;
 	rpc_call_async(p, "MCP", func_name, str_input.buffer, str_input.len, rpc_response, rt);
 	free(args.CompactUri.buffer);
-	return 0;
-
-	
-	/* 同步处理逻辑
-	int code = rpc_call(p,"MCP", func_name, str_input.buffer, str_input.len, &out, &outsize);
-	
-	if (code == RPC_CODE_OK) {
-		McpAppBeanProto rsp;
-		rpc_pb_string str = {out, outsize};
-		int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);
-		if (r < 0) {
-			D("rpc response unpack fail");
-			// send 500 to client
-			send_response_client(req, a, 504);
-			free(str_input.buffer);
-			free(args.CompactUri.buffer);
-			return -1;
-		}
-
-		if(rsp.Cmd == 103 && a->msp_unreg == 1) {
-			free(str_input.buffer);
-			free(args.CompactUri.buffer);
-			D("socket closed msp send unreg!");
-			return 0;
-		}
-		
-		char* func = get_cmd_func_name(rsp.Cmd);
-		rec_msg_t rp_msg;
-		rp_msg.cmd = rsp.Cmd;
-		rp_msg.body_len = rsp.Content.len;
-		rp_msg.body = rsp.Content.buffer;
-		rp_msg.userid = rsp.UserId;
-		rp_msg.seq = rsp.Sequence;
-		rp_msg.format = rsp.Opt;
-		rp_msg.compress = rsp.ZipFlag;
-		D("rpc %s func response, seq is %d", func, rp_msg.format);
-		// reg2 response
-		if(rp_msg.cmd == 102 && a->user_ctx == NULL) {
-			a->isreg = 1;
-			a->user_ctx_len = rsp.UserContext.len;
-			a->user_ctx = calloc(rsp.UserContext.len, 1);
-			memcpy(a->user_ctx, rsp.UserContext.buffer, rsp.UserContext.len);
-			UserContext us_ctx;
-			rpc_pb_string str_uc = {rsp.UserContext.buffer, rsp.UserContext.len};
-			int t = rpc_pb_pattern_unpack(rpc_pat_usercontext, &str_uc, &us_ctx);
-			if(req->epid != NULL)
-				D("REG2 response epid is %s", req->epid);
-
-			if(t<0)
-				{
-					D("unpack user context fail");
-				}
-			else {
-				a->user_id = us_ctx.UserId;
-				a->logic_pool_id = us_ctx.LogicalPool;
-			}
-		}
-
-		int len;
-		char* d = get_send_data(&rp_msg, &len);
-		D("fd %d, d %p, len %d", a->fd, d, len);
-		int n  = send(a->fd, d, len, 0);
-		if( n < len ) {
-			W("send %d:%d", n , len);
-		}
-		free(d);
-
-		if(rp_msg.cmd == 103) {
-			a->isreg = 0;
-			worker_remove_agent(a);
-			pxy_agent_close(a);
-		}
-		free(str_input.buffer);
-	}
-	else {
-		D("code is %d", code);
-		free(str_input.buffer);
-		if(req->cmd == 103 && a->msp_unreg == 1) {
-			free(args.CompactUri.buffer);
-			D("socket closed msp send unreg!");
-			return 0;
-		}
-
-		// send 504 overtime to client
-		send_response_client(req, a, 504);
-		D("send rpc response fail");
-		if(req->cmd == 103) {
-			worker_remove_agent(a);
-			pxy_agent_close(a);
-		}
-	}
-
-	free(args.CompactUri.buffer);
-	*/
 	return 0;
 }
 
@@ -577,10 +543,7 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 	int len;
 	char* d = get_send_data(&rp_msg, &len);
 	D("fd %d, d %p, len %d", a->fd, d, len);
-	int n = send(a->fd, d, len, 0);
-	if( n < len) {
-		W("send %d-%d", len , n);
-	}
+	send_to_client(a, d, &len);
 	free(d);
 }
 
@@ -606,45 +569,6 @@ int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	return 0;
 }
 
-void msp_send_unreg(reg3_t* a)
-{
-	if(a->user_context!= NULL)
-		{
-			rec_msg_t msg;
-			msg.cmd = 103;
-			msg.userid = a->user_id;
-			msg.logic_pool_id = a->logic_pool_id;
-			msg.seq = 100000;
-			msg.format = 0;
-			msg.user_context_len = a->user_context_len;
-			msg.user_context = a->user_context;
-			msg.body_len = 0;
-			msg.epid = a->epid;
-			msg.compress = 0;
-			agent_to_beans(NULL, &msg, 1);
-		}
-}
-
-/* recycle reg3 thread unreg  
-void msp_send_unreg(pxy_agent_t* a)
-{
-	if(a->user_ctx != NULL)
-		{
-			rec_msg_t msg;
-			msg.cmd = 103;
-			msg.userid = a->user_id;
-			msg.logic_pool_id = a->logic_pool_id;
-			msg.seq = 100000;
-			msg.format = 0;
-			msg.user_context_len = a->user_ctx_len;
-			msg.user_context = a->user_ctx;
-			msg.body_len = 0;
-			msg.epid = a->epid;
-			msg.compress = 0;
-			a->msp_unreg = 1;
-			agent_to_beans(a, &msg, 1);
-		}
-}*/
 
 int process_client_req(pxy_agent_t *agent)
 {
@@ -704,11 +628,19 @@ pxy_agent_buffer_recycle(pxy_agent_t *agent)
 void 
 pxy_agent_close(pxy_agent_t *a)
 {
+	// send flow to bean 105
+	send_client_flow_to_bean(a);
 	free(a->epid);
 	a->epid = NULL;
+	free(a->epidr2);
+	a->epidr2 = NULL;
 	a->user_ctx_len = 0;
 	free(a->user_ctx);
 	a->user_ctx = NULL;
+	free(a->logintime);
+	a->logintime = NULL;
+	free(a->logouttime);
+	a->logouttime = NULL;
 	buffer_t *b;
 
 	if(a->fd > 0){
@@ -774,6 +706,8 @@ pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
 	agent->user_ctx = NULL;
 	agent->buffer = NULL;
 	agent->isreg = 0;
+	agent->upflow = 0;
+	agent->downflow = 0;
 	return agent;
 
  failed:
@@ -849,7 +783,6 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 
  failed:
 	W("failed, prepare close!");
-	//msp_send_unreg(agent);
 	//Add to reg3 rbtree
 	store_connection_context_reg3(agent);
 	worker_remove_agent(agent);
