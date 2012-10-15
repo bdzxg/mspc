@@ -19,6 +19,7 @@
 #include "map.h"
 #include "log.h"
 #include "upstream.h"
+#include "freeq.h"
 
 
 typedef struct pxy_config_s{

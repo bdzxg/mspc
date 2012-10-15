@@ -3,9 +3,11 @@
 #include "route.h"
 #include "map.h"
 #include "upstream.h"
+#include "agent.h"
 
 extern pxy_master_t *master;
 extern pxy_worker_t *worker;
+freeq_t *request_q;
 upstream_map_t *upstream_root;
 
 int worker_init();
@@ -14,7 +16,7 @@ int worker_close();
 void worker_accept(ev_t*,ev_file_item_t*);
 void worker_recv_client(ev_t*,ev_file_item_t*);
 void worker_recv_cmd(ev_t*,ev_file_item_t*);
-
+void process_request_in_queue(struct ev_s *ev);
 
 int worker_init()
 {
@@ -26,6 +28,7 @@ int worker_init()
 			D("create ev error"); 
 			return -1;
 		}
+		worker->ev->after = process_request_in_queue;
 
 		worker->agent_pool = mp_create(sizeof(pxy_agent_t),0,"AgentPool");
 		if(!worker->agent_pool){
@@ -54,6 +57,14 @@ int worker_init()
 
 		worker->root = RB_ROOT;
 		pthread_mutex_init(&worker->mutex, NULL);
+
+
+		request_q = create_free_q();
+		if(!request_q) {
+			E("cannot create request q");
+			return -1;
+		}
+
 		return 0;
 	}
 
@@ -180,3 +191,26 @@ worker_recv_cmd(ev_t *ev,ev_file_item_t *fi)
 	/* only for quit now */
 	worker_close();
 }
+
+void process_request_in_queue(struct ev_s *ev)
+{
+	UNUSED(ev);
+	rec_msg_t *msg;
+	void *req;
+	while((req = freeq_pop(request_q)) != NULL) {
+		msg = req;
+
+		if(msg->cmd == 105)
+			// TODO add tcp flow
+			return;
+		// can not be 102
+		int len;
+		char* data = get_send_data(msg, &len);
+		//TODO: WHY>/....
+		//send_to_client(a, data, &len);
+		free(data);
+		free(msg->body);
+		free(msg);
+	}
+}
+

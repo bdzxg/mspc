@@ -16,7 +16,7 @@ ev_create(void* data)
 		ev->next_time_id = 0;
 		ev->ti = NULL;
 		ev->api_data=malloc(sizeof(struct epoll_event)*EV_COUNT);
-
+		ev->after = NULL;
 		return ev;
 	}
 
@@ -96,6 +96,12 @@ ev_main(ev_t* ev)
 				}
 			}
 		}
+
+		//Handle the after event Handle
+		if(ev->after != NULL) {
+			ev->after(ev);
+		}
+		
 	} /*while*/
 	D("worker EV_MAIN stopped");
 }

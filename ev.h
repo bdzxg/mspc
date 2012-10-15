@@ -20,6 +20,7 @@ struct ev_file_item_s;
 
 typedef void ev_time_func(struct ev_s* ev,void* data);
 typedef void ev_file_func(struct ev_s* ev,struct ev_file_item_s* fi);
+typedef void ev_after_event_handle(struct ev_s *ev);
 
 typedef struct ev_time_item_s{
     int id;
@@ -50,7 +51,9 @@ typedef struct ev_s{
     ev_time_item_t* ti;
     void* api_data;
     int stop;
+	ev_after_event_handle *after;
 }ev_t;
+
 
 #define ev_get_current_ms(__m)			\
     ({						\

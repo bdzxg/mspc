@@ -11,6 +11,7 @@
 pxy_master_t* master;
 pxy_config_t* config;
 pxy_worker_t* worker;
+extern freeq_t *request_q;
 FILE* log_file;
 
 int 
@@ -210,16 +211,13 @@ char* get_send_data(rec_msg_t* t, int* length)
 	return ret;
 }
 
+
+
 void process_bn(rec_msg_t* msg, pxy_agent_t* a)
 {
-	if(msg->cmd == 105)
-		// TODO add tcp flow
-		return;
-	// can not be 102
-	int len;
-	char* data = get_send_data(msg, &len);
-	send_to_client(a, data, &len);
-	free(data);
+	//Add the request to the queue, 
+	//we will handle this request in the main thread
+	freeq_push(request_q, msg);
 }
 
 void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
@@ -233,29 +231,30 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 		return;
 	}
 
-	rec_msg_t msg;
-	msg.cmd = input.Cmd;
-	msg.body_len = input.Content.len;
-	msg.body = input.Content.buffer;
-	msg.userid = input.UserId;
-	msg.format = input.Opt;
-	msg.compress = input.ZipFlag;
-	msg.epid = calloc(input.Epid.len+1, 1); 
-	memcpy(msg.epid, input.Epid.buffer, input.Epid.len);
+	rec_msg_t *msg = calloc(1, sizeof(*msg));
+	msg->cmd = input.Cmd;
+	msg->body = input.Content.buffer;
+	msg->body_len = input.Content.len;
+	memcpy(msg->body, input.Content.buffer, input.Content.len);
+	msg->userid = input.UserId;
+	msg->format = input.Opt;
+	msg->compress = input.ZipFlag;
+	msg->epid = calloc(input.Epid.len+1, 1); 
+	memcpy(msg->epid, input.Epid.buffer, input.Epid.len);
 	//D("bn epid %s cmd %d userid %d", msg.epid, msg.cmd, msg.userid);
 	pxy_agent_t* a = NULL;
-	a = get_agent(msg.epid);
+	a = get_agent(msg->epid);
 	if(a == NULL) {
-		if(msg.epid != NULL) {
-			D("BN cann't find epid %s connection!!!", msg.epid);
+		if(msg->epid != NULL) {
+			D("BN cann't find epid %s connection!!!", msg->epid);
 		}
-		free(msg.epid);
+		free(msg->epid);
 		return;
 	}
-	msg.seq = a->bn_seq++;
-	process_bn(&msg, a);
-	W("BN epid %s!", msg.epid);
-	free(msg.epid);
+	msg->seq = a->bn_seq++;
+	process_bn(msg, a);
+	W("BN epid %s!", msg->epid);
+	free(msg->epid);
 
 	retval output;
 	output.option.len = input.Protocol.len;
@@ -269,7 +268,7 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 
 	if (r >= 0) 
 	{
- 		 rpc_return(c, str_out.buffer, str_out.len);
+		rpc_return(c, str_out.buffer, str_out.len);
 	}
 	else
 		rpc_return_error(c, RPC_CODE_SERVER_ERROR, "output encode failed!");
@@ -283,7 +282,7 @@ int rpc_server_init()
 	else 
 		return 0;	
 }	
- 
+
 int reg3_recycle_init()
 {
 	pthread_t id;
@@ -328,7 +327,7 @@ int main()
 	char ch[80];
 	pxy_worker_t *w;
 	log_file = stdout;
-	
+
 	if(pxy_init_master() < 0){
 		E("master initialize failed");
 		return -1;
@@ -360,7 +359,7 @@ int main()
 		D("worker #%d started failed", getpid()); return -1;
 	}
 	D("worker started");
-		
+
 
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0){ 
 	}

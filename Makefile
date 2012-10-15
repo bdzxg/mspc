@@ -8,6 +8,7 @@ LIB_OBJS = \
 	./ev.o \
 	./mempool.o \
 	./hashtable.o \
+	./freeq.o 
 
 MAP_OBJS = \
 	./rbtree.o \

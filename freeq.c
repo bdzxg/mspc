@@ -39,7 +39,8 @@ void* freeq_pop(freeq_t *q)
 	tmp = __sync_add_and_fetch(&q->head, tmp);
 	void *r;
 
-	do {
+	int i;
+	for (i = 0; i < 3; i++) { /* retry 3 times*/
 		if( (intptr_t)q->buffer[(tmp & FREEQ_BUFFER_SIZE) + 1] == 1) {
 			r = (void*)q->buffer[(tmp & FREEQ_BUFFER_SIZE)];
 			q->buffer[(tmp & FREEQ_BUFFER_SIZE)] = 0;
@@ -48,7 +49,9 @@ void* freeq_pop(freeq_t *q)
 		else {
 			sched_yield();
 		}
-	} while (1);
+	
+	}
+	return NULL;
 }
 
 void freeq_push(freeq_t *q, void* data)
@@ -91,6 +94,7 @@ static void* test_pop(void* args)
 	return NULL;
 }
 
+/*  
 freeq_t *q;
 
 int main() 
@@ -125,4 +129,4 @@ int main()
 	scanf("%s\n", c);
 
 	return 0;
-}
+}*/
