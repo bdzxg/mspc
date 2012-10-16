@@ -143,14 +143,75 @@ void release_reg3(reg3_t* r3)
 	free(r3);
 }
 
-void send_to_client(pxy_agent_t* a, char* data, int* len )
+//TODO change the return type to int?
+void  send_to_client(pxy_agent_t* a, char* data, size_t len )
 {
-	int n  = 0;
-	n = send(a->fd, data, *len, 0);
-	a->downflow += *len;
-	if( n < *len ) {
-		W("send %d:%d", n , *len);
+	//1. prepare the send buf
+	if(!a->send_buf) {
+		a->send_buf = malloc(len);
+		if(!a->send_buf) {
+			E("cannot malloc send_buf");
+			return;
+		}
+		a->send_buf_len = len;
 	}
+
+	size_t available = a->send_buf_len - a->send_buf_offset;
+
+	if(len > available) {
+		size_t newlen = a->send_buf_len + (len - available);
+		void* tmp = realloc(a->send_buf, newlen);
+		if(!tmp) {
+			E("realloc send buf error");
+			return;
+		}
+		a->send_buf = tmp;
+		a->send_buf_len = newlen;
+	}
+
+	//2. copy to send buf
+	memcpy(a->send_buf + a->send_buf_offset, data, len);
+
+	//3. try to send 
+	int n  = 0;
+	
+	for (;;) {
+		int to_send = a->send_buf_len - a->send_buf_offset;
+		n = send(a->fd, a->send_buf + a->send_buf_offset , to_send, 0);
+
+		if(n > 0) {
+			D("send %d bytes", n);
+			a->downflow += n;
+
+			if(n < to_send) {
+				a->send_buf_offset += n;
+				return;
+			}
+
+			free(a->send_buf);
+			a->send_buf = NULL;
+			a->send_buf_len = 0;
+			a->send_buf_offset = 0;
+		}
+
+
+		if(n ==  0) {
+			D("send return 0");
+			return;
+		}
+
+		if(errno == EAGAIN || errno == EWOULDBLOCK) {
+			return;
+		}
+		else if(errno == EINTR) {
+
+		}
+		else {
+			E("send return error, reason %s", strerror(errno));
+			return;
+		}
+	}
+	return;
 }
 
 int store_connection_context_reg3(pxy_agent_t *a)
@@ -447,7 +508,7 @@ void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t outp
 				char* d = NULL;
 				d = get_send_data(&rp_msg, &len);
 				D("fd %d, d %p, len %d", rt->a->fd, d, len);
-				send_to_client(rt->a, d, &len);
+				send_to_client(rt->a, d, (size_t)len);
 				free(d);
 				if(rp_msg.cmd == 103) {
 						rt->a->isreg = 0;
@@ -553,7 +614,7 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 	int len;
 	char* d = get_send_data(&rp_msg, &len);
 	D("fd %d, d %p, len %d", a->fd, d, len);
-	send_to_client(a, d, &len);
+	send_to_client(a, d, (size_t)len);
 	free(d);
 }
 
@@ -718,6 +779,9 @@ pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
 	agent->isreg = 0;
 	agent->upflow = 0;
 	agent->downflow = 0;
+	agent->send_buf = NULL;
+	agent->send_buf_len = 0;
+	agent->send_buf_offset = 0;
 	return agent;
 
  failed:

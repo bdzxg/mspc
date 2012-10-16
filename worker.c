@@ -17,7 +17,6 @@ void worker_accept(ev_t*,ev_file_item_t*);
 void worker_recv_client(ev_t*,ev_file_item_t*);
 void worker_recv_cmd(ev_t*,ev_file_item_t*);
 void process_request_in_queue(struct ev_s *ev);
-void send_to_client(pxy_agent_t* a, char* data, int* len );
 
 int worker_init()
 {
@@ -225,7 +224,7 @@ void process_request_in_queue(struct ev_s *ev)
 		// can not be 102
 		int len;
 		char* data = get_send_data(msg, &len);
-		send_to_client(a, data, &len);
+		send_to_client(a, data, (size_t)len);
 
 failed:
 		free(data);
