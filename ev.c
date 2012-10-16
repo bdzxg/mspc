@@ -82,14 +82,14 @@ ev_main(ev_t* ev)
 		for(i=0; i<j ;i++){
 			ev_file_item_t* fi = (ev_file_item_t*)e[i].data.ptr; 
 
-			if((e[i].events) | EPOLLIN) {
+			if((e[i].events) & EPOLLIN) {
 				if(fi->rfunc){
 					D("RFUNC");
 					fi->rfunc(ev,fi);
 				}
 			}
 
-			if(e[i].events | EPOLLOUT){ 
+			if(e[i].events & EPOLLOUT){ 
 				if(fi->wfunc) {
 					D("WFUNC");
 					fi->wfunc(ev,fi);
