@@ -205,15 +205,7 @@ char* get_send_data(rec_msg_t* t, int* length)
 }
 
 
-
-void process_bn(rec_msg_t* msg)
-{
-	//Add the request to the queue, 
-	//we will handle this request in the main thread
-	freeq_push(request_q, msg);
-}
-
-void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
+void rpc_receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 {
 	McpAppBeanProto input;
 	rpc_pb_string str = {buf, buf_size};
@@ -235,7 +227,9 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 	msg->epid = calloc(input.Epid.len+1, 1); 
 	memcpy(msg->epid, input.Epid.buffer, input.Epid.len);
 
-	process_bn(msg);
+	//Add the request to the queue, 
+	//we will handle this request in the main thread
+	freeq_push(request_q, msg);
 
 	retval output;
 	output.option.len = input.Protocol.len;
@@ -264,15 +258,6 @@ int rpc_server_init()
 		return 0;	
 }	
 
-int reg3_recycle_init()
-{
-	pthread_t id;
-	if(pthread_create(&id, NULL, (void*)recycle_connection_reg3_thread, NULL))
-		return -1;
-	else 
-		return 0;	
-}
-
 void* rpc_server_thread(void* args)
 {
 	UNUSED(args);
@@ -280,7 +265,7 @@ void* rpc_server_thread(void* args)
 	rpc_server_t* s = rpc_server_new();
 	//s->is_main_dispatch_th = 0;
 	rpc_server_regchannel(s, LISTENERPORT);
-	rpc_server_regservice(s, "IMSPRpcService", "ReceiveMessage", receive_message);
+	rpc_server_regservice(s, "IMSPRpcService", "ReceiveMessage", rpc_receive_message);
 	rpc_args_init();
 
 	D("rpc server start!");
@@ -293,15 +278,6 @@ void* rpc_server_thread(void* args)
 	return NULL;
 }
 
-void* recycle_connection_reg3_thread(void* args)
-{
-	UNUSED(args);
-	while(1)
-	{
-		worker_recycle_reg3();		
-		sleep(90*1000);
-	}		
-}
 
 int main()
 {
@@ -329,12 +305,6 @@ int main()
 		return -1;
 	}
 	D("rpc server inited");
-	if(reg3_recycle_init()<0)
-	{
-		E("reg3 recycle init start failed");
-		return -1;
-	}
-	D("reg3 recycle inited");
 
 	if(!worker_start()) {
 		D("worker #%d started failed", getpid()); return -1;
