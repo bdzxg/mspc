@@ -97,7 +97,6 @@ void release_reg3(reg3_t* r3);
 int store_connection_context(pxy_agent_t *a);
 void worker_recycle_reg3();
 void send_to_client(pxy_agent_t*, char*, size_t);
-int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg);
 
 #define pxy_agent_for_each(agent,alist)			\
     list_for_each_entry((agent),list,&(alist)->list)	

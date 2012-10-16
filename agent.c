@@ -12,14 +12,12 @@ extern upstream_map_t *upstream_root;
 
 size_t packet_len;
 static char* PROTOCOL = "MCP/3.0";
-// 504
-static char OVERTIME[3] = {8, 248, 3};
-// 500
-static char SERVERERROR[3] = {8, 244, 3};
-// 400
-static char REQERROR[3] = {8, 144, 3};
-// 411
-static char NOTEXIST[3] = {8, 155, 3};
+static char OVERTIME[3] = {8, 248, 3};// 504
+static char SERVERERROR[3] = {8, 244, 3};// 500
+static char REQERROR[3] = {8, 144, 3};// 400
+static char NOTEXIST[3] = {8, 155, 3};// 411
+
+static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg);
 
 char* get_compact_uri(rec_msg_t* msg)
 {
@@ -593,7 +591,8 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 	free(d);
 }
 
-int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
+
+static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 {
 	char *url = NULL;
 	get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
@@ -616,7 +615,7 @@ int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 }
 
 
-int process_client_req(pxy_agent_t *agent)
+static int process_client_req(pxy_agent_t *agent)
 {
 	rec_msg_t msg;
 	if(parse_client_data(agent, &msg) < 0)
@@ -634,8 +633,7 @@ int process_client_req(pxy_agent_t *agent)
 	return 0;
 }
 
-	int 
-pxy_agent_buffer_recycle(pxy_agent_t *agent)
+int pxy_agent_buffer_recycle(pxy_agent_t *agent)
 {
 	int rn      = 0;
 	size_t n    = agent->buf_parsed;
@@ -671,8 +669,26 @@ pxy_agent_buffer_recycle(pxy_agent_t *agent)
 	return rn;
 }
 
-	void 
-pxy_agent_close(pxy_agent_t *a)
+buffer_t* agent_get_buf_for_read(pxy_agent_t *agent)
+{
+	buffer_t *b = buffer_fetch(worker->buf_pool,worker->buf_data_pool);
+
+	if(b == NULL) {
+		D("no buf available"); 
+		return NULL;
+	}
+
+	if(agent->buffer == NULL) {
+		agent->buffer = b;
+	}
+	else {
+		buffer_append(b,agent->buffer);
+	}
+
+	return b;
+}
+
+void pxy_agent_close(pxy_agent_t *a)
 {
 	// send flow to bean 105
 	send_client_flow_to_bean(a);
@@ -712,25 +728,6 @@ pxy_agent_close(pxy_agent_t *a)
 	mp_free(worker->agent_pool,a);
 }
 
-	buffer_t* 
-agent_get_buf_for_read(pxy_agent_t *agent)
-{
-	buffer_t *b = buffer_fetch(worker->buf_pool,worker->buf_data_pool);
-
-	if(b == NULL) {
-		D("no buf available"); 
-		return NULL;
-	}
-
-	if(agent->buffer == NULL) {
-		agent->buffer = b;
-	}
-	else {
-		buffer_append(b,agent->buffer);
-	}
-
-	return b;
-}
 
 pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
 {
