@@ -34,8 +34,7 @@ void char_to_int(int*v, buffer_t* buf, int* off, int len)
 	*v = 0;
 	char* t = (char*)v;
 	int i;
-	for(i = 0 ; i < len; i++)
-	{
+	for(i = 0 ; i < len; i++) {
 		*(t+i)= *buffer_read(buf, *off);
 		(*off)++;
 	}
@@ -52,8 +51,7 @@ int worker_insert_agent(pxy_agent_t *agent)
 
 void worker_remove_agent(pxy_agent_t *agent)
 {
-	if(agent->epid != NULL)
-	{
+	if(agent->epid != NULL) {
 		pthread_mutex_lock(&worker->mutex);	
 		map_remove(&worker->root, agent->epid);
 		pthread_mutex_unlock(&worker->mutex);
@@ -77,8 +75,7 @@ reg3_t* worker_remove_reg3(char* key)
 
 void msp_send_unreg(reg3_t* a)
 {
-	if(a->user_context!= NULL)
-	{
+	if(a->user_context!= NULL) {
 		rec_msg_t msg;
 		msg.cmd = 103;
 		msg.userid = a->user_id;
@@ -96,8 +93,7 @@ void msp_send_unreg(reg3_t* a)
 
 void msp_send_req_to_bean(pxy_agent_t* a, int cmd, int bodylen, char* body)
 {
-	if(a->user_ctx != NULL)
-	{
+	if(a->user_ctx != NULL) {
 		rec_msg_t msg;
 		msg.cmd = cmd;
 		msg.userid = a->user_id;
@@ -779,11 +775,9 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 		close(fi->fd); return;
 	}
 
-	while(1) 
-	{
+	while(1) {
 		b = agent_get_buf_for_read(agent);
-		if(b == NULL)
-		{
+		if(b == NULL) {
 			E("no buf for read");
 			goto failed;
 		}
@@ -791,21 +785,17 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 		n = recv(fi->fd,b->data,BUFFER_SIZE,0);
 		D("recv %d bytes",n);
 
-		if(n < 0)
-		{
-			if(errno == EAGAIN || errno == EWOULDBLOCK)
-			{
+		if(n < 0) {
+			if(errno == EAGAIN || errno == EWOULDBLOCK) {
 				break;
 			}
-			else
-			{
+			else {
 				W("read error,errno is %d",errno);
 				goto failed;
 			}
 		}
 
-		if(n == 0)
-		{
+		if(n == 0) {
 			W("socket fd #%d closed by peer",fi->fd);
 			goto failed;
 		}
@@ -813,15 +803,13 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 		b->len = n;
 		agent->buf_len += n;
 
-		if(n < BUFFER_SIZE)
-		{	
+		if(n < BUFFER_SIZE) {	
 			D("break from receive loop");	
 			break;
 		}
 	}
 	D("buffer-len %zu", agent->buf_len);
-	if(process_client_req(agent) < 0)
-	{
+	if(process_client_req(agent) < 0) {
 		W("echo read test fail!");
 		goto failed;
 	}
