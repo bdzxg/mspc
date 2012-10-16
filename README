@@ -1,2 +1,30 @@
 
 An IM connection proxy server
+
+
+Liulijin, 2012-10-16
+
+Client Request
+===================
+
+part 1 
+=======
+
+- Client send the request to MSP
+- MSP receive the request, parse and pack it to rpc format
+- MSP send the rpc format data to FAE, *SYNC MODE*
+- when FAE receive the data, send the rpc response immediately
+- MSP only handle the RPC error code here, Send process finishes.
+
+part 2
+========
+- FAE handle the bussiness, and get the logic layer response
+- FAE send a rpc client request to MSP
+- MSP receive the request in a background thread, then push the request on a lock-free queue
+- MSP main thread pop the request from the lock-free queue, and then handle it.
+
+
+Server Request
+===============
+
+Same as Client request Part 2

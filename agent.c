@@ -492,6 +492,8 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unr
 
 		rpc_client_t *cnt = rpc_client_new();
 		p = rpc_client_connect(cnt, proxy_uri);
+		p->setting.connect_timeout = 500;
+		p->setting.request_timeout = 100;//TODO: this value should be more exactly
 		
 		us->uri = strdup(proxy_uri);
 		us->proxy = p;
@@ -509,13 +511,21 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unr
 	str_input.len = inputsz;
 	rpc_pb_pattern_pack(rpc_pat_mcpappbeanproto, &args, &str_input);
 	char* func_name = get_cmd_func_name(req->cmd);
+
 	D("rpc call func name %s", func_name);
 	rpc_async_req_t* rt = calloc(sizeof(rpc_async_req_t), 1);
 	rt->a = a;
 	rt->req = req;
 	rt->rpc_bf = str_input.buffer;
 	rt->msp_unreg = msp_unreg;
-	rpc_call_async(p, "MCP", func_name, str_input.buffer, str_input.len, rpc_response, rt);
+	rpc_int_t code = rpc_call(p, "MCP", func_name, str_input.buffer, str_input.len, NULL, NULL);
+
+	//we only handle error here 
+	if(code != RPC_CODE_OK) {
+		//TODO: send the error response to the client 
+	}
+
+	free(str_input.buffer);
 	free(args.CompactUri.buffer);
 	return 0;
 }
