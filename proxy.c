@@ -141,13 +141,6 @@ pxy_init_master()
 	return pxy_start_listen();
 }
 
-pxy_agent_t* get_agent(char* key)
-{
-	pxy_agent_t* ret = NULL;
-	ret = map_search(&worker->root, key);
-	return ret;
-}
-
 void set2buf(char** buf, char* source, int len)
 {
 	int j;
@@ -213,7 +206,7 @@ char* get_send_data(rec_msg_t* t, int* length)
 
 
 
-void process_bn(rec_msg_t* msg, pxy_agent_t* a)
+void process_bn(rec_msg_t* msg)
 {
 	//Add the request to the queue, 
 	//we will handle this request in the main thread
@@ -241,20 +234,8 @@ void receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 	msg->compress = input.ZipFlag;
 	msg->epid = calloc(input.Epid.len+1, 1); 
 	memcpy(msg->epid, input.Epid.buffer, input.Epid.len);
-	//D("bn epid %s cmd %d userid %d", msg.epid, msg.cmd, msg.userid);
-	pxy_agent_t* a = NULL;
-	a = get_agent(msg->epid);
-	if(a == NULL) {
-		if(msg->epid != NULL) {
-			D("BN cann't find epid %s connection!!!", msg->epid);
-		}
-		free(msg->epid);
-		return;
-	}
-	msg->seq = a->bn_seq++;
-	process_bn(msg, a);
-	W("BN epid %s!", msg->epid);
-	free(msg->epid);
+
+	process_bn(msg);
 
 	retval output;
 	output.option.len = input.Protocol.len;

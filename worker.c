@@ -17,6 +17,7 @@ void worker_accept(ev_t*,ev_file_item_t*);
 void worker_recv_client(ev_t*,ev_file_item_t*);
 void worker_recv_cmd(ev_t*,ev_file_item_t*);
 void process_request_in_queue(struct ev_s *ev);
+void send_to_client(pxy_agent_t* a, char* data, int* len );
 
 int worker_init()
 {
@@ -192,6 +193,13 @@ worker_recv_cmd(ev_t *ev,ev_file_item_t *fi)
 	worker_close();
 }
 
+static pxy_agent_t* get_agent(char* key)
+{
+	pxy_agent_t* ret = NULL;
+	ret = map_search(&worker->root, key);
+	return ret;
+}
+
 void process_request_in_queue(struct ev_s *ev)
 {
 	UNUSED(ev);
@@ -200,16 +208,29 @@ void process_request_in_queue(struct ev_s *ev)
 	while((req = freeq_pop(request_q)) != NULL) {
 		msg = req;
 
+		//D("bn epid %s cmd %d userid %d", msg.epid, msg.cmd, msg.userid);
+		pxy_agent_t* a = NULL;
+		a = get_agent(msg->epid);
+		if(a == NULL) {
+			if(msg->epid != NULL) {
+				D("BN cann't find epid %s connection!!!", msg->epid);
+			}
+			goto failed;
+			return;
+		}
+		msg->seq = a->bn_seq++;
 		if(msg->cmd == 105)
 			// TODO add tcp flow
 			return;
 		// can not be 102
 		int len;
 		char* data = get_send_data(msg, &len);
-		//TODO: WHY>/....
-		//send_to_client(a, data, &len);
+		send_to_client(a, data, &len);
+
+failed:
 		free(data);
 		free(msg->body);
+		free(msg->epid);
 		free(msg);
 	}
 }
