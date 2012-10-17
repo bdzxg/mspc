@@ -118,8 +118,9 @@ void release_reg3(reg3_t* r3)
 }
 
 //TODO change the return type to int?
-void  send_to_client(pxy_agent_t* a, char* data, size_t len )
+void send_to_client(pxy_agent_t* a, char* data, size_t len )
 {
+	D("prepare to send %lu bytes data", len);
 	//1. prepare the send buf
 	if(!a->send_buf) {
 		a->send_buf = malloc(len);
@@ -151,10 +152,13 @@ void  send_to_client(pxy_agent_t* a, char* data, size_t len )
 
 	for (;;) {
 		int to_send = a->send_buf_len - a->send_buf_offset;
+		char tmp[102400] = {0};
+		to_hex(a->send_buf, a->send_buf_len, tmp);
+		D("packet is %s" ,tmp);
 		n = send(a->fd, a->send_buf + a->send_buf_offset , to_send, 0);
 
 		if(n > 0) {
-			D("send %d bytes", n);
+			D("a->fd %d, send %d/%d bytes", a->fd,  n, to_send);
 			a->downflow += n;
 
 			if(n < to_send) {
@@ -166,6 +170,8 @@ void  send_to_client(pxy_agent_t* a, char* data, size_t len )
 			a->send_buf = NULL;
 			a->send_buf_len = 0;
 			a->send_buf_offset = 0;
+			D("send_buf freed");
+			return;
 		}
 
 
@@ -253,6 +259,9 @@ int process_reg3_req(rec_msg_t* msg, pxy_agent_t* a)
 
 void send_client_flow_to_bean(pxy_agent_t *a)
 {
+	//TODO:
+	return;
+
 	MobileFlowEventArgs args;
 	args.ClientType = a->clienttype;
 	args.DownFlow = a->downflow;
@@ -358,10 +367,13 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	}
 
 	if(agent->epid != NULL) {
+		msg->epid = agent->epidr2; 
+		/* 
 		if(msg->cmd == 102)
 			msg->epid = agent->epidr2; 
 		else
 			msg->epid = agent->epid; 
+ 		*/
 	}
 	else {
 		msg->epid = agent->epid = generate_client_epid(msg->client_type, msg->client_version);
@@ -373,6 +385,8 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 		agent->clienttype = msg->client_type;
 		worker_insert_agent(agent);
 	}
+	msg->epid = agent->epidr2; 
+	D("msp->epid %s", msg->epid);
 	msg->logic_pool_id = agent->logic_pool_id;
 	return 1;
 }
@@ -554,6 +568,7 @@ int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unr
 	if(code != RPC_CODE_OK) {
 		//TODO: send the error response to the client 
 	}
+	D("code is %d", (int) RPC_CODE_OK);
 
 	free(str_input.buffer);
 	free(args.CompactUri.buffer);
@@ -586,7 +601,8 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 	send_to_client(a, d, (size_t)len);
 	free(d);
 }
-
+ 
+char __url[32] = "tcp://10.10.10.81:7777";
 
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 {
@@ -602,7 +618,7 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		D("cmd %d url=%s", msg->cmd, url);
 	}
 	//get proxy uri
-	if(send_rpc_server(msg, url, a, msp_unreg) < 0) {
+	if(send_rpc_server(msg, __url, a, msp_unreg) < 0) {
 		free(url);
 		return -1;
 	}

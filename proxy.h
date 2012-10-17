@@ -20,7 +20,7 @@
 #include "log.h"
 #include "upstream.h"
 #include "freeq.h"
-
+#include "tool.h"
 
 typedef struct pxy_config_s{
     short client_port;

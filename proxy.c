@@ -195,12 +195,13 @@ char* get_send_data(rec_msg_t* t, int* length)
 	  else rval += 4;*/
 
 	// body
+	
+	char tmp[102400] = {0};
+	to_hex(t->body, t->body_len, tmp);
 
-	int i;
-	for(i = 0; i < t->body_len; i++ )
-		*(rval++) = *(t->body++);
-	// end padding 0
-	*rval = 0;
+	D("body is %s", tmp);
+
+	memcpy(ret + 24, t->body, t->body_len);
 	return ret;
 }
 
@@ -216,9 +217,16 @@ void rpc_receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 		return;
 	}
 
+	D("rpc server receive cmd %d, seq %d", input.Cmd, input.Sequence);
+
 	rec_msg_t *msg = calloc(1, sizeof(*msg));
 	msg->cmd = input.Cmd;
-	msg->body = input.Content.buffer;
+	msg->body = malloc(input.Content.len);
+	if(!msg->body) {
+		//TODO: Handle error
+		E("malloc msg->body error");
+		return;
+	}
 	msg->body_len = input.Content.len;
 	memcpy(msg->body, input.Content.buffer, input.Content.len);
 	msg->userid = input.UserId;
@@ -230,6 +238,7 @@ void rpc_receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
 	//Add the request to the queue, 
 	//we will handle this request in the main thread
 	freeq_push(request_q, msg);
+	D("msg %p, msg->body %p, pushed to q %p",msg, msg->body, request_q);
 
 	retval output;
 	output.option.len = input.Protocol.len;

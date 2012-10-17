@@ -204,9 +204,11 @@ void process_request_in_queue(struct ev_s *ev)
 	UNUSED(ev);
 	rec_msg_t *msg;
 	void *req;
+
 	while((req = freeq_pop(request_q)) != NULL) {
 		msg = req;
 
+		D("got the request, cmd %d, seq %d", msg->cmd, msg->seq);
 		//D("bn epid %s cmd %d userid %d", msg.epid, msg.cmd, msg.userid);
 		pxy_agent_t* a = NULL;
 		a = get_agent(msg->epid);
@@ -215,22 +217,29 @@ void process_request_in_queue(struct ev_s *ev)
 				D("BN cann't find epid %s connection!!!", msg->epid);
 			}
 			goto failed;
-			return;
 		}
 		msg->seq = a->bn_seq++;
-		if(msg->cmd == 105)
+		if(msg->cmd == 105) {
 			// TODO add tcp flow
 			return;
+		}
+
 		// can not be 102
 		int len;
 		char* data = get_send_data(msg, &len);
 		send_to_client(a, data, (size_t)len);
 
 failed:
+		D("1");
 		free(data);
+		D("1");
+		D("msp->body %p", msg->body);
 		free(msg->body);
+		D("1");
 		free(msg->epid);
+		D("1");
 		free(msg);
+		D("1");
 	}
 }
 

@@ -1,5 +1,5 @@
 CC = 	gcc
-CFLAGS = -pipe -O0 -W -Wall -I -Wno-unused-parameter -g
+CFLAGS = -pipe -O0 -W -Wall -I -g
 LINK =	$(CC)
 
 LIB_OBJS = \
@@ -8,7 +8,8 @@ LIB_OBJS = \
 	./ev.o \
 	./mempool.o \
 	./hashtable.o \
-	./freeq.o 
+	./freeq.o \
+	./tool.o
 
 MAP_OBJS = \
 	./rbtree.o \
@@ -34,6 +35,11 @@ MAP_TEST = \
 FUNC_TEST = \
 	./func_test.o
 
+FREEQ_OBJS = \
+	./freeq.o \
+	./freeq_test.o
+	
+
 TEST = \
 	$(PXY_TEST) \
 	$(HT_TEST)  \
@@ -57,3 +63,5 @@ ht_test: $(LIB_OBJS) $(HT_TEST)
 map_test: $(MAP_OBJS) $(MAP_TEST)
 	$(LINK) $(MAP_OBJS) $(MAP_TEST) -o $@
 
+freeq_test: $(FREEQ_OBJS) 
+	$(LINK) $(FREEQ_OBJS) -o $@
