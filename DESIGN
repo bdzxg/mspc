@@ -2,6 +2,8 @@
 Upstream
 ===================
 Currently, RPC is the transimission method bewteen MSP and backend server. 
+But we use RPC here is ONLY for convience, because the FAE has the stack now.
+IMO, I prefer ZMQ.
 
 
 Bussiness
@@ -33,10 +35,8 @@ Models
   - last seq number
   - request-map (transaction map) , only used in client side, because the server side will process the request one by one so we don't need to maintain the request-map
   - buffer
-
 - rpc_request
 - rpc_response
-
 
 
 Server

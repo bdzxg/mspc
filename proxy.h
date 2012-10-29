@@ -22,6 +22,11 @@
 #include "freeq.h"
 #include "tool.h"
 
+typedef struct {
+	char *data;
+	size_t len;
+}slice;
+
 typedef struct pxy_config_s{
     short client_port;
     short backend_port;
