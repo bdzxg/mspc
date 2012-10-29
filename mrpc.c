@@ -1,36 +1,6 @@
 #include "proxy.h"
 #include "mrpc.h"
 
-int rpc_upstreamer_init()
-{
-	struct sockaddr_in addr1;
-
-	upstreamer.fd = -1;
-	
-	upstreamer.fd = socket(AF_INET, SOCK_STREAM, 0);
-	if(upstreamer.fd < 0)  {
-		E("create rpc listen fd error");
-		return -1;
-	}
-	int reuse = 1;
-	setsockopt(upstreamer.fd , SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
-	
-	if(setnonblocking(upstreamer.fd) < 0){
-		E("set nonblocling error");
-		return -1;
-	}
-
-	addr1.sin_family = AF_INET;
-	addr1.sin_port = htons(config->backend_port);
-	addr1.sin_addr.s_addr = 0;
-	
-	if(bind(upstreamer.fd, (struct sockaddr*)&addr1, sizeof(addr1)) < 0){
-		E("bind error");
-		return -1;
-	}
-	return 0;
-}
-
 static buffer_t* 
 get_buf_for_write(rpc_upstreamer_connection_t *c)
 {
@@ -311,6 +281,36 @@ start_failed:
 	return -1;
 }
 
+
+int rpc_upstreamer_init()
+{
+	struct sockaddr_in addr1;
+
+	upstreamer.fd = -1;
+	
+	upstreamer.fd = socket(AF_INET, SOCK_STREAM, 0);
+	if(upstreamer.fd < 0)  {
+		E("create rpc listen fd error");
+		return -1;
+	}
+	int reuse = 1;
+	setsockopt(upstreamer.fd , SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+	
+	if(setnonblocking(upstreamer.fd) < 0){
+		E("set nonblocling error");
+		return -1;
+	}
+
+	addr1.sin_family = AF_INET;
+	addr1.sin_port = htons(config->backend_port);
+	addr1.sin_addr.s_addr = 0;
+	
+	if(bind(upstreamer.fd, (struct sockaddr*)&addr1, sizeof(addr1)) < 0){
+		E("bind error");
+		return -1;
+	}
+	return 0;
+}
 
 
 
