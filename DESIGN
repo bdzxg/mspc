@@ -1,0 +1,47 @@
+
+Upstream
+===================
+Currently, RPC is the transimission method bewteen MSP and backend server. 
+
+
+Bussiness
+==========
+- Mobile Client request:
+  - msp receive the mcp request, pack it to rpc request, send it to the backend service
+  - after backend receive request, give the rpc reponse IMMEDIATELY
+  - handle the rpc request ONLY the rpc result is error, which means send failure
+  - the mcp response will be received as another rpc request
+- Server Request:
+  - msp receive the rpc request, pack it to mcp format
+  - msp send the rpc response IMMEDIATELY, 
+  - then send the mcp request 
+  - After the Moblie-Client send the response, the msp pack the mcp reponse to a new rpc request
+  - send the request to the backend service
+
+
+Models
+======
+- rpc_server
+  - server informations : adress,port,config, stats, perf_counters ..
+  - connection informations : use for maintain all the client connections
+- rpc_client
+  - client informations : stats, config, perf_counters .. 
+  - upstream-map : KV mapping for address-rpc_connection structure
+  - 
+- rpc_connection
+  - connection information : fd, ev, sock_addr, duration_time .. 
+  - last seq number
+  - request-map (transaction map) , only used in client side, because the server side will process the request one by one so we don't need to maintain the request-map
+  - buffer
+
+- rpc_request
+- rpc_response
+
+
+
+Server
+======
+
+- 
+
+
