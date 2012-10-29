@@ -1,23 +1,8 @@
-
 #ifndef __MRPC_H
 #define __MRPC_H
 
 #include <string.h>
 #include "proxy.h"
-#include "include/rpc_client.h"
-
-static uint rpc_upstreamer_sequence;
-rpc_upstreamer_t upstreamer = { 0 }; 
-
-typedef struct upstream_map_s {
-	struct rb_root root;
-	size_t count;
-} upstream_map_t;
-
-typedef struct upstreamer_send_queue_s {
-	list_head_t head;
-	void *data;
-} upstreamer_send_queue_t;
 
 typedef struct rpc_request_header_s {
 } rpc_request_header_t;
