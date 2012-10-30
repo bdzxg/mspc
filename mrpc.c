@@ -1,46 +1,42 @@
 #include "proxy.h"
 #include "mrpc.h"
 
-static buffer_t* 
-get_buf_for_write(rpc_upstreamer_connection_t *c)
+static mrpc_buf_t* mrpc_buf_new(size_t size)
 {
-	buffer_t *b = buffer_fetch(worker->buf_pool,worker->buf_data_pool);
-
-	if(b == NULL) {
-		E("no buf available"); 
+	mrpc_buf_t *b = calloc(1, sizeof(*b));
+	if(!b) {
+		E("no mem for mrpc_buf_t");
 		return NULL;
 	}
 
-	if(c->recv_buf == NULL) {
-		c->send_buf = b;
-	}
-	else {
-		buffer_append(b,c->send_buf);
-	}
-
-	return b;
-}
-
-
-static buffer_t* 
-get_buf_for_read(rpc_upstreamer_connection_t *c)
-{
-	buffer_t *b = buffer_fetch(worker->buf_pool,worker->buf_data_pool);
-
-	if(b == NULL) {
-		E("no buf available"); 
+	b->buf = malloc(size);
+	if(!b->buf) {
+		E("no mem for buf");
+		free(b);
 		return NULL;
 	}
-
-	if(c->recv_buf == NULL) {
-		c->recv_buf = b;
-	}
-	else {
-		buffer_append(b,c->recv_buf);
-	}
-
+	b->len = size;
 	return b;
 }
+
+static int mrpc_buf_enlarge(mrpc_buf_t *buf) 
+{
+	void *n = realloc(buf->buf, buf->len * 2);
+	if(n) {
+		buf->buf = n;
+		buf->size = buf->size * 2;
+		return 0;
+	}
+	return -1;
+}
+
+static void mrpc_buf_reset(mrpc_buf_t *buf)
+{
+	buf->offset = 0;
+	buf->size = 0;
+	//TODO: shrink the buf len
+}
+
 
 staitc int rpc_send_responnse(rpc_upstreamer_connection_t *c, rpc_response_t *resp)
 {
@@ -53,11 +49,22 @@ staitc int rpc_send_responnse(rpc_upstreamer_connection_t *c, rpc_response_t *re
 	//write the reponse data to the buffer, then send it 
 }
 
+static inline mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
+{
+	resp->mask = htonl(0xBADBEE01);
+	resp->h.resp_head.sequence = req->h.req_head.sequence;
+	resp->h.resp_head.to_id = req->h.req_head.to_id;
+	resp->h.resp_head.from_id = req->h.req_head.from_id;
+	resp->h.resp_head.body_length = 0;
+}
+
 static int rpc_process_client_req(rpc_upstreamer_connection_t *c)
 {
+	size_t readn = 0;
 	int index = 0, buf_len = 0;
 	char *c1,*c2,*c3,*c4;
-	rpc_message_t msg;
+	mrpc_message_t msg;
+	mrpc_buf_t *b = c->recv_buf;
 
 	//parse the rpc packet
 	if((buf_len = buffer_length(c->recv_buf)) < 12) {
@@ -66,112 +73,117 @@ static int rpc_process_client_req(rpc_upstreamer_connection_t *c)
 	}
 
 	//mask:
-	c1 = buffer_read(c->recv_buf, index++);
-	c2 = buffer_read(c->recv_buf, index++);
-	c3 = buffer_read(c->recv_buf, index++);
-	c4 = buffer_read(c->recv_buf, index++);
-
-	msg.mask = (*c1 << 24 ) | (*c2 << 16) | (*c3 << 8) | *c4;
+	msg.mask = ntohl(*(uint32_t*)(b->buf + b->offset));
+	b->offset += 4;
+	//TODO: check the mask
 
 	//package length
-	c1 = buffer_read(c->recv_buf, index++);
-	c2 = buffer_read(c->recv_buf, index++);
-	c3 = buffer_read(c->recv_buf, index++);
-	c4 = buffer_read(c->recv_buf, index++);
+	msg.package_length = ntohl(*(uint32_t*)(b->buf + b->offset));
+	b->offset += 4;
 
-	msg.package_length = (*c1 << 24 ) | (*c2 << 16) | (*c3 << 8) | *c4;
-
-	if(buf_len < msg.package_length) {
-		//not a full package
+	//not a full package
+	if(b->size < msg.package_length) {
 		return 0;
 	}
 
 	//header length
-	c1 = buffer_read(c->recv_buf, index++);
-	c2 = buffer_read(c->recv_buf, index++);
-
-	msg.package_length = (*c1 << 8 ) | (*c2 );
-
+	msg.header_length = ntohs(*(short)(b->buf + b->offset));
+	b->offset += 2;
+	
 	//skip the packet options
-	index += 2;
+	b->offset += 2;
 
-	//body
-	int body_len = msg.package_length - msg.header_length;
-	char *body = calloc(1 , body_len);
-	int i;
-	for (i = 0; i < body_len; i++) {
-		body[i] = buffer_read(c->recv_buf, 12 + msg.header_length);
+	//header
+	char *header = malloc(msg.header_length);
+	if(!header) {
+		E("malloc header error");
+		return;
+	}
+	memcpy(header, b->buf + b->offset, msg.header_length);
+	b->offset += msg.header_length;
+
+	mrpc_request_header reqh;
+	pbc_slice str = {header, msg.header_length};
+	int r = pbc_pattern_unpack(rpc_pat_mrpc_request_header, &str, &reqh);
+	if(r < 0) {
+		//TODO: ERROR REPONSE
 	}
 
-	//pb deserialize
-	McpAppBeanProto input;
-	rpc_pb_string str = {body, (size_t)body_len};
-	int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &input);
+	//body
+	size_t body_len = msg.package_length - msg.header_length;
+	char *body = malloc(body_len);
+	if(!body) {
+		E("malloc body error");
+		return;
+	}
+	memcpy(body, b->buf + b-> offset, body_len);
 
+
+	//pb deserialize
+	mcp_appbean_proto input;
+	rpc_pb_string str = {body, body_len};
+	int r = rpc_pb_pattern_unpack(rpc_pat_mcp_appbean_proto, &str, &input);
 	if ( r < 0) {
 		//TODO: handle error
 		rpc_return_error(c, RPC_CODE_INVALID_REQUEST_ARGS, "input decode failed!");
 		return;
 	}
 
-	//rpc return:
-	//TODO:
-	retval output;
-	output.option.len = input.Protocol.len;
-	output.option.buffer = input.Protocol.buffer;
+	rpc_message_t resp;
+	mrpc_buf *sbuf = c->send_buf;
+	mrpc_resp_from_req(&msg, &resp);
+	char temp[32];
+	pbc_slice obuf = {temp, 32};
+	r = pbc_pattern_pack(rpc_pat_mrpc_response_header, &resp.h.resp_head, &obuf);
+	if(r < 0) {
+		//TODO
+	}
+	uint32_t resp_size = 12 + 32 - r;
+	while(c->send_buf->size + resp_size > c->send_buf->len) {
+		mrpc_buf_enlarge(c->send_buf);
+	}
 
-	rpc_pb_string str_out;
-	int outsz = 256;  
-	str_out.buffer = rpc_connection_alloc(c, outsz);
-	str_out.len = outsz;
-	r = rpc_pb_pattern_pack(rpc_pat_retval, &output, &str_out);
+	//write the response to the send_buf
+	*((uint32_t*)(sbuf->buf + sbuf->size)) = htonl(0XBADBEE01);
+	sbuf->size += 4;
+	*((uint32_t*)(sbuf->buf + sbuf->size)) = htonl(resp_size);
+	sbuf->size += 4;
+	*((uint32_t*)(sbuf->buf + sbuf->size)) = htons(32- r);
+	sbuf->size += 2;
+	*((uint32_t*)(sbuf->buf + sbuf->size)) = htons(0);
+	sbuf->size += 2;
+	memcpy(sbuf->buf + sbuf->size, temp, 32 - r);
 
-	if (r >= 0) {
- 		 rpc_return(c, str_out.buffer, str_out.len);
+	int n = send(c->fd, sbuf->buf + sbuf->offset, sbuf->size - sbuf->offset, 0);
+	if(n > 0 ) {
+		sbuf->offset += n;
 	}
 	else {
-		rpc_return_error(c, RPC_CODE_SERVER_ERROR, "output encode failed!");
+		//TODO
 	}
 	
-	//send the server request to the client
-	pxy_agent_t* a = NULL;
-	a = get_agent(input.Epid.buffer);
-	if(a == NULL) {
-		if(input.Epid.buffer != NULL) {
-			W("BN cann't find epid %s connection!!!", msg.epid);
-		}
-		//TODO: handle error
-		return;
-	}
-
-	msg.seq = a->bn_seq++;
 	process_bn(&msg, a);
 	W("BN epid %s!", msg.epid);
 }
 
-void rpc_upstreamer_server_recv(ev_t *ev,ev_file_item_t *fi)
+void mrpc_recv(ev_t *ev,ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	int n;
-	buffer_t *b;
-	rpc_upstreamer_connection_t *c = fi->data;
-
+	mrpc_connection_t *c = fi->data;
+	mrpc_buf_t *b = c->recv_buf;
 
 	D("rpc server recv"); 
-	if(!c)
-	{
+	if(!c)	{
+		//TODO:
 		W("fd has no rpc_connection ,ev->data is NULL,close the fd");
 		close(fi->fd); return;
 	}
 
+	size_t buf_avail;
 	while(1) {
-		b = get_buf_for_read(agent);
-		if(b == NULL) {
-			E("no buf for read");
-			goto failed;
-		}
-
-		n = recv(fi->fd,b->data,BUFFER_SIZE,0);
+		buf_avail = b->len - b->size;
+		n = recv(fi->fd, b->buf + b->size, buf_avail, 0);
 		D("recv %d bytes",n);
 
 		if(n < 0) {
@@ -189,17 +201,23 @@ void rpc_upstreamer_server_recv(ev_t *ev,ev_file_item_t *fi)
 			goto failed;
 		}
 
-		b->len = n;
-		agent->buf_len += n;
+		b->size    += n;
 
-		if(n < BUFFER_SIZE) {	
+		if(n < buf_avail) {	
 			D("break from receive loop, n > BUFFER_SIZE");	
 			break;
+		}
+		
+		//enlarge the recv_buf
+		int t = mrpc_buf_enlarge(b);
+		if(t < 0) {
+			E("recv_buf enlarge error");
+			goto failed;
 		}
 	}
 
 	D("buffer-len %zu", agent->buf_len);
-	if(rpc_process_client_req(c) < 0) {
+	if(mrpc_process_client_req(c) < 0) {
 		W("rpc: process client request failed");
 		goto failed;
 	}
@@ -207,13 +225,13 @@ void rpc_upstreamer_server_recv(ev_t *ev,ev_file_item_t *fi)
 
 failed:
 	W("failed, prepare close!");
-	//TODO: clean the connection
-	close(fi-->fd);
+	//TODO: clean the connection, and remove the event
+	close(fi->fd);
 	free(fi);
 	return;
 }
 
-void rpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
+static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
 
@@ -238,13 +256,23 @@ void rpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 			E("malloc upstream connection error");
 			return;
 		}
+		c->send_buf = mrpc_buf_new(MRPC_BUF_SIZE);
+		if(!c->send_buf) {
+			//TODO
+			return;
+		}
+		c->recv_buf = mrpc_buf_new(MRPC_BUF_SIZE);
+		if(!c->recv_buf) {
+			//TODO
+			return;
+		}
 		c->fd = f;
 
 		fi = ev_file_item_new(f,
-				c,
-				rpc_upstreamer_server_recv,
-				rpc_upstreamer_server_write,
-				EV_WRITABLE | EV_READABLE | EPOLLET);
+				      c,
+				      mrpc_recv,
+				      mrpc_send,
+				      EV_WRITABLE | EV_READABLE | EPOLLET);
 		if(!fi){
 			E("create file item error");
 		}
@@ -259,7 +287,7 @@ void rpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 }
 
 
-int rpc_upstreamer_start()
+int mrpc_upstreamer_start()
 {
 	ev_file_item_t* fi ;
 	int fd = upstreamer.fd;
@@ -269,7 +297,7 @@ int rpc_upstreamer_start()
 		return -1;
 	}
 
-	fi = ev_file_item_new(fd, worker, rpc_upstreamer_accept, NULL, EV_READABLE);
+	fi = ev_file_item_new(fd, worker, mrpc_upstreamer_accept, NULL, EV_READABLE);
 	if(!fi){
 		E("create ev for listen fd error");
 		goto start_failed;
@@ -282,7 +310,7 @@ start_failed:
 }
 
 
-int rpc_upstreamer_init()
+int mrpc_upstreamer_init()
 {
 	struct sockaddr_in addr1;
 

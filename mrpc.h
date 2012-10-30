@@ -4,29 +4,32 @@
 #include <string.h>
 #include "proxy.h"
 
-typedef struct rpc_request_header_s {
-} rpc_request_header_t;
-
-typedef struct rpc_response_header_s {
-} rpc_response_header_t;
+#define MRPC_BUF_SIZE 4096
 
 typedef struct mrpc_message_s {
-	int mask;
-	int package_length;
+	uint32_t mask;
+	uint32_t package_length;
 	short header_length;
 	short packet_options;
 	union h {
-		rpc_request_header_t req_head;
-		rpc_response_header_t resp_head;
+		mrpc_request_header req_head;
+		mrpc_response_header resp_head;
 	};
 	short is_resp;
 	slice body;
 }mrpc_message_t;
 
+typedef struct mrpc_buf_s {
+	char *buf;
+	size_t len;  //buf len
+	size_t size; //data size
+	size_t offset;
+}mrpc_buf_t;
+
 typedef struct mrpc_connection_s {
 	int fd;
-	struct buffer_s *send_buf;
-	struct buffer_s *recv_buf;
+	mrpc_buf_t *send_buf;
+	mrpc_buf_t *recv_buf;
 	mrpc_message_t req;
 }mmrpc_connection_t;
 
