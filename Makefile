@@ -14,6 +14,7 @@ LIB_OBJS = \
 MAP_OBJS = \
 	./rbtree.o \
 	./map.o 
+
 FUNC_OBJS = \
 	./func_test.o 
 
@@ -21,7 +22,8 @@ PXY_OBJS = \
 	./worker.o \
 	./proxy.o \
 	./agent.o \
-	./upstream.o
+	./upstream.o \
+	./msp_pb.o
 
 PXY_TEST = \
 	./pxy_test.o \
@@ -38,7 +40,6 @@ FUNC_TEST = \
 FREEQ_OBJS = \
 	./freeq.o \
 	./freeq_test.o
-	
 
 TEST = \
 	$(PXY_TEST) \
