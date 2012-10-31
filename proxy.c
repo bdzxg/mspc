@@ -4,9 +4,6 @@
 
 #include "proxy.h"
 #include "agent.h"
-#include "include/rpc_client.h"
-#include "include/rpc_server.h"
-#include "include/rpc_args.c"
 
 pxy_master_t* master;
 pxy_config_t* config;
@@ -205,89 +202,6 @@ char* get_send_data(rec_msg_t* t, int* length)
 	return ret;
 }
 
-
-void rpc_receive_message(rpc_connection_t *c,void *buf, size_t buf_size)
-{
-	McpAppBeanProto input;
-	rpc_pb_string str = {buf, buf_size};
-	int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &input);
-
-	if ( r < 0) {
-		rpc_return_error(c, RPC_CODE_INVALID_REQUEST_ARGS, "input decode failed!");
-		return;
-	}
-
-	D("rpc server receive cmd %d, seq %d", input.Cmd, input.Sequence);
-
-	rec_msg_t *msg = calloc(1, sizeof(*msg));
-	msg->cmd = input.Cmd;
-	msg->body = malloc(input.Content.len);
-	if(!msg->body) {
-		//TODO: Handle error
-		E("malloc msg->body error");
-		return;
-	}
-	msg->body_len = input.Content.len;
-	memcpy(msg->body, input.Content.buffer, input.Content.len);
-	msg->userid = input.UserId;
-	msg->format = input.Opt;
-	msg->compress = input.ZipFlag;
-	msg->epid = calloc(input.Epid.len+1, 1); 
-	memcpy(msg->epid, input.Epid.buffer, input.Epid.len);
-
-	//Add the request to the queue, 
-	//we will handle this request in the main thread
-	freeq_push(request_q, msg);
-	D("msg %p, msg->body %p, pushed to q %p",msg, msg->body, request_q);
-
-	retval output;
-	output.option.len = input.Protocol.len;
-	output.option.buffer = input.Protocol.buffer;
-
-	rpc_pb_string str_out;
-	int outsz = 256;  
-	str_out.buffer = rpc_connection_alloc(c, outsz);
-	str_out.len = outsz;
-	r = rpc_pb_pattern_pack(rpc_pat_retval, &output, &str_out);
-
-	if (r >= 0) 
-	{
-		rpc_return(c, str_out.buffer, str_out.len);
-	}
-	else
-		rpc_return_error(c, RPC_CODE_SERVER_ERROR, "output encode failed!");
-}
-
-int rpc_server_init()
-{
-	pthread_t id;
-	if(pthread_create(&id, NULL, (void*)rpc_server_thread, NULL))
-		return -1;
-	else 
-		return 0;	
-}	
-
-void* rpc_server_thread(void* args)
-{
-	UNUSED(args);
-
-	rpc_server_t* s = rpc_server_new();
-	//s->is_main_dispatch_th = 0;
-	rpc_server_regchannel(s, LISTENERPORT);
-	rpc_server_regservice(s, "IMSPRpcService", "ReceiveMessage", rpc_receive_message);
-	rpc_args_init();
-
-	D("rpc server start!");
-	if(rpc_server_start(s)!=RPC_OK) {
-		D("init rpc server fail");
-	}
-	else {
-		D("init rpc server ok");
-	}
-	return NULL;
-}
-
-
 int main()
 {
 	char ch[80];
@@ -307,13 +221,6 @@ int main()
 		return -1;
 	}
 	D("worker inited");
-
-
-	if(rpc_server_init() < 0) {
-		E("rpc server start failed");
-		return -1;
-	}
-	D("rpc server inited");
 
 	if(!worker_start()) {
 		D("worker #%d started failed", getpid()); return -1;

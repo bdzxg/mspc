@@ -2,7 +2,6 @@
 #define _AGENT_H_
 #include <stdio.h>
 #include "proxy.h"
-#include "include/rpc_args.h"
 
 typedef struct pxy_agent_s{
     struct buffer_s *buffer;

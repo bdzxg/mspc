@@ -8,7 +8,6 @@ LIB_OBJS = \
 	./ev.o \
 	./mempool.o \
 	./hashtable.o \
-	./freeq.o \
 	./tool.o
 
 MAP_OBJS = \
@@ -23,7 +22,8 @@ PXY_OBJS = \
 	./proxy.o \
 	./agent.o \
 	./upstream.o \
-	./msp_pb.o
+	./msp_pb.o \
+	./mrpc.o
 
 PXY_TEST = \
 	./pxy_test.o \
@@ -48,7 +48,7 @@ TEST = \
 OUTPUT = mspc
 
 apl:  $(LIB_OBJS) $(PXY_OBJS) 
-	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -I./include -o $(OUTPUT) -Llib -lrpc_c -lzookeeper_mt -lprotobuf-c -lm -lroute_mt -lev -lpthread -lpbc
+	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) -I./include -o $(OUTPUT) -Llib -lzookeeper_mt -lprotobuf-c -lm -lroute_mt -lev -lpthread -lpbc
 
 clean:
 	rm -f $(PXY_OBJS)

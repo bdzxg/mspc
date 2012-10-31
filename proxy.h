@@ -10,6 +10,7 @@
 #include "sysinc.h"
 #include "rbtree.h"
 #include "ev.h"
+#include "include/pbc.h"
 #include "list.h"
 #include "buffer.h"
 #include "config.h"
@@ -21,6 +22,7 @@
 #include "upstream.h"
 #include "freeq.h"
 #include "tool.h"
+#include "msp_pb.h"
 
 typedef struct {
 	char *data;

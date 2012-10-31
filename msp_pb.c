@@ -8,7 +8,7 @@
 #include "msp_pb.h"
 #define RPC_OK 0
 
-static pbc_env *env = NULL;
+static struct pbc_env *env = NULL;
 
 static const char rpc_pb_desc[] =
 {
@@ -97,7 +97,7 @@ static const char rpc_pb_desc[] =
   101,115,115,24,12,32,1,40,9,
 };
 
-rpc_int_t
+int
 rpc_args_init()
 {
   static int init = 0;
@@ -106,7 +106,7 @@ rpc_args_init()
     return RPC_OK;
   }
 
-  pbc_slice desc;
+  struct pbc_slice desc;
 
   desc.buffer = (void *)rpc_pb_desc;
   desc.len = sizeof(rpc_pb_desc);

@@ -1,10 +1,8 @@
 #include "proxy.h"
 #include "agent.h"
-#include "include/rpc_client.h"
 #include "include/zookeeper.h"
 #include <pthread.h>
 #include "route.h"
-#include "include/rpc_args.h"
 #include "ClientHelper.c"
 
 extern pxy_worker_t *worker;
@@ -224,62 +222,35 @@ int store_connection_context_reg3(pxy_agent_t *a)
 
 int process_reg3_req(rec_msg_t* msg, pxy_agent_t* a)
 {
-	Reg3V5ReqArgs r3_rq;
-	rpc_pb_string str_r3 = {msg->body, msg->body_len};
-	int t = rpc_pb_pattern_unpack(rpc_pat_reg3v5reqargs, &str_r3, &r3_rq);
-	if(t<0)
-		return -1;
-
-	if(r3_rq.userId == 0 || r3_rq.epid.len == 0)
-	{
-		send_response_client(msg, a, 400);
-		return 0;
-	}
-
-	char* epid = calloc(r3_rq.epid.len+1, 1);
-	memcpy(epid, r3_rq.epid.buffer, r3_rq.epid.len);
-
-	reg3_t* r3 = worker_remove_reg3(epid);
-	if(r3 == NULL)
-	{
-		// not exist
-		free(epid);
-		send_response_client(msg, a, 411);
-		return -1;
-	}
-	else
-	{
-		a->epid = epid;
-		a->user_ctx_len = r3->user_context_len;
-		memcpy(a->user_ctx, r3->user_context, a->user_ctx_len);
-		release_reg3(r3);
-	}
+	UNUSED(msg);
+	UNUSED(a);
 	return 1;
 }
 
 void send_client_flow_to_bean(pxy_agent_t *a)
 {
+	UNUSED(a);
 	//TODO:
 	return;
 
-	MobileFlowEventArgs args;
-	args.ClientType = a->clienttype;
-	args.DownFlow = a->downflow;
-	args.UpFlow = a->upflow;
-	args.LoginTime.len = strlen(a->logintime);
-	args.LoginTime.buffer = a->logintime;
-	args.LogoffTime.buffer = get_now_time();
-	args.LogoffTime.len = strlen(args.LogoffTime.buffer);
+	/*MobileFlowEventArgs args;*/
+	/*args.ClientType = a->clienttype;*/
+	/*args.DownFlow = a->downflow;*/
+	/*args.UpFlow = a->upflow;*/
+	/*args.LoginTime.len = strlen(a->logintime);*/
+	/*args.LoginTime.buffer = a->logintime;*/
+	/*args.LogoffTime.buffer = get_now_time();*/
+	/*args.LogoffTime.len = strlen(args.LogoffTime.buffer);*/
 
-	rpc_pb_string str_input; 
-	int inputsz = 1024;  
-	str_input.buffer = calloc(inputsz, 1);
-	str_input.len = inputsz;
-	rpc_pb_pattern_pack(rpc_pat_mobilefloweventargs, &args, &str_input);
+	/*rpc_pb_string str_input; */
+	/*int inputsz = 1024;  */
+	/*str_input.buffer = calloc(inputsz, 1);*/
+	/*str_input.len = inputsz;*/
+	/*rpc_pb_pattern_pack(rpc_pat_mobilefloweventargs, &args, &str_input);*/
 
-	W("105 len %d", str_input.len);
-	msp_send_req_to_bean(a, 105, str_input.len, str_input.buffer);
-	free(str_input.buffer);
+	/*W("105 len %d", str_input.len);*/
+	/*msp_send_req_to_bean(a, 105, str_input.len, str_input.buffer);*/
+	/*free(str_input.buffer);*/
 }
 
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
@@ -392,33 +363,33 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 }
 
 
-void get_rpc_arg(McpAppBeanProto* args, rec_msg_t* msg) 
-{
-	args->Protocol.len = strlen(PROTOCOL);
-	args->Protocol.buffer = PROTOCOL;
-	args->Cmd = msg->cmd;
-	char* uri = get_compact_uri(msg);
-	args->CompactUri.len = strlen(uri);
-	args->CompactUri.buffer = uri;
-	args->UserId = msg->userid;
-	args->Sequence = msg->seq;
-	args->Opt = msg->format;
+/*void get_rpc_arg(McpAppBeanProto* args, rec_msg_t* msg) */
+/*{*/
+	/*args->Protocol.len = strlen(PROTOCOL);*/
+	/*args->Protocol.buffer = PROTOCOL;*/
+	/*args->Cmd = msg->cmd;*/
+	/*char* uri = get_compact_uri(msg);*/
+	/*args->CompactUri.len = strlen(uri);*/
+	/*args->CompactUri.buffer = uri;*/
+	/*args->UserId = msg->userid;*/
+	/*args->Sequence = msg->seq;*/
+	/*args->Opt = msg->format;*/
 
-	if(msg->user_context_len > 0){
-		args->UserContext.len = msg->user_context_len;
-		args->UserContext.buffer = msg->user_context;
-	}else{ args->UserContext.len = 0;  args->UserContext.buffer = NULL;}
+	/*if(msg->user_context_len > 0){*/
+		/*args->UserContext.len = msg->user_context_len;*/
+		/*args->UserContext.buffer = msg->user_context;*/
+	/*}else{ args->UserContext.len = 0;  args->UserContext.buffer = NULL;}*/
 
-	D("request UserContext.len %d", args->UserContext.len);
-	if(msg->body_len > 0){	
-		args->Content.len = msg->body_len;
-		args->Content.buffer = msg->body;
-	}else{ args->Content.len = 0; args->Content.buffer = NULL;}
+	/*D("request UserContext.len %d", args->UserContext.len);*/
+	/*if(msg->body_len > 0){	*/
+		/*args->Content.len = msg->body_len;*/
+		/*args->Content.buffer = msg->body;*/
+	/*}else{ args->Content.len = 0; args->Content.buffer = NULL;}*/
 
-	args->Epid.len = strlen(msg->epid);
-	args->Epid.buffer = msg->epid;
-	args->ZipFlag = msg->compress;
-}	
+	/*args->Epid.len = strlen(msg->epid);*/
+	/*args->Epid.buffer = msg->epid;*/
+	/*args->ZipFlag = msg->compress;*/
+/*}	*/
 
 void release_rpc_message(rec_msg_t* msg)
 {
@@ -426,154 +397,154 @@ void release_rpc_message(rec_msg_t* msg)
 		free(msg->body);
 }
 
-void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t output_len,void *input, size_t input_len, void *data)
-{
-	UNUSED(c);
-	UNUSED(input);
-	UNUSED(input_len);
-	rpc_async_req_t* rt = (rpc_async_req_t*)data;
+/*void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t output_len,void *input, size_t input_len, void *data)*/
+/*{*/
+	/*UNUSED(c);*/
+	/*UNUSED(input);*/
+	/*UNUSED(input_len);*/
+	/*rpc_async_req_t* rt = (rpc_async_req_t*)data;*/
 
-	W("cmd %d code %d", rt->req->cmd, (int)code);
-	if (code == RPC_CODE_OK) {
-		McpAppBeanProto rsp;
-		rpc_pb_string str = {output, output_len};
-		int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);
-		if (r < 0) {
-			D("rpc response unpack fail");
-			// send 500 to client
-			send_response_client(rt->req, rt->a, 504);
-			free(rt->rpc_bf);
-			free(data);
-			return;
-		}
+	/*W("cmd %d code %d", rt->req->cmd, (int)code);*/
+	/*if (code == RPC_CODE_OK) {*/
+		/*McpAppBeanProto rsp;*/
+		/*rpc_pb_string str = {output, output_len};*/
+		/*int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);*/
+		/*if (r < 0) {*/
+			/*D("rpc response unpack fail");*/
+			/*// send 500 to client*/
+			/*send_response_client(rt->req, rt->a, 504);*/
+			/*free(rt->rpc_bf);*/
+			/*free(data);*/
+			/*return;*/
+		/*}*/
 
-		// 109 msp send reg3, 105 msp send flow, 103 & unreg reg3 overtime msp send unreg;
-		if(rsp.Cmd == 199 || rsp.Cmd == 105 || (rsp.Cmd == 103 && rt->msp_unreg == 1)) {
-			D("socket closed msp send unreg!");
-			free(rt->rpc_bf);
-			free(data);
-			return;
-		}
+		/*// 109 msp send reg3, 105 msp send flow, 103 & unreg reg3 overtime msp send unreg;*/
+		/*if(rsp.Cmd == 199 || rsp.Cmd == 105 || (rsp.Cmd == 103 && rt->msp_unreg == 1)) {*/
+			/*D("socket closed msp send unreg!");*/
+			/*free(rt->rpc_bf);*/
+			/*free(data);*/
+			/*return;*/
+		/*}*/
 
-		rec_msg_t rp_msg;
-		rp_msg.cmd = rsp.Cmd;
-		rp_msg.body_len = rsp.Content.len;
-		rp_msg.body = rsp.Content.buffer;
-		rp_msg.userid = rsp.UserId;
-		rp_msg.seq = rsp.Sequence;
-		rp_msg.format = rsp.Opt;
-		rp_msg.compress = rsp.ZipFlag;
-		char* func = get_cmd_func_name(rsp.Cmd);
-		D("rpc %s func response, seq is %d", func, rp_msg.format);
-		UNUSED(func);
-		// reg2 response
-		if(rp_msg.cmd == 102 && rt->a->user_ctx == NULL) {
-			rt->a->isreg = 1;
-			rt->a->user_ctx_len = rsp.UserContext.len;
-			rt->a->user_ctx = calloc(rsp.UserContext.len, 1);
-			memcpy(rt->a->user_ctx, rsp.UserContext.buffer, rsp.UserContext.len);
-			UserContext us_ctx;
-			rpc_pb_string str_uc = {rsp.UserContext.buffer, rsp.UserContext.len};
-			int t = rpc_pb_pattern_unpack(rpc_pat_usercontext, &str_uc, &us_ctx);
+		/*rec_msg_t rp_msg;*/
+		/*rp_msg.cmd = rsp.Cmd;*/
+		/*rp_msg.body_len = rsp.Content.len;*/
+		/*rp_msg.body = rsp.Content.buffer;*/
+		/*rp_msg.userid = rsp.UserId;*/
+		/*rp_msg.seq = rsp.Sequence;*/
+		/*rp_msg.format = rsp.Opt;*/
+		/*rp_msg.compress = rsp.ZipFlag;*/
+		/*char* func = get_cmd_func_name(rsp.Cmd);*/
+		/*D("rpc %s func response, seq is %d", func, rp_msg.format);*/
+		/*UNUSED(func);*/
+		/*// reg2 response*/
+		/*if(rp_msg.cmd == 102 && rt->a->user_ctx == NULL) {*/
+			/*rt->a->isreg = 1;*/
+			/*rt->a->user_ctx_len = rsp.UserContext.len;*/
+			/*rt->a->user_ctx = calloc(rsp.UserContext.len, 1);*/
+			/*memcpy(rt->a->user_ctx, rsp.UserContext.buffer, rsp.UserContext.len);*/
+			/*UserContext us_ctx;*/
+			/*rpc_pb_string str_uc = {rsp.UserContext.buffer, rsp.UserContext.len};*/
+			/*int t = rpc_pb_pattern_unpack(rpc_pat_usercontext, &str_uc, &us_ctx);*/
 
-			if(t<0)
-			{
-				D("unpack user context fail");
-			}
-			else {
-				rt->a->user_id = us_ctx.UserId;
-				rt->a->logic_pool_id = us_ctx.LogicalPool;
-				rt->a->logintime = get_now_time();
-			}
-		}
+			/*if(t<0)*/
+			/*{*/
+				/*D("unpack user context fail");*/
+			/*}*/
+			/*else {*/
+				/*rt->a->user_id = us_ctx.UserId;*/
+				/*rt->a->logic_pool_id = us_ctx.LogicalPool;*/
+				/*rt->a->logintime = get_now_time();*/
+			/*}*/
+		/*}*/
 
-		int len = 0;
-		char* d = NULL;
-		d = get_send_data(&rp_msg, &len);
-		D("fd %d, d %p, len %d", rt->a->fd, d, len);
-		send_to_client(rt->a, d, (size_t)len);
-		free(d);
-		if(rp_msg.cmd == 103) {
-			rt->a->isreg = 0;
-			worker_remove_agent(rt->a);
-			pxy_agent_close(rt->a);
-		}
-	}
-	else {
-		if(rt->req == NULL || rt->req->cmd == 199 || rt->req->cmd == 105 ||( rt->req->cmd == 103 && rt->msp_unreg == 1))
-		{
-			D("socket closed msp send unreg!");
-			free(rt->rpc_bf);
-			free(data);
-			return;
-		}
+		/*int len = 0;*/
+		/*char* d = NULL;*/
+		/*d = get_send_data(&rp_msg, &len);*/
+		/*D("fd %d, d %p, len %d", rt->a->fd, d, len);*/
+		/*send_to_client(rt->a, d, (size_t)len);*/
+		/*free(d);*/
+		/*if(rp_msg.cmd == 103) {*/
+			/*rt->a->isreg = 0;*/
+			/*worker_remove_agent(rt->a);*/
+			/*pxy_agent_close(rt->a);*/
+		/*}*/
+	/*}*/
+	/*else {*/
+		/*if(rt->req == NULL || rt->req->cmd == 199 || rt->req->cmd == 105 ||( rt->req->cmd == 103 && rt->msp_unreg == 1))*/
+		/*{*/
+			/*D("socket closed msp send unreg!");*/
+			/*free(rt->rpc_bf);*/
+			/*free(data);*/
+			/*return;*/
+		/*}*/
 
-		// send 500 server error
-		send_response_client(rt->req, rt->a, 500);
-		D("send rpc response fail");
-		if(rt->req->cmd == 103) {
-			worker_remove_agent(rt->a);
-			pxy_agent_close(rt->a);
-		}
-	}
-	free(rt->rpc_bf);
-	free(data);
-}
+		/*// send 500 server error*/
+		/*send_response_client(rt->req, rt->a, 500);*/
+		/*D("send rpc response fail");*/
+		/*if(rt->req->cmd == 103) {*/
+			/*worker_remove_agent(rt->a);*/
+			/*pxy_agent_close(rt->a);*/
+		/*}*/
+	/*}*/
+	/*free(rt->rpc_bf);*/
+	/*free(data);*/
+/*}*/
 
-int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unreg)
-{
-	W("cmd %d prxy uri %s", req->cmd, proxy_uri);
-	rpc_proxy_t *p ;
+/*int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unreg)*/
+/*{*/
+	/*W("cmd %d prxy uri %s", req->cmd, proxy_uri);*/
+	/*rpc_proxy_t *p ;*/
 
-	upstream_t *us = us_get_upstream(upstream_root, proxy_uri);
-	if(!us) {
-		W("no proxy,malloc one");
-		us = pxy_calloc(sizeof(*us));
-		if(!us) {
-			E("cannot malloc for upstream_t");
-			return -1;
-		}
+	/*upstream_t *us = us_get_upstream(upstream_root, proxy_uri);*/
+	/*if(!us) {*/
+		/*W("no proxy,malloc one");*/
+		/*us = pxy_calloc(sizeof(*us));*/
+		/*if(!us) {*/
+			/*E("cannot malloc for upstream_t");*/
+			/*return -1;*/
+		/*}*/
 
-		rpc_client_t *cnt = rpc_client_new();
-		p = rpc_client_connect(cnt, proxy_uri);
-		p->setting.connect_timeout = 500;
-		p->setting.request_timeout = 100;//TODO: this value should be more exactly
+		/*rpc_client_t *cnt = rpc_client_new();*/
+		/*p = rpc_client_connect(cnt, proxy_uri);*/
+		/*p->setting.connect_timeout = 500;*/
+		/*p->setting.request_timeout = 100;//TODO: this value should be more exactly*/
 
-		us->uri = strdup(proxy_uri);
-		us->proxy = p;
-		us_add_upstream(upstream_root, us);
-	}
-	p = us->proxy;
+		/*us->uri = strdup(proxy_uri);*/
+		/*us->proxy = p;*/
+		/*us_add_upstream(upstream_root, us);*/
+	/*}*/
+	/*p = us->proxy;*/
 
-	rpc_args_init();
-	McpAppBeanProto args; 
-	get_rpc_arg(&args, req);
+	/*rpc_args_init();*/
+	/*McpAppBeanProto args; */
+	/*get_rpc_arg(&args, req);*/
 
-	rpc_pb_string str_input; 
-	int inputsz = 1024;  
-	str_input.buffer = calloc(inputsz, 1);
-	str_input.len = inputsz;
-	rpc_pb_pattern_pack(rpc_pat_mcpappbeanproto, &args, &str_input);
-	char* func_name = get_cmd_func_name(req->cmd);
+	/*rpc_pb_string str_input; */
+	/*int inputsz = 1024;  */
+	/*str_input.buffer = calloc(inputsz, 1);*/
+	/*str_input.len = inputsz;*/
+	/*rpc_pb_pattern_pack(rpc_pat_mcpappbeanproto, &args, &str_input);*/
+	/*char* func_name = get_cmd_func_name(req->cmd);*/
 
-	D("rpc call func name %s", func_name);
-	rpc_async_req_t* rt = calloc(sizeof(rpc_async_req_t), 1);
-	rt->a = a;
-	rt->req = req;
-	rt->rpc_bf = str_input.buffer;
-	rt->msp_unreg = msp_unreg;
-	rpc_int_t code = rpc_call(p, "MCP", func_name, str_input.buffer, str_input.len, NULL, NULL);
+	/*D("rpc call func name %s", func_name);*/
+	/*rpc_async_req_t* rt = calloc(sizeof(rpc_async_req_t), 1);*/
+	/*rt->a = a;*/
+	/*rt->req = req;*/
+	/*rt->rpc_bf = str_input.buffer;*/
+	/*rt->msp_unreg = msp_unreg;*/
+	/*rpc_int_t code = rpc_call(p, "MCP", func_name, str_input.buffer, str_input.len, NULL, NULL);*/
 
-	//we only handle error here 
-	if(code != RPC_CODE_OK) {
-		//TODO: send the error response to the client 
-	}
-	D("code is %d", (int) RPC_CODE_OK);
+	/*//we only handle error here */
+	/*if(code != RPC_CODE_OK) {*/
+		/*//TODO: send the error response to the client */
+	/*}*/
+	/*D("code is %d", (int) RPC_CODE_OK);*/
 
-	free(str_input.buffer);
-	free(args.CompactUri.buffer);
-	return 0;
-}
+	/*free(str_input.buffer);*/
+	/*free(args.CompactUri.buffer);*/
+	/*return 0;*/
+/*}*/
 
 void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code) 
 {
@@ -606,6 +577,7 @@ char __url[32] = "tcp://10.10.10.81:7777";
 
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 {
+	UNUSED(a);
 	char *url = NULL;
 	get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
 	if(url == NULL)
@@ -618,10 +590,11 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		D("cmd %d url=%s", msg->cmd, url);
 	}
 	//get proxy uri
-	if(send_rpc_server(msg, __url, a, msp_unreg) < 0) {
-		free(url);
-		return -1;
-	}
+	//TODO
+   /* if(send_rpc_server(msg, __url, a, msp_unreg) < 0) {*/
+		/*free(url);*/
+		/*return -1;*/
+	/*}*/
 	free(url);
 	return 0;
 }

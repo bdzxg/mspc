@@ -4,11 +4,10 @@
 
 #include <string.h>
 #include "proxy.h"
-#include "include/rpc_client.h"
 
 typedef struct upstream_s {
 	char *uri;
-	rpc_proxy_t *proxy;
+	//rpc_proxy_t *proxy;
 	struct rb_node rbnode;
 }upstream_t;
 

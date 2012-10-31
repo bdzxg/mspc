@@ -1,6 +1,11 @@
 #include "proxy.h"
 #include "mrpc.h"
 
+extern pxy_worker_t *worker;
+extern upstream_map_t *upstream_root;
+extern pxy_config_t* config;
+mrpc_upstreamer_t upstreamer;
+
 static mrpc_buf_t* mrpc_buf_new(size_t size)
 {
 	mrpc_buf_t *b = calloc(1, sizeof(*b));
@@ -38,18 +43,7 @@ static void mrpc_buf_reset(mrpc_buf_t *buf)
 }
 
 
-staitc int rpc_send_responnse(rpc_upstreamer_connection_t *c, rpc_response_t *resp)
-{
-	buffer_t *b = get_buf_for_write(c);
-	if(!b) {
-		E("can not get the buffer");
-		return -1;
-	}
-
-	//write the reponse data to the buffer, then send it 
-}
-
-static inline mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
+static inline void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 {
 	resp->mask = htonl(0xBADBEE01);
 	resp->h.resp_head.sequence = req->h.req_head.sequence;
@@ -58,16 +52,13 @@ static inline mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 	resp->h.resp_head.body_length = 0;
 }
 
-static int rpc_process_client_req(rpc_upstreamer_connection_t *c)
+static int mrpc_process_client_req(mrpc_connection_t *c)
 {
-	size_t readn = 0;
-	int index = 0, buf_len = 0;
-	char *c1,*c2,*c3,*c4;
 	mrpc_message_t msg;
 	mrpc_buf_t *b = c->recv_buf;
 
 	//parse the rpc packet
-	if((buf_len = buffer_length(c->recv_buf)) < 12) {
+	if((c->recv_buf->size - c->recv_buf->offset) < 12) {
 		//not a full package
 		return 0;
 	}
@@ -87,7 +78,7 @@ static int rpc_process_client_req(rpc_upstreamer_connection_t *c)
 	}
 
 	//header length
-	msg.header_length = ntohs(*(short)(b->buf + b->offset));
+	msg.header_length = ntohs(*(short*)(b->buf + b->offset));
 	b->offset += 2;
 	
 	//skip the packet options
@@ -97,13 +88,13 @@ static int rpc_process_client_req(rpc_upstreamer_connection_t *c)
 	char *header = malloc(msg.header_length);
 	if(!header) {
 		E("malloc header error");
-		return;
+		return -1;
 	}
 	memcpy(header, b->buf + b->offset, msg.header_length);
 	b->offset += msg.header_length;
 
 	mrpc_request_header reqh;
-	pbc_slice str = {header, msg.header_length};
+	struct pbc_slice str = {header, msg.header_length};
 	int r = pbc_pattern_unpack(rpc_pat_mrpc_request_header, &str, &reqh);
 	if(r < 0) {
 		//TODO: ERROR REPONSE
@@ -114,26 +105,25 @@ static int rpc_process_client_req(rpc_upstreamer_connection_t *c)
 	char *body = malloc(body_len);
 	if(!body) {
 		E("malloc body error");
-		return;
+		return -1;
 	}
 	memcpy(body, b->buf + b-> offset, body_len);
 
 
 	//pb deserialize
 	mcp_appbean_proto input;
-	rpc_pb_string str = {body, body_len};
-	int r = rpc_pb_pattern_unpack(rpc_pat_mcp_appbean_proto, &str, &input);
+	struct pbc_slice str1 = {body, body_len};
+	r =pbc_pattern_unpack(rpc_pat_mcp_appbean_proto, &str1, &input);
 	if ( r < 0) {
 		//TODO: handle error
-		rpc_return_error(c, RPC_CODE_INVALID_REQUEST_ARGS, "input decode failed!");
-		return;
+		return -1;
 	}
 
-	rpc_message_t resp;
-	mrpc_buf *sbuf = c->send_buf;
+	mrpc_message_t resp;
+	mrpc_buf_t *sbuf = c->send_buf;
 	mrpc_resp_from_req(&msg, &resp);
 	char temp[32];
-	pbc_slice obuf = {temp, 32};
+	struct pbc_slice obuf = {temp, 32};
 	r = pbc_pattern_pack(rpc_pat_mrpc_response_header, &resp.h.resp_head, &obuf);
 	if(r < 0) {
 		//TODO
@@ -162,8 +152,9 @@ static int rpc_process_client_req(rpc_upstreamer_connection_t *c)
 		//TODO
 	}
 	
-	process_bn(&msg, a);
-	W("BN epid %s!", msg.epid);
+	//TODO: BIZ handler
+	//process_bn(&msg, a);
+	//W("BN epid %s!", msg.epid);
 }
 
 void mrpc_recv(ev_t *ev,ev_file_item_t *fi)
@@ -203,7 +194,7 @@ void mrpc_recv(ev_t *ev,ev_file_item_t *fi)
 
 		b->size    += n;
 
-		if(n < buf_avail) {	
+		if((size_t)n < buf_avail) {	
 			D("break from receive loop, n > BUFFER_SIZE");	
 			break;
 		}
@@ -216,7 +207,6 @@ void mrpc_recv(ev_t *ev,ev_file_item_t *fi)
 		}
 	}
 
-	D("buffer-len %zu", agent->buf_len);
 	if(mrpc_process_client_req(c) < 0) {
 		W("rpc: process client request failed");
 		goto failed;
@@ -231,15 +221,28 @@ failed:
 	return;
 }
 
+static void mrpc_svr_recv(ev_t *ev, ev_file_item_t *ffi)
+{
+	UNUSED(ev);
+	UNUSED(ffi);
+	//TODO
+}
+
+static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
+{
+	UNUSED(ev);
+	UNUSED(ffi);
+	//TODO
+}
+
 static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
 
 	int f,err;
-	pxy_agent_t *agent;
 	ev_file_item_t *fi;
 
-	socklen_t sin_size = sizeof(master->addr);
+	//socklen_t sin_size = sizeof(master->addr);
 	//f = accept(ffi->fd,&(master->addr),&sin_size);
 	f = accept(ffi->fd,NULL,NULL);
 	D("rpc server: fd#%d accepted",f);
@@ -251,7 +254,7 @@ static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 			E("set nonblocking error"); return;
 		}
 
-		rpc_upstreamer_connection_t *c = calloc(1, sizeof(*c));
+		mrpc_connection_t *c = calloc(1, sizeof(*c));
 		if(!c) {
 			E("malloc upstream connection error");
 			return;
@@ -270,8 +273,8 @@ static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 
 		fi = ev_file_item_new(f,
 				      c,
-				      mrpc_recv,
-				      mrpc_send,
+				      mrpc_svr_recv,
+				      mrpc_svr_send,
 				      EV_WRITABLE | EV_READABLE | EPOLLET);
 		if(!fi){
 			E("create file item error");
@@ -290,7 +293,7 @@ static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 int mrpc_upstreamer_start()
 {
 	ev_file_item_t* fi ;
-	int fd = upstreamer.fd;
+	int fd = upstreamer.listen_fd;
 
 	if(listen(fd, 1024) < 0){
 		E("rpc listen error");
@@ -304,7 +307,6 @@ int mrpc_upstreamer_start()
 	}
 	ev_add_file_item(worker->ev,fi);
 
-
 start_failed:
 	return -1;
 }
@@ -314,17 +316,17 @@ int mrpc_upstreamer_init()
 {
 	struct sockaddr_in addr1;
 
-	upstreamer.fd = -1;
+	upstreamer.listen_fd = -1;
 	
-	upstreamer.fd = socket(AF_INET, SOCK_STREAM, 0);
-	if(upstreamer.fd < 0)  {
+	upstreamer.listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if(upstreamer.listen_fd < 0)  {
 		E("create rpc listen fd error");
 		return -1;
 	}
 	int reuse = 1;
-	setsockopt(upstreamer.fd , SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+	setsockopt(upstreamer.listen_fd , SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
 	
-	if(setnonblocking(upstreamer.fd) < 0){
+	if(setnonblocking(upstreamer.listen_fd) < 0){
 		E("set nonblocling error");
 		return -1;
 	}
@@ -333,12 +335,9 @@ int mrpc_upstreamer_init()
 	addr1.sin_port = htons(config->backend_port);
 	addr1.sin_addr.s_addr = 0;
 	
-	if(bind(upstreamer.fd, (struct sockaddr*)&addr1, sizeof(addr1)) < 0){
+	if(bind(upstreamer.listen_fd, (struct sockaddr*)&addr1, sizeof(addr1)) < 0){
 		E("bind error");
 		return -1;
 	}
 	return 0;
 }
-
-
-

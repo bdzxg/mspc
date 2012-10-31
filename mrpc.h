@@ -6,15 +6,19 @@
 
 #define MRPC_BUF_SIZE 4096
 
+typedef struct mrpc_upstreamer_s {
+	int listen_fd;
+}mrpc_upstreamer_t;
+
 typedef struct mrpc_message_s {
 	uint32_t mask;
 	uint32_t package_length;
 	short header_length;
 	short packet_options;
-	union h {
+	union {
 		mrpc_request_header req_head;
 		mrpc_response_header resp_head;
-	};
+	}h;
 	short is_resp;
 	slice body;
 }mrpc_message_t;
@@ -31,11 +35,9 @@ typedef struct mrpc_connection_s {
 	mrpc_buf_t *send_buf;
 	mrpc_buf_t *recv_buf;
 	mrpc_message_t req;
-}mmrpc_connection_t;
+}mrpc_connection_t;
 
-int mmrpc_upstreamer_init();
-int mmrpc_upstreamer_start();
-int mmrpc_upstreamer_send(upstream_t*, mmrpc_upstreamer_request_t*);
-int mmrpc_send_response(mmrpc_connection_t*, mmrpc_message_t*);
+int mrpc_upstreamer_init();
+int mrpc_upstreamer_start();
 
 #endif

@@ -1,4 +1,3 @@
-
 #include "proxy.h"
 #include "route.h"
 #include "map.h"
@@ -57,13 +56,6 @@ int worker_init()
 
 		worker->root = RB_ROOT;
 		pthread_mutex_init(&worker->mutex, NULL);
-
-
-		request_q = create_free_q();
-		if(!request_q) {
-			E("cannot create request q");
-			return -1;
-		}
 
 		return 0;
 	}
@@ -202,44 +194,5 @@ static pxy_agent_t* get_agent(char* key)
 void process_request_in_queue(struct ev_s *ev)
 {
 	UNUSED(ev);
-	rec_msg_t *msg;
-	void *req;
-
-	while((req = freeq_pop(request_q)) != NULL) {
-		msg = req;
-
-		D("got the request, cmd %d, seq %d", msg->cmd, msg->seq);
-		//D("bn epid %s cmd %d userid %d", msg.epid, msg.cmd, msg.userid);
-		pxy_agent_t* a = NULL;
-		a = get_agent(msg->epid);
-		if(a == NULL) {
-			if(msg->epid != NULL) {
-				D("BN cann't find epid %s connection!!!", msg->epid);
-			}
-			goto failed;
-		}
-		msg->seq = a->bn_seq++;
-		if(msg->cmd == 105) {
-			// TODO add tcp flow
-			return;
-		}
-
-		// can not be 102
-		int len;
-		char* data = get_send_data(msg, &len);
-		send_to_client(a, data, (size_t)len);
-
-failed:
-		D("1");
-		free(data);
-		D("1");
-		D("msp->body %p", msg->body);
-		free(msg->body);
-		D("1");
-		free(msg->epid);
-		D("1");
-		free(msg);
-		D("1");
-	}
 }
 
