@@ -6,7 +6,7 @@ extern upstream_map_t *upstream_root;
 extern pxy_config_t* config;
 mrpc_upstreamer_t upstreamer;
 
-static void mrpc_buf_t mrpc_buf_free(mrpc_buf_t *buf) 
+static void mrpc_buf_free(mrpc_buf_t *buf) 
 {
 	free(buf->buf);
 	free(buf);
@@ -144,7 +144,7 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	mrpc_message_t resp;
 	mrpc_buf_t *sbuf = c->send_buf;
 	mrpc_resp_from_req(&msg, &resp);
-	resp.response_code = 200;
+	resp.h.resp_head.response_code = 200;
 
 	char temp[32];
 	struct pbc_slice obuf = {temp, 32};
@@ -305,6 +305,7 @@ static void mrpc_upstreamer_accept(ev_t *ev, ev_file_item_t *ffi)
 
 	int f,err;
 	ev_file_item_t *fi;
+	mrpc_connection_t *c = NULL;
 
 	//socklen_t sin_size = sizeof(master->addr);
 	//f = accept(ffi->fd,&(master->addr),&sin_size);
@@ -317,7 +318,7 @@ static void mrpc_upstreamer_accept(ev_t *ev, ev_file_item_t *ffi)
 			E("set nonblocking error"); return;
 		}
 
-		mrpc_connection_t *c = calloc(1, sizeof(*c));
+		c = calloc(1, sizeof(*c));
 		if(!c) {
 			E("malloc upstream connection error");
 			return;
@@ -348,6 +349,7 @@ static void mrpc_upstreamer_accept(ev_t *ev, ev_file_item_t *ffi)
 		perror("accept");
 	}
 	return;
+
 failed:
 	if(c) {
 		if(c->send_buf) {
