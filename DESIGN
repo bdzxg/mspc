@@ -29,12 +29,23 @@ Models
 - rpc_client
   - client informations : stats, config, perf_counters .. 
   - upstream-map : KV mapping for address-rpc_connection structure
-  - 
+- upstreamer_root
+  - RB_ROOT
+  - adress - upstreamer kv mapping
+  - connecting_list 
+- upstreamer 
+  - connection_list
+  - to_send_queue : save the request when the connection is not ready to go with
+  -
 - rpc_connection
-  - connection information : fd, ev, sock_addr, duration_time .. 
-  - last seq number
-  - request-map (transaction map) , only used in client side, because the server side will process the request one by one so we don't need to maintain the request-map
+  - connection information : fd, ev, sock_addr, connnecting_time duration_time .. 
   - buffer
+  - last seq number
+  - request-map (transaction map) , only used in client side, because the server side will process the request one by one so we don't need to maintain the request-map 
+  - connectiing list: check for timeout
+  - upstream list_head: each upstream has multiple connection
+  - connection status : disconnected, connecting, connected
+  - 
 - rpc_request
 - rpc_response
 
