@@ -6,6 +6,12 @@ extern upstream_map_t *upstream_root;
 extern pxy_config_t* config;
 mrpc_upstreamer_t upstreamer;
 
+static void mrpc_buf_t mrpc_buf_free(mrpc_buf_t *buf) 
+{
+	free(buf->buf);
+	free(buf);
+}
+
 static mrpc_buf_t* mrpc_buf_new(size_t size)
 {
 	mrpc_buf_t *b = calloc(1, sizeof(*b));
@@ -39,9 +45,19 @@ static void mrpc_buf_reset(mrpc_buf_t *buf)
 {
 	buf->offset = 0;
 	buf->size = 0;
-	//TODO: shrink the buf len
-}
 
+	//shrink the buf
+	if(buf->len > MRPC_BUF_SIZE) {
+		void *t = realloc(buf->buf, MRPC_BUF_SIZE);
+		if(t) {
+			buf->buf = t;
+			buf->len = MRPC_BUF_SIZE;
+		}
+		else {
+			E("realloc for buf reset error");
+		}
+	}
+}
 
 static inline void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 {
@@ -52,28 +68,39 @@ static inline void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 	resp->h.resp_head.body_length = 0;
 }
 
+static void mrpc_connection_free(mrpc_connection_t *c) 
+{
+	mrpc_buf_free(c->send_buf);
+	mrpc_buf_free(c->recv_buf);
+	free(c);
+}
+
 static int mrpc_process_client_req(mrpc_connection_t *c)
 {
 	mrpc_message_t msg;
 	mrpc_buf_t *b = c->recv_buf;
+	char *body = NULL;
 
 	//parse the rpc packet
-	if((c->recv_buf->size - c->recv_buf->offset) < 12) {
+	if((b->size - b->offset) < 12) {
 		//not a full package
 		return 0;
 	}
 
 	//mask:
-	msg.mask = ntohl(*(uint32_t*)(b->buf + b->offset));
+	msg.mask = *(uint32_t*)(b->buf + b->offset);
 	b->offset += 4;
-	//TODO: check the mask
+	if(msg.mask != 0x0badbee0) {
+		goto failed;
+	}
 
 	//package length
 	msg.package_length = ntohl(*(uint32_t*)(b->buf + b->offset));
 	b->offset += 4;
 
 	//not a full package
-	if(b->size < msg.package_length) {
+	if(b->size - b->offset < msg.package_length - 8) {
+		b->offset -= 8;
 		return 0;
 	}
 
@@ -84,51 +111,49 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	//skip the packet options
 	b->offset += 2;
 
-	//header
-	char *header = malloc(msg.header_length);
-	if(!header) {
-		E("malloc header error");
-		return -1;
-	}
-	memcpy(header, b->buf + b->offset, msg.header_length);
-	b->offset += msg.header_length;
-
+	//request header
 	mrpc_request_header reqh;
-	struct pbc_slice str = {header, msg.header_length};
+	struct pbc_slice str = {b->buf + b->offset, msg.header_length};
 	int r = pbc_pattern_unpack(rpc_pat_mrpc_request_header, &str, &reqh);
 	if(r < 0) {
-		//TODO: ERROR REPONSE
+		E("rpc unpack request header fail");
+		goto failed;
 	}
+	b->offset += msg.header_length;
 
 	//body
-	size_t body_len = msg.package_length - msg.header_length;
-	char *body = malloc(body_len);
+	size_t body_len = msg.package_length - msg.header_length - 12;
+	body = malloc(body_len);
 	if(!body) {
 		E("malloc body error");
-		return -1;
+		goto failed;
 	}
 	memcpy(body, b->buf + b-> offset, body_len);
 
 
-	//pb deserialize
+	//pb deserialize body
 	mcp_appbean_proto input;
-	struct pbc_slice str1 = {body, body_len};
+	struct pbc_slice str1 = {body, body_len * 2};
 	r =pbc_pattern_unpack(rpc_pat_mcp_appbean_proto, &str1, &input);
 	if ( r < 0) {
-		//TODO: handle error
+		E("rpc unpack mcp_appbean_proto error");
 		return -1;
 	}
 
+	//send the response
 	mrpc_message_t resp;
 	mrpc_buf_t *sbuf = c->send_buf;
 	mrpc_resp_from_req(&msg, &resp);
+	resp.response_code = 200;
+
 	char temp[32];
 	struct pbc_slice obuf = {temp, 32};
 	r = pbc_pattern_pack(rpc_pat_mrpc_response_header, &resp.h.resp_head, &obuf);
 	if(r < 0) {
-		//TODO
+		E("rpc pack response header error");
+		goto failed;
 	}
-	uint32_t resp_size = 12 + 32 - r;
+	uint32_t resp_size = 12 + 32 - r; //there is no 'body'
 	while(c->send_buf->size + resp_size > c->send_buf->len) {
 		mrpc_buf_enlarge(c->send_buf);
 	}
@@ -144,20 +169,59 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	sbuf->size += 2;
 	memcpy(sbuf->buf + sbuf->size, temp, 32 - r);
 
-	int n = send(c->fd, sbuf->buf + sbuf->offset, sbuf->size - sbuf->offset, 0);
-	if(n > 0 ) {
-		sbuf->offset += n;
+
+	int n;
+	while(sbuf->size - sbuf->offset > 0) {
+		n = send(c->fd, sbuf->buf + sbuf->offset, sbuf->size - sbuf->offset, 0);
+		if(n > 0) {
+			sbuf->offset += n;
+			break;
+		}
+		if(n == 0) {
+			E("send return 0");
+			break;
+		}
+		else {
+			if(errno == EAGAIN || errno == EWOULDBLOCK) {
+				break;
+			}
+			else if(errno == EINTR) {
+
+			}
+			else {
+				E("send return error, reason %s", strerror(errno));
+				goto failed;
+			}
+		}
 	}
-	else {
-		//TODO
-	}
+
 	
+	//reset the buf
+	if(b->size == b->offset) {
+		D("reset the recv buf");
+		mrpc_buf_reset(b);
+	}
+	if(sbuf->size == sbuf->offset) { 
+		D("reset the send  buf");
+		mrpc_buf_reset(b);
+	}
+
 	//TODO: BIZ handler
-	//process_bn(&msg, a);
-	//W("BN epid %s!", msg.epid);
+	return 1;
+
+failed:
+	if(body != NULL) {
+		free(body);
+	}
+
+	if(c->fd > 0) {
+		close(c->fd);
+	}
+	mrpc_connection_free(c);
+	return -1;
 }
 
-void mrpc_recv(ev_t *ev,ev_file_item_t *fi)
+static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	int n;
@@ -192,7 +256,7 @@ void mrpc_recv(ev_t *ev,ev_file_item_t *fi)
 			goto failed;
 		}
 
-		b->size    += n;
+		b->size += n;
 
 		if((size_t)n < buf_avail) {	
 			D("break from receive loop, n > BUFFER_SIZE");	
@@ -206,10 +270,17 @@ void mrpc_recv(ev_t *ev,ev_file_item_t *fi)
 			goto failed;
 		}
 	}
-
-	if(mrpc_process_client_req(c) < 0) {
-		W("rpc: process client request failed");
-		goto failed;
+       
+	int r;
+	for(;;) {
+		r = mrpc_process_client_req(c);
+		if(r < 0) {
+			goto failed;
+		}
+		else if (r == 0) {
+			break;
+		}
+		else {}
 	}
 	return;
 
@@ -221,13 +292,6 @@ failed:
 	return;
 }
 
-static void mrpc_svr_recv(ev_t *ev, ev_file_item_t *ffi)
-{
-	UNUSED(ev);
-	UNUSED(ffi);
-	//TODO
-}
-
 static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
@@ -235,7 +299,7 @@ static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
 	//TODO
 }
 
-static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
+static void mrpc_upstreamer_accept(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
 
@@ -248,7 +312,6 @@ static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 	D("rpc server: fd#%d accepted",f);
 
 	if(f>0){
-
 		err = setnonblocking(f);
 		if(err < 0){
 			E("set nonblocking error"); return;
@@ -261,16 +324,15 @@ static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 		}
 		c->send_buf = mrpc_buf_new(MRPC_BUF_SIZE);
 		if(!c->send_buf) {
-			//TODO
-			return;
+			E("cannot malloc send_buf!");
+			goto failed;
 		}
 		c->recv_buf = mrpc_buf_new(MRPC_BUF_SIZE);
 		if(!c->recv_buf) {
-			//TODO
-			return;
+			E("cannot malloc recv_buf");
 		}
-		c->fd = f;
 
+		c->fd = f;
 		fi = ev_file_item_new(f,
 				      c,
 				      mrpc_svr_recv,
@@ -278,14 +340,23 @@ static void mrpc_upstreamer_accept (ev_t *ev, ev_file_item_t *ffi)
 				      EV_WRITABLE | EV_READABLE | EPOLLET);
 		if(!fi){
 			E("create file item error");
+			goto failed;
 		}
 		ev_add_file_item(worker->ev,fi);
-
-		//map_insert(&worker->root,agent);
-		/*TODO: check the result*/
 	}	
 	else {
 		perror("accept");
+	}
+	return;
+failed:
+	if(c) {
+		if(c->send_buf) {
+			free(c->send_buf);
+		}
+		if(c->recv_buf) {
+			free(c->recv_buf);
+		}
+		free(c);
 	}
 }
 
