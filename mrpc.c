@@ -63,8 +63,11 @@ static inline void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 {
 	resp->mask = htonl(0xBADBEE01);
 	resp->h.resp_head.sequence = req->h.req_head.sequence;
+	D("the resp seq is %d-%d",req->h.req_head.sequence,
+	  resp->h.resp_head.sequence);
 	resp->h.resp_head.to_id = req->h.req_head.to_id;
 	resp->h.resp_head.from_id = req->h.req_head.from_id;
+	resp->h.resp_head.opt = 0;
 	resp->h.resp_head.body_length = 0;
 }
 
@@ -88,9 +91,10 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	}
 
 	//mask:
-	msg.mask = *(uint32_t*)(b->buf + b->offset);
+	msg.mask = ntohl(*(uint32_t*)(b->buf + b->offset));
 	b->offset += 4;
 	if(msg.mask != 0x0badbee0) {
+		E("mask error, %x", msg.mask);
 		goto failed;
 	}
 
@@ -111,6 +115,7 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	//skip the packet options
 	b->offset += 2;
 
+	D("unpack the req header");
 	//request header
 	mrpc_request_header reqh;
 	struct pbc_slice str = {b->buf + b->offset, msg.header_length};
@@ -120,6 +125,9 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 		goto failed;
 	}
 	b->offset += msg.header_length;
+	msg.h.req_head = reqh;
+	D("header seq is %d", reqh.sequence);
+	D("unpack header finish");
 
 	//body
 	size_t body_len = msg.package_length - msg.header_length - 12;
@@ -130,10 +138,10 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	}
 	memcpy(body, b->buf + b-> offset, body_len);
 
-
+	D("unpack the body, body_len is %lu",body_len);
 	//pb deserialize body
 	mcp_appbean_proto input;
-	struct pbc_slice str1 = {body, body_len * 2};
+	struct pbc_slice str1 = {body, body_len};
 	r =pbc_pattern_unpack(rpc_pat_mcp_appbean_proto, &str1, &input);
 	if ( r < 0) {
 		E("rpc unpack mcp_appbean_proto error");
@@ -168,11 +176,12 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	*((uint32_t*)(sbuf->buf + sbuf->size)) = htons(0);
 	sbuf->size += 2;
 	memcpy(sbuf->buf + sbuf->size, temp, 32 - r);
-
+	sbuf->size += 32 - r;
 
 	int n;
 	while(sbuf->size - sbuf->offset > 0) {
 		n = send(c->fd, sbuf->buf + sbuf->offset, sbuf->size - sbuf->offset, 0);
+		D("mrpc sent %d bytes", n);
 		if(n > 0) {
 			sbuf->offset += n;
 			break;
@@ -259,7 +268,7 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 		b->size += n;
 
 		if((size_t)n < buf_avail) {	
-			D("break from receive loop, n > BUFFER_SIZE");	
+			D("break from receive loop, recv enough");	
 			break;
 		}
 		
@@ -275,6 +284,7 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 	for(;;) {
 		r = mrpc_process_client_req(c);
 		if(r < 0) {
+			W("process client req error");
 			goto failed;
 		}
 		else if (r == 0) {
@@ -295,8 +305,44 @@ failed:
 static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
-	UNUSED(ffi);
-	//TODO
+	
+	D("mrpc_svr_send begins");
+	int n;
+	mrpc_connection_t *c = ffi->data;
+	mrpc_buf_t *b = c->send_buf;
+	while(b->offset < b->size) {
+		n = send(c->fd, b->buf + b->offset, b->size - b->offset, 0);
+		D("mrpc sent %d bytes", n);
+		if(n > 0) {
+			b->offset += n;
+			break;
+		}
+		if(n == 0) {
+			E("send return 0");
+			break;
+		}
+		else {
+			if(errno == EAGAIN || errno == EWOULDBLOCK) {
+				break;
+			}
+			else if(errno == EINTR) {
+
+			}
+			else {
+				E("send return error, reason %s", strerror(errno));
+				goto failed;
+			}
+		}
+	}
+
+	if(b->offset == b->size) {
+		mrpc_buf_reset(b);
+	}
+	return;
+
+failed:
+	close(c->fd);
+	mrpc_connection_free(c);
 }
 
 static void mrpc_upstreamer_accept(ev_t *ev, ev_file_item_t *ffi)
@@ -363,7 +409,7 @@ failed:
 }
 
 
-int mrpc_upstreamer_start()
+int mrpc_start()
 {
 	ev_file_item_t* fi ;
 	int fd = upstreamer.listen_fd;
@@ -379,14 +425,17 @@ int mrpc_upstreamer_start()
 		goto start_failed;
 	}
 	ev_add_file_item(worker->ev,fi);
+	return 0;
 
 start_failed:
 	return -1;
 }
 
 
-int mrpc_upstreamer_init()
+int mrpc_init()
 {
+	D("mrpc init begins");
+
 	struct sockaddr_in addr1;
 
 	upstreamer.listen_fd = -1;
@@ -412,5 +461,6 @@ int mrpc_upstreamer_init()
 		E("bind error");
 		return -1;
 	}
+	D("mrpc init finish, port %d", config->backend_port);
 	return 0;
 }

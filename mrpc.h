@@ -37,7 +37,7 @@ typedef struct mrpc_connection_s {
 	mrpc_message_t req;
 }mrpc_connection_t;
 
-int mrpc_upstreamer_init();
-int mrpc_upstreamer_start();
+int mrpc_init();
+int mrpc_start();
 
 #endif

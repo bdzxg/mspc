@@ -222,8 +222,8 @@ int main()
 	}
 	D("worker inited");
 
-	if(!worker_start()) {
-		D("worker #%d started failed", getpid()); return -1;
+	if(worker_start() < 0) {
+		E("worker #%d started failed", getpid()); return -1;
 	}
 	D("worker started");
 

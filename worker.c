@@ -57,6 +57,16 @@ int worker_init()
 		worker->root = RB_ROOT;
 		pthread_mutex_init(&worker->mutex, NULL);
 
+		if(mrpc_init() < 0) {
+			E("mrpc init error");
+			return -1;
+		}
+		
+		if(rpc_args_init() < 0) {
+			E("rpc args init error");
+			return -1;
+		}
+
 		return 0;
 	}
 
@@ -82,6 +92,10 @@ int worker_start()
 	}
 	ev_add_file_item(worker->ev,fi);
 
+	if(mrpc_start() < 0) {
+		E("mrpc start error");
+		goto start_failed;
+	}
 	/* TODO: Backend todo
 	   worker->bfd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
 	   if(!worker->bfd){
