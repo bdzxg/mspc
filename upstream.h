@@ -1,13 +1,21 @@
-
 #ifndef __UPSTEAM_H
 #define __UPSTEAM_H
 
 #include <string.h>
 #include "proxy.h"
 
-#define UP_CONN_COUNT 3
+typedef int us_be_init_func();
+typedef int us_be_start_func();
+typedef int us_send_func(rec_msg_t*);
+typedef void us_send_err_func(rec_msg_t *);
 
 typedef struct upstream_s {
+	char name[32];
+	us_be_start_func *start;
+	us_be_init_func *init;
+	us_send_func *send;
+	us_send_err_func *send_err;
+
 	char *uri;
 	struct rb_node rbnode;
 	list_head_t conn_list;
