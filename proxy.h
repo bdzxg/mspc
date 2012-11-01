@@ -23,6 +23,7 @@
 #include "freeq.h"
 #include "tool.h"
 #include "msp_pb.h"
+#include <time.h>
 
 typedef struct {
 	char *data;

@@ -5,10 +5,26 @@
 #include "proxy.h"
 
 #define MRPC_BUF_SIZE 4096
+#define MRPC_CONN_DISCONNECTED 0
+#define MRPC_CONN_CONNECTING 1
+#define MRPC_CONN_CONNECTED 2
+#define MRPC_CONN_FROZEN 3
 
 typedef struct mrpc_upstreamer_s {
 	int listen_fd;
+	struct rb_root root;
+	size_t count;
+	list_head_t conn_list;
+	size_t conn_count;
 }mrpc_upstreamer_t;
+
+typedef struct mrpc_us_item_s {
+	char *uri;
+	struct rb_node rbnode;
+	list_head_t conn_list;
+int current_conn;
+	list_head_t pending_list;
+}mrpc_us_item_t;
 
 typedef struct mrpc_message_s {
 	uint32_t mask;
@@ -35,6 +51,13 @@ typedef struct mrpc_connection_s {
 	mrpc_buf_t *send_buf;
 	mrpc_buf_t *recv_buf;
 	mrpc_message_t req;
+	time_t connecting;
+	time_t connected;
+	uint32_t seq;
+	struct RB_ROOT root;
+	list_head_t list_us;
+	list_head_t list_to;
+	int conn_status;
 }mrpc_connection_t;
 
 int mrpc_init();
