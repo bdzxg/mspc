@@ -24,6 +24,7 @@ typedef struct mrpc_us_item_s {
 	struct rb_node rbnode;
 	list_head_t conn_list;
 	int current_conn;
+        size_t conn_count;
 	list_head_t pending_list;
 }mrpc_us_item_t;
 
