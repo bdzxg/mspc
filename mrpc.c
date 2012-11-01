@@ -408,6 +408,28 @@ failed:
 	}
 }
 
+int mrpc_us_send(rec_msg_t *msg)
+{
+	//1. get the us_item by address
+
+	//2. get the connection from the us_item
+	//2.1 get the corresponding connection,then send it 
+	//  a)  connection status connected not frozen
+	//  b)  send the request and then add the msg to the sent list 
+	//  c)  add a timer event to check the timeout response
+	//2.2 cannot get connection,save the msg to the pending list and try to connect
+	//  a)  save the connection to the connectiing list 
+	//  b)  add the epoll event
+	//  c)  and a timer event or ev_after to check the timeout 
+	
+	//error code :
+	// 0 OK
+	// -1 send failed
+	// -2 connection timeout 
+	// -3 no us_item
+
+
+}
 
 int mrpc_start()
 {
