@@ -28,10 +28,32 @@ typedef struct list_head_s{
 #define list_for_each(iter,head)					\
     for( (iter)=(head)->next ; iter != (head) ; iter = iter->next)	\
 
+/**
+ * list_for_each_safe-iterate over a list safe against removal of list entry
+ * @pos:the &struct list_head to use as a loop counter.
+ * @n:another &struct list_head to use as temporary storage
+ * @head:the head for your list.
+ */
+#define list_for_each_safe(iter, n, head) \
+	for (iter = (head)->next, n = iter->next; iter != (head); \
+	     iter = n, n = iter->next)
+
 #define list_for_each_entry(iter,member,head)				\
     for( iter = list_entry((head)->next,typeof(*iter),member) ;		\
 	 &iter->member != (head) ;					\
 	 iter = list_entry(iter->member.next,typeof(*iter),member))	\
+/**
+ * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
+ * @pos:the type * to use as a loop counter.
+ * @n:another type * to use as temporary storage
+ * @head:the head for your list.
+ * @member:the name of the list_struct within the struct.
+ */
+#define list_for_each_entry_safe(iter, n, head, member)			\
+	for (iter = list_entry((head)->next, typeof(*iter), member),	\
+		     n = list_entry(iter->member.next, typeof(*iter), member); \
+	     &iter->member != (head);					\
+	     iter = n, n = list_entry(n->member.next, typeof(*n), member))
 
 
 static inline void __list_add(list_head_t *new,

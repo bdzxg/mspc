@@ -408,27 +408,118 @@ failed:
 	}
 }
 
-int mrpc_us_send(rec_msg_t *msg)
+static int _connect(mrpc_connection_t *c)
 {
-	//1. get the us_item by address
-
-	//2. get the connection from the us_item
-	//2.1 get the corresponding connection,then send it 
-	//  a)  connection status connected not frozen
-	//  b)  send the request and then add the msg to the sent list 
-	//  c)  add a timer event to check the timeout response
-	//2.2 cannot get connection,save the msg to the pending list and try to connect
 	//  a)  save the connection to the connectiing list 
 	//  b)  add the epoll event
 	//  c)  and a timer event or ev_after to check the timeout 
+}
+
+static mrpc_connection_t* _conn_new ()
+{
+
+}
+
+static void _conn_close()
+{
+
+}
+
+static void _conn_free()
+{
+
+}
+
+static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
+{
+	mrpc_connection_t *c = NULL, *tc, *n;
+	time_t now = time(NULL);
+	int loop = 1;
+
+	list_for_each_entry_safe(tc, n, &us->conn_list, list_us) {
+		switch(tc->conn_status)  {
+		case MRPC_CONN_DISCONNECTED:
+			_connect(tc);
+			break;
+		case MRPC_CONN_CONNECTED:
+			if(now - tc->connected > MRPC_CONN_DURATION) {
+				tc->status = MRPC_CONN_FROZEN;
+				list_del(&tc->list_us);
+				list_append(&tc->list_us, &us->frozen_list);
+
+				mrpc_connection_t *nc = _conn_new();
+				if(!nc) {
+					E(" cannot new mrpc_conn");
+				}
+				else {
+					list_append(&nc->list_us, &us->conn_list);
+					_connect(nc);
+				}
+			}
+			else {
+				c = tc;
+				loop = 0;
+			}
+			break;
+		}
+
+		if(!loop) 
+			break;
+	}
 	
-	//error code :
-	// 0 OK
-	// -1 send failed
-	// -2 connection timeout 
-	// -3 no us_item
+	list_for_each_entry_safe(tc, n, &us->frozen_list, list_us) {
+		if(now - tc->connected > MRPC_CONN_DURATION + MRPC_TX_TO * 1.5) {
+			list_del(&tc->us_list);
+			_conn_close(tc);
+			_conn_free(tc);
+		}
+	}
+	return c;
+}
 
+//error code :
+// 0 OK
+// -1 send failed
+// -2 connection timeout 
+// -3 no us_item
+// -4 max pending 
+int mrpc_us_send(rec_msg_t *msg)
+{
+	mrpc_us_item_t *us;
+	mrpc_connection_t *c;
 
+	//1. get the us_item by address
+	us = _get_us(msg);
+	if(!us) {
+		us = _us_new();
+		if(!us) {
+			E("cannnot create us item");
+			return -3;
+		}
+	}
+	
+	//2. get the connection from the us_item
+	c = _get_conn(us);
+	if(c != NULL)  {
+		//send it
+		mrpc_message_t *req = _create_req (msg);
+		if(!req) {
+			return -1;
+		}
+		if(_cli_send(req) < 0) {
+			return -1;
+		}
+		list_append(&req->head, &upstreamer->sent_list);
+	}
+	else {
+		//save to the pending list
+		if(us->pend_count >= MRPC_MAX_PENDING) {
+			E("max pending");
+			return -4;
+		}
+		list_append(&req->head, &us->pending_list);
+	}
+	reutrn 0;
 }
 
 int mrpc_start()
