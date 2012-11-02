@@ -13,12 +13,12 @@
 #define MRPC_CONN_DURATION 600
 #define MRPC_TX_TO 180
 #define MRPC_MAX_PENDING 10240
+#define MRPC_CONNECT_TO 5
+
 
 typedef struct mrpc_upstreamer_s {
 	int listen_fd;
-	struct rb_root root;
-	size_t count;
-	list_head_t conn_list;
+	list_head_t conn_list; //connecting list
 	size_t conn_count;
         list_head_t sent_list;
 }mrpc_upstreamer_t;
@@ -26,12 +26,12 @@ typedef struct mrpc_upstreamer_s {
 typedef struct mrpc_us_item_s {
 	char *uri;
 	struct rb_node rbnode;
-list_head_t conn_list; //connection list 
-list_head_t frozen_list; //frozen connection list
+	list_head_t conn_list; //connection list 
+	list_head_t frozen_list; //frozen connection list
 	int current_conn;
         size_t conn_count;
-list_head_t pending_list; // pending request list 
-size_t pend_count;
+	list_head_t pending_list; // pending request list 
+	size_t pend_count;
 }mrpc_us_item_t;
 
 typedef struct mrpc_message_s {
@@ -66,12 +66,12 @@ typedef struct mrpc_connection_s {
 	list_head_t list_us;
 	list_head_t list_to;
 	int conn_status;
-mrpc_us_item_t * us;
+	mrpc_us_item_t * us;
 }mrpc_connection_t;
 
 int mrpc_init();
 int mrpc_start();
 int mrpc_us_send(rec_msg_t *);
 void mrpc_us_send_err(rec_msg_t *);
-
+void mrpc_ev_after();
 #endif

@@ -15,7 +15,7 @@ int worker_close();
 void worker_accept(ev_t*,ev_file_item_t*);
 void worker_recv_client(ev_t*,ev_file_item_t*);
 void worker_recv_cmd(ev_t*,ev_file_item_t*);
-void process_request_in_queue(struct ev_s *ev);
+void worker_ev_after(ev_t *);
 
 int worker_init()
 {
@@ -27,7 +27,7 @@ int worker_init()
 			D("create ev error"); 
 			return -1;
 		}
-		worker->ev->after = process_request_in_queue;
+		worker->ev->after = worker_ev_after;
 
 		worker->agent_pool = mp_create(sizeof(pxy_agent_t),0,"AgentPool");
 		if(!worker->agent_pool){
@@ -205,8 +205,9 @@ static pxy_agent_t* get_agent(char* key)
 	return ret;
 }
 
-void process_request_in_queue(struct ev_s *ev)
+void worker_ev_after(ev_t *ev)
 {
 	UNUSED(ev);
+	mrpc_ev_after();
 }
 

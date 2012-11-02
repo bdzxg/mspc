@@ -20,6 +20,7 @@ typedef struct upstream_s {
 	struct rb_node rbnode;
 	list_head_t conn_list;
 	list_head_t pending_list;
+	void *data;
 }upstream_t;
 
 typedef struct upstream_map_s {
@@ -27,6 +28,7 @@ typedef struct upstream_map_s {
 	size_t count;
 	list_head_t conn_list;
 	size_t conn_count;
+	void *data;
 } upstream_map_t;
 
 int us_add_upstream(upstream_map_t*, upstream_t*);
