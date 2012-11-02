@@ -363,34 +363,6 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 }
 
 
-/*void get_rpc_arg(McpAppBeanProto* args, rec_msg_t* msg) */
-/*{*/
-	/*args->Protocol.len = strlen(PROTOCOL);*/
-	/*args->Protocol.buffer = PROTOCOL;*/
-	/*args->Cmd = msg->cmd;*/
-	/*char* uri = get_compact_uri(msg);*/
-	/*args->CompactUri.len = strlen(uri);*/
-	/*args->CompactUri.buffer = uri;*/
-	/*args->UserId = msg->userid;*/
-	/*args->Sequence = msg->seq;*/
-	/*args->Opt = msg->format;*/
-
-	/*if(msg->user_context_len > 0){*/
-		/*args->UserContext.len = msg->user_context_len;*/
-		/*args->UserContext.buffer = msg->user_context;*/
-	/*}else{ args->UserContext.len = 0;  args->UserContext.buffer = NULL;}*/
-
-	/*D("request UserContext.len %d", args->UserContext.len);*/
-	/*if(msg->body_len > 0){	*/
-		/*args->Content.len = msg->body_len;*/
-		/*args->Content.buffer = msg->body;*/
-	/*}else{ args->Content.len = 0; args->Content.buffer = NULL;}*/
-
-	/*args->Epid.len = strlen(msg->epid);*/
-	/*args->Epid.buffer = msg->epid;*/
-	/*args->ZipFlag = msg->compress;*/
-/*}	*/
-
 void release_rpc_message(rec_msg_t* msg)
 {
 	if(msg->body_len > 0 && msg->body != NULL)
