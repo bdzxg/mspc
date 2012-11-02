@@ -1,6 +1,38 @@
+static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
+{
+	args->protocol.len = strlen(PROTOCOL);
+	args->protocol.buffer = PROTOCOL;
+	args->cmd = msg->cmd;
+	char* uri = get_compact_uri(msg);
+	args->compact_uri.len = strlen(uri);
+	args->compact_uri.buffer = uri;
+	args->user_id = msg->userid;
+	args->sequence = msg->seq;
+	args->opt = msg->format;
+
+	if(msg->user_context_len > 0){
+		args->user_context.len = msg->user_context_len;
+		args->user_context.buffer = msg->user_context;
+	}else{ args->user_context.len = 0;  args->user_context.buffer = NULL;}
+
+	D("request user_context.len %d", args->user_context.len);
+	if(msg->body_len > 0){	
+		args->content.len = msg->body_len;
+		args->content.buffer = msg->body;
+	}
+	else{
+		args->content.len = 0; args->content.buffer = NULL;
+	}
+
+	args->epid.len = strlen(msg->epid);
+	args->epid.buffer = msg->epid;
+	args->zip_flag = msg->compress;
+}	
+
 static int _cli_sned(rec_msg_t *msg, mrpc_connection_t *c)
 {
 	mcp_appbean_proto body;
+	get_rpc_arg(&body, msg);
 	char *body_buf = malloc(body.content.len + 1024);
 	if(!body_buf) {
 		E("cannot malloc body_buf");
@@ -52,43 +84,16 @@ static int _cli_sned(rec_msg_t *msg, mrpc_connection_t *c)
 	free(body_buf);
 	
 	//TODO send the buffer
-
+	if(_send(c) < 0) {
+		goto failed;
+	}
+	//TODO: save the request to the sent_map
+	return 0;
 failed:
 	free(body_buf);
 	return -1;
 }
 
-
-void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
-{
-	args->protocol.len = strlen(PROTOCOL);
-	args->protocol.buffer = PROTOCOL;
-	args->cmd = msg->cmd;
-	char* uri = get_compact_uri(msg);
-	args->compact_uri.len = strlen(uri);
-	args->compact_uri.buffer = uri;
-	args->user_id = msg->userid;
-	args->sequence = msg->seq;
-	args->opt = msg->format;
-
-	if(msg->user_context_len > 0){
-		args->user_context.len = msg->user_context_len;
-		args->user_context.buffer = msg->user_context;
-	}else{ args->user_context.len = 0;  args->user_context.buffer = NULL;}
-
-	D("request user_context.len %d", args->user_context.len);
-	if(msg->body_len > 0){	
-		args->content.len = msg->body_len;
-		args->content.buffer = msg->body;
-	}
-	else{
-		args->content.len = 0; args->content.buffer = NULL;
-	}
-
-	args->epid.len = strlen(msg->epid);
-	args->epid.buffer = msg->epid;
-	args->zip_flag = msg->compress;
-}	
 
 static void _send_pending(mrpc_connection_t *c)
 {
@@ -98,7 +103,7 @@ static void _send_pending(mrpc_connection_t *c)
 static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
 {
 	mrpc_connection_t *c = fi->data;
-	int err;
+	int err, n;
 
 	if(c->conn_status == MRPC_CONN_CONNECTING) {
 		getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, sizeof(err));
@@ -114,11 +119,48 @@ static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
 		}
 		return;
 	}
+
+	n = _recv(c);
+	if(n == 0) {
+		goto failed;
+	}
+	if(n == -1) {
+		E("recv return -1");
+	}
+	
+	mrpc_message_t msg;
+	n = _parse(c->recv_buf, &msg);
+	if(n < 0) {
+		E("parse error");
+		goto failedl
+	}
+	if(n == 0) {
+		return;
+	}
+
+	//got the request
+	// req = ...
+	if(msg.h.resp_head.response_code != 200) {
+		//send error response the client
+	}
+	//remove the request from the map
+//free
+	
+failed:
+	_conn_close(c);
+	_conn_free(c);
 }
 
 static void mrpc_cli_conn_send(ev_t *ev, ev_file_item *fi) 
 {
-
+	D("mrpc_cli_conn_send begins");
+	mrpc_connection_t *c = fi->data; 
+	if(_send(c) < 0) {
+		E("send error");
+		//clean ev
+		_conn_close(c);
+		_conn_free(c);
+	}
 }
 
 static void mrpc_ev_after()
