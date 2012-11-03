@@ -4,13 +4,12 @@
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 extern pxy_config_t* config;
-mrpc_mrpc_up_t mrpc_up;
+static 
+mrpc_upstreamer_t mrpc_up;
+static char* PROTOCOL = "MCP/3.0";
 
-static void mrpc_buf_free(mrpc_buf_t *buf) 
-{
-	free(buf->buf);
-	free(buf);
-}
+static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi);
+static void mrpc_cli_conn_send(ev_t *ev, ev_file_item_t *fi);
 
 static mrpc_buf_t* mrpc_buf_new(size_t size)
 {
@@ -71,12 +70,12 @@ static inline void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 	resp->h.resp_head.body_length = 0;
 }
 
-#include "mrpc_cli.c"
+
 
 static int _connect(mrpc_connection_t *c) 
 {
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
-	sockaddr_in addr;
+	struct sockaddr_in addr;
 
 	if(fd < 0) {
 		E("socket() error, %s",strerror(errno));
@@ -86,12 +85,12 @@ static int _connect(mrpc_connection_t *c)
 	if(setnonblocking(fd) < 0) {
 		E("set nonblocking error");
 		close(fd);
-		reutrn -1;
+		return -1;
 	}
 
 	D("begin connect");
 	c->connecting = time(NULL);
-	int r = connect(fd,(struct sockarrd*)&addr, sizeof(addr));
+	int r = connect(fd,(struct sockaddr*)&addr, sizeof(addr));
 	if(r < 0) {
 		if(errno == EINPROGRESS) {
 		}
@@ -105,7 +104,7 @@ static int _connect(mrpc_connection_t *c)
 	ev_file_item_t *fi = ev_file_item_new(fd,
 					      c,
 					      mrpc_cli_recv,
-					      mrpc_cli_conn_qsend,
+					      mrpc_cli_conn_send,
 					      EV_WRITABLE | EV_READABLE | EPOLLET);
 	if(!fi) {
 		E("create fi error");
@@ -120,8 +119,6 @@ static int _connect(mrpc_connection_t *c)
 	}
 	else {
 		c->conn_status = MRPC_CONN_CONNECTING;
-		//add to connecting list
-		list_append(&c->list_to, &mrpc_up->conn_list);
 	}
 
 	c->fd = fd;
@@ -174,14 +171,145 @@ static void _conn_free(mrpc_connection_t *c)
 	free(c);
 }
 
-static void mrpc_connection_free(mrpc_connection_t *c) 
+
+static int _send(mrpc_connection_t *c)
 {
-	mrpc_buf_free(c->send_buf);
-	mrpc_buf_free(c->recv_buf);
-	free(c);
+	int r = 0,n;
+	mrpc_buf_t *b = c->send_buf;
+	while(b->offset < b->size) {
+		n = send(c->fd, b->buf + b->offset, b->size - b->offset, 0);
+		D("mrpc sent %d bytes", n);
+		if(n > 0) {
+			b->offset += n;
+			r += n;
+		}
+		if(n == 0) {
+			E("send return 0");
+			break;
+		}
+		else {
+			if(errno == EAGAIN || errno == EWOULDBLOCK) {
+				break;
+			}
+			else if(errno == EINTR) {
+
+			}
+			else {
+				E("send return error, reason %s", strerror(errno));
+				goto failed;
+			}
+		}
+	}
+
+	if(b->offset == b->size) {
+		mrpc_buf_reset(b);
+	}
+	return r;
+failed:
+	return -1;
+}
+
+//return:
+//1 OK, 0 not finish, -1 error
+static int _parse(mrpc_buf_t *b, mrpc_message_t *msg)
+{
+	char *body = NULL;
+
+	//parse the rpc packet
+	if((b->size - b->offset) < 12) {
+		//not a full package
+		return 0;
+	}
+
+	//mask:
+	msg->mask = ntohl(*(uint32_t*)(b->buf + b->offset));
+	b->offset += 4;
+	if(msg->mask != 0x0badbee0 && msg->mask != 0x0badbee1) { 
+		E("mask error, %x", msg->mask);
+		goto failed;
+	}
+
+	//package length
+	msg->package_length = ntohl(*(uint32_t*)(b->buf + b->offset));
+	b->offset += 4;
+
+	//not a full package
+	if(b->size - b->offset < msg->package_length - 8) {
+		b->offset -= 8;
+		return 0;
+	}
+
+	//header length
+	msg->header_length = ntohs(*(short*)(b->buf + b->offset));
+	b->offset += 2;
+	
+	//skip the packet options
+	b->offset += 2;
+
+	D("unpack the req/resp header");
+	//request header
+	struct pbc_slice str = {b->buf + b->offset, msg->header_length};
+	int r;
+	if(msg->mask == 0x0badbee0) {
+		r = pbc_pattern_unpack(rpc_pat_mrpc_request_header, &str, 
+				       &msg->h.req_head);
+	}
+	else {
+		r = pbc_pattern_unpack(rpc_pat_mrpc_response_header, &str, 
+				       &msg->h.resp_head);
+	}
+	if(r < 0) {
+		E("rpc unpack request header fail");
+		goto failed;
+	}
+	b->offset += msg->header_length;
+	D("unpack header finish");
+
+	//body
+	int32_t body_len = 0;
+	if(msg->mask == 0x0badbee0) {
+		body_len = msg->h.req_head.body_length -1;
+	}
+	else {
+		body_len = msg->h.resp_head.body_length -1;
+	}
+	if(body_len < 0)  {
+		body_len = 0;
+		D("body_len == 0");
+	}
+	if(body_len > 0) {
+		body = malloc(body_len);
+		if(!body) {
+			E("malloc body error");
+			goto failed;
+		}
+		memcpy(body, b->buf + b-> offset, body_len);
+	
+		D("unpack the body, body_len is %d",body_len);
+		//pb deserialize body
+		mcp_appbean_proto input;
+		struct pbc_slice str1 = {body, body_len};
+		r =pbc_pattern_unpack(rpc_pat_mcp_appbean_proto, &str1, &input);
+		if ( r < 0) {
+			E("rpc unpack mcp_appbean_proto error");
+			return -1;
+		}
+		b->offset += body_len;
+	}
+	
+	//skip the extentions
+	b->offset += msg->package_length - 12 - msg->header_length - body_len;
+	return 1;
+
+failed:
+	if(body != NULL) {
+		free(body);
+	}
+	return -1;
 }
 
 #include "mrpc_svr.c"
+#include "mrpc_cli.c"
 
 static void mrpc_mrpc_up_accept(ev_t *ev, ev_file_item_t *ffi)
 {
@@ -237,7 +365,6 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 {
 	mrpc_connection_t *c = NULL, *tc, *n;
 	time_t now = time(NULL);
-	int loop = 1;
 	int i = 0;
 
 	list_for_each_entry_safe(tc, n, &us->conn_list, list_us) {
@@ -247,7 +374,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 			break;
 		case MRPC_CONN_CONNECTED:
 			if(now - tc->connected > MRPC_CONN_DURATION) {
-				tc->status = MRPC_CONN_FROZEN;
+				tc->conn_status = MRPC_CONN_FROZEN;
 				list_del(&tc->list_us);
 				list_append(&tc->list_us, &us->frozen_list);
 
@@ -279,7 +406,8 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 
 	list_for_each_entry_safe(tc, n, &us->frozen_list, list_us) {
 		if(now - tc->connected > MRPC_CONN_DURATION + MRPC_TX_TO * 1.5) {
-			list_del(&tc->us_list);
+			list_del(&tc->list_us
+);
 			_conn_close(tc);
 			_conn_free(tc);
 		}
@@ -289,7 +417,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 
 static mrpc_us_item_t* _get_us(char *uri)
 {
-	upstream_t *up = us_get_upstream(&upstream_root, uri);
+	upstream_t *up = us_get_upstream(upstream_root, uri);
 	if(!up) {
 		return NULL;
 	}
@@ -312,7 +440,7 @@ static mrpc_us_item_t* _us_new(char *uri)
 		return NULL;
 	}
 	
-	if(us_add_upstream(&upstream_root, up) < 0){
+	if(us_add_upstream(upstream_root, up) < 0){
 		E("cannot add the up to the RBTree");
 		free(up);
 		free(us);
@@ -323,6 +451,55 @@ static mrpc_us_item_t* _us_new(char *uri)
 	return us;
 }
 
+static rec_msg_t* _clone_msg(rec_msg_t *msg)
+{
+	rec_msg_t *r = malloc(sizeof(*r));
+	if(!r) {
+		E("no memory for rec_msg_t");
+		return NULL;
+	}
+	memcpy(r, msg, sizeof(*r));
+
+	r->option = malloc(r->option_len);
+	if(!r->option) {
+		E("no memory for r->option");
+		free(r);
+		return NULL;
+	}
+	memcpy(r->option, msg->option, r->option_len);
+
+	r->body = malloc(r->body_len);
+	if(!r->body) {
+		E("no mem for r->body");
+		free(r->option);	       
+		free(r);
+                return NULL;
+	}
+	memcpy(r->body, msg->body, r->body_len);
+
+	r->user_context = malloc(r->user_context_len);
+	if(!r->user_context) {
+		E("no mem for r->user_content");
+		free(r->body);
+		free(r->option);
+		free(r);
+		return NULL;
+	}
+	memcpy(r->user_context, msg->user_context, r->user_context_len);
+
+	r->epid = malloc(strlen(msg->epid) + 1);
+	if(!r->epid) {
+		E("no mem for r->epid");
+		free(r->body);
+		free(r->option);
+		free(r->user_context);
+		free(r);
+		return NULL;
+	}
+	strcpy(r->epid, msg->epid);
+
+	return r;
+}
 
 //error code :
 // 0 OK
@@ -336,9 +513,9 @@ int mrpc_us_send(rec_msg_t *msg)
 	mrpc_connection_t *c;
 
 	//1. get the us_item by address
-	us = _get_us(msg);
+	us = _get_us(msg->uri);
 	if(!us) {
-		us = _us_new();
+		us = _us_new(msg->uri);
 		if(!us) {
 			E("cannnot create us item");
 			return -3;
@@ -349,14 +526,10 @@ int mrpc_us_send(rec_msg_t *msg)
 	c = _get_conn(us);
 	if(c != NULL)  {
 		//send it
-		mrpc_message_t *req = _create_req (msg);
-		if(!req) {
+		if(_cli_send(msg, c) < 0) {
 			return -1;
 		}
-		if(_cli_send(req, c) < 0) {
-			return -1;
-		}
-		list_append(&req->head, &mrpc_up->sent_list);
+		//TODO: add a new timer to watch the timeout
 	}
 	else {
 		//save to the pending list
@@ -364,9 +537,14 @@ int mrpc_us_send(rec_msg_t *msg)
 			E("max pending");
 			return -4;
 		}
-		list_append(&req->head, &us->pending_list);
+		rec_msg_t *m = _clone_msg(msg);
+		if(!m) {
+			E("clone msg error");
+			return -1;
+		}
+		list_append(&m->head, &us->pending_list);
 	}
-	reutrn 0;
+	return 0;
 }
 
 int mrpc_start()

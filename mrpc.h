@@ -2,6 +2,7 @@
 #define __MRPC_H
 
 #include <string.h>
+#include "msp_pb.h"
 #include "proxy.h"
 
 #define MRPC_BUF_SIZE 4096
@@ -20,7 +21,6 @@ typedef struct mrpc_upstreamer_s {
 	int listen_fd;
 	list_head_t conn_list; //connecting list
 	size_t conn_count;
-        list_head_t sent_list;
 }mrpc_upstreamer_t;
 
 typedef struct mrpc_us_item_s {
@@ -44,7 +44,7 @@ typedef struct mrpc_message_s {
 		mrpc_response_header resp_head;
 	}h;
 	short is_resp;
-	slice body;
+	struct 	pbc_slice body;
 }mrpc_message_t;
 
 typedef struct mrpc_buf_s {
@@ -67,7 +67,16 @@ typedef struct mrpc_connection_s {
 	list_head_t list_to;
 	int conn_status;
 	mrpc_us_item_t * us;
+	ev_file_item_t *event;
 }mrpc_connection_t;
+
+typedef struct mrpc_stash_req_s {
+	struct rb_node node;
+	uint32_t seq;
+	int32_t user_id;
+	char *epid;
+	mcp_appbean_proto proto;
+} mrpc_stash_req_t;
 
 int mrpc_init();
 int mrpc_start();

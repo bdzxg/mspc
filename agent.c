@@ -9,23 +9,13 @@ extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 
 size_t packet_len;
-static char* PROTOCOL = "MCP/3.0";
+
 static char OVERTIME[3] = {8, 248, 3};// 504
 static char SERVERERROR[3] = {8, 244, 3};// 500
 static char REQERROR[3] = {8, 144, 3};// 400
 static char NOTEXIST[3] = {8, 155, 3};// 411
 
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg);
-
-char* get_compact_uri(rec_msg_t* msg)
-{
-	char* ret;
-	ret = malloc(36);
-	if(ret == NULL)
-		return ret;
-	sprintf(ret, "id:%d;p=%d;", msg->userid,msg->logic_pool_id);	
-	return ret;
-}
 
 void char_to_int(int*v, buffer_t* buf, int* off, int len)
 {

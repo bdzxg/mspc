@@ -22,8 +22,10 @@
 #include "upstream.h"
 #include "freeq.h"
 #include "tool.h"
+#include "mrpc.h"
 #include "msp_pb.h"
 #include <time.h>
+#include <netinet/in.h>
 
 typedef struct {
 	char *data;

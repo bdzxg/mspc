@@ -5,7 +5,7 @@
  *      Author: liulijin 
  */
 
-#include "msp_pb.h"
+#include "proxy.h"
 #define RPC_OK 0
 
 static struct pbc_env *env = NULL;
