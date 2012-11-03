@@ -71,7 +71,7 @@ typedef struct mrpc_connection_s {
 }mrpc_connection_t;
 
 typedef struct mrpc_stash_req_s {
-	struct rb_node node;
+	struct rb_node rbnode;
 	uint32_t seq;
 	int32_t user_id;
 	char *epid;

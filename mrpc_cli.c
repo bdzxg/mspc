@@ -1,3 +1,60 @@
+
+static int _map_add(mrpc_connection_t *c, mrpc_stash_req_t *req)
+{
+	struct rb_root *root = &c->root;
+	struct rb_node **new = &(root->rb_node), *parent = NULL;
+
+	while(*new) {
+		mrpc_stash_req_t *data = rb_entry(*new, struct mrpc_stash_req_s, rbnode);
+		int result = data->seq - req->seq;
+		parent = *new;
+		if(result < 0)
+			new = &((*new)->rb_left);
+		else if(result > 0)
+			new = &((*new)->rb_right);
+		else 
+			return -1;
+	}
+
+	rb_link_node(&req->rbnode,parent,new);
+	rb_insert_color(&req->rbnode,root);
+	return 1;
+
+}
+
+static mrpc_stash_req_t* _map_get(mrpc_connection_t *c, uint32_t seq)
+{
+	struct rb_root *root = &c->root;
+	struct rb_node *node = root->rb_node;
+
+	while(node) {
+		mrpc_stash_req_t *q = rb_entry(node, struct mrpc_stash_req_s, rbnode);
+		int result = q->seq - seq;
+
+		if (result < 0)
+			node = node->rb_left;
+		else if (result > 0)
+			node = node->rb_right;
+		else 
+			return q;
+	}
+
+	return NULL;
+}
+
+
+static mrpc_stash_req_t* _map_remove(mrpc_connection_t *c, uint32_t seq)
+{
+	mrpc_stash_req_t *r = _map_get(c, seq);
+	if(r) {
+		rb_erase(&r->rbnode, &c->root);
+	}
+	return r;
+}
+
+
+
+
 static char* get_compact_uri(rec_msg_t* msg)
 {
 	char* ret;

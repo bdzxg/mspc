@@ -511,7 +511,7 @@ int mrpc_us_send(rec_msg_t *msg)
 			return -1;
 		}
 		//TODO: add a new timer to watch the timeout
-//TODO: save the sent request 
+		//TODO:xb save the sent request 
 	}
 	else {
 		//save to the pending list
