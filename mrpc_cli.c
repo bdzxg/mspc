@@ -139,10 +139,12 @@ static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
 	}
 	if(n == -1) {
 		E("recv return -1");
+		return;
 	}
 	
 	mrpc_message_t msg;
-	n = _parse(c->recv_buf, &msg);
+	mcp_appbean_proto proto;
+	n = _parse(c->recv_buf, &msg, &proto);
 	if(n < 0) {
 		E("parse error");
 		goto failed;

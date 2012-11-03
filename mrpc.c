@@ -209,9 +209,54 @@ failed:
 	return -1;
 }
 
+
+static int _recv(mrpc_connection_t *c) 
+{
+	int r = 0, n;
+	mrpc_buf_t *b = c->recv_buf;
+	size_t buf_avail;
+	while(1) {
+		buf_avail = b->len - b->size;
+		n = recv(c->fd, b->buf + b->size, buf_avail, 0);
+		D("recv %d bytes",n);
+
+		if(n < 0) {
+			if(errno == EAGAIN || errno == EWOULDBLOCK) {
+				return -1;
+			}
+			else {
+				W("read error,errno is %d",errno);
+				return 0;
+			}
+		}
+
+		if(n == 0) {
+			W("socket fd #%d closed by peer",c->fd);
+			return 0;
+		}
+
+		b->size += n;
+		r += n;
+
+		if((size_t)n < buf_avail) {	
+			D("break from receive loop, recv enough");	
+			break;
+		}
+		
+		//enlarge the recv_buf
+		int t = mrpc_buf_enlarge(b);
+		if(t < 0) {
+			E("recv_buf enlarge error");
+			return 0;
+		}
+	}
+	return r;
+}
+
+
 //return:
 //1 OK, 0 not finish, -1 error
-static int _parse(mrpc_buf_t *b, mrpc_message_t *msg)
+static int _parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 {
 	char *body = NULL;
 
@@ -247,7 +292,6 @@ static int _parse(mrpc_buf_t *b, mrpc_message_t *msg)
 	b->offset += 2;
 
 	D("unpack the req/resp header");
-	//request header
 	struct pbc_slice str = {b->buf + b->offset, msg->header_length};
 	int r;
 	if(msg->mask == 0x0badbee0) {
@@ -278,18 +322,9 @@ static int _parse(mrpc_buf_t *b, mrpc_message_t *msg)
 		D("body_len == 0");
 	}
 	if(body_len > 0) {
-		body = malloc(body_len);
-		if(!body) {
-			E("malloc body error");
-			goto failed;
-		}
-		memcpy(body, b->buf + b-> offset, body_len);
-	
 		D("unpack the body, body_len is %d",body_len);
-		//pb deserialize body
-		mcp_appbean_proto input;
-		struct pbc_slice str1 = {body, body_len};
-		r =pbc_pattern_unpack(rpc_pat_mcp_appbean_proto, &str1, &input);
+		struct pbc_slice str1 = {b->buf + b->offset, body_len};
+		r =pbc_pattern_unpack(rpc_pat_mcp_appbean_proto, &str1, proto);
 		if ( r < 0) {
 			E("rpc unpack mcp_appbean_proto error");
 			return -1;
@@ -302,64 +337,11 @@ static int _parse(mrpc_buf_t *b, mrpc_message_t *msg)
 	return 1;
 
 failed:
-	if(body != NULL) {
-		free(body);
-	}
 	return -1;
 }
 
 #include "mrpc_svr.c"
 #include "mrpc_cli.c"
-
-static void mrpc_mrpc_up_accept(ev_t *ev, ev_file_item_t *ffi)
-{
-	UNUSED(ev);
-
-	int f,err;
-	ev_file_item_t *fi;
-	mrpc_connection_t *c = NULL;
-
-	//socklen_t sin_size = sizeof(master->addr);
-	//f = accept(ffi->fd,&(master->addr),&sin_size);
-	f = accept(ffi->fd,NULL,NULL);
-	D("rpc server: fd#%d accepted",f);
-
-	if(f>0){
-		err = setnonblocking(f);
-		if(err < 0){
-			E("set nonblocking error"); return;
-		}
-		c = _conn_new();
-		c->fd = f;
-		fi = ev_file_item_new(f,
-				      c,
-				      mrpc_svr_recv,
-				      mrpc_svr_send,
-				      EV_WRITABLE | EV_READABLE | EPOLLET);
-		if(!fi){
-			E("create file item error");
-			goto failed;
-		}
-		ev_add_file_item(worker->ev,fi);
-	}	
-	else {
-		E("accept error %s", strerror(errno));
-	}
-	return;
-
-failed:
-	if(c) {
-		_conn_close(c);
-		_conn_free(c);
-		if(c->send_buf) {
-			free(c->send_buf);
-		}
-		if(c->recv_buf) {
-			free(c->recv_buf);
-		}
-		free(c);
-	}
-}
 
 static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 {
@@ -406,8 +388,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 
 	list_for_each_entry_safe(tc, n, &us->frozen_list, list_us) {
 		if(now - tc->connected > MRPC_CONN_DURATION + MRPC_TX_TO * 1.5) {
-			list_del(&tc->list_us
-);
+			list_del(&tc->list_us);
 			_conn_close(tc);
 			_conn_free(tc);
 		}
@@ -530,6 +511,7 @@ int mrpc_us_send(rec_msg_t *msg)
 			return -1;
 		}
 		//TODO: add a new timer to watch the timeout
+//TODO: save the sent request 
 	}
 	else {
 		//save to the pending list
@@ -546,6 +528,57 @@ int mrpc_us_send(rec_msg_t *msg)
 	}
 	return 0;
 }
+
+static void mrpc_mrpc_up_accept(ev_t *ev, ev_file_item_t *ffi)
+{
+	UNUSED(ev);
+
+	int f,err;
+	ev_file_item_t *fi;
+	mrpc_connection_t *c = NULL;
+
+	//socklen_t sin_size = sizeof(master->addr);
+	//f = accept(ffi->fd,&(master->addr),&sin_size);
+	f = accept(ffi->fd,NULL,NULL);
+	D("rpc server: fd#%d accepted",f);
+
+	if(f>0){
+		err = setnonblocking(f);
+		if(err < 0){
+			E("set nonblocking error"); return;
+		}
+		c = _conn_new();
+		c->fd = f;
+		fi = ev_file_item_new(f,
+				      c,
+				      mrpc_svr_recv,
+				      mrpc_svr_send,
+				      EV_WRITABLE | EV_READABLE | EPOLLET);
+		if(!fi){
+			E("create file item error");
+			goto failed;
+		}
+		ev_add_file_item(worker->ev,fi);
+	}	
+	else {
+		E("accept error %s", strerror(errno));
+	}
+	return;
+
+failed:
+	if(c) {
+		_conn_close(c);
+		_conn_free(c);
+		if(c->send_buf) {
+			free(c->send_buf);
+		}
+		if(c->recv_buf) {
+			free(c->recv_buf);
+		}
+		free(c);
+	}
+}
+
 
 int mrpc_start()
 {

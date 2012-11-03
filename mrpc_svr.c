@@ -1,10 +1,15 @@
-
 static int mrpc_process_client_req(mrpc_connection_t *c)
 {
 	mrpc_message_t msg;
 	mrpc_buf_t *b = c->recv_buf;
+	mcp_appbean_proto *proto;
+	proto = malloc(sizeof(*proto));
+	if(!proto) {
+		E("no mem for proto");
+		return -1;
+	}
 
-	int r = _parse(b, &msg);
+	int r = _parse(b, &msg, proto);
 	if(r < 0) {
 		goto failed;
 	}
@@ -67,7 +72,11 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 			}
 		}
 	}
+
+	//TODO: BIZ handler
 	
+
+	free(proto);
 	//reset the buf
 	if(b->size == b->offset) {
 		D("reset the recv buf");
@@ -75,59 +84,16 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	}
 	if(sbuf->size == sbuf->offset) { 
 		D("reset the send  buf");
-		mrpc_buf_reset(b);
+		mrpc_buf_reset(sbuf);
 	}
 
-	//TODO: BIZ handler
 	return 1;
 
 failed:
+	free(proto);
 	_conn_close(c);
 	_conn_free(c);
 	return -1;
-}
-
-static int _recv(mrpc_connection_t *c) 
-{
-	int r = 0, n;
-	mrpc_buf_t *b = c->recv_buf;
-	size_t buf_avail;
-	while(1) {
-		buf_avail = b->len - b->size;
-		n = recv(c->fd, b->buf + b->size, buf_avail, 0);
-		D("recv %d bytes",n);
-
-		if(n < 0) {
-			if(errno == EAGAIN || errno == EWOULDBLOCK) {
-				return -1;
-			}
-			else {
-				W("read error,errno is %d",errno);
-				return 0;
-			}
-		}
-
-		if(n == 0) {
-			W("socket fd #%d closed by peer",c->fd);
-			return 0;
-		}
-
-		b->size += n;
-		r += n;
-
-		if((size_t)n < buf_avail) {	
-			D("break from receive loop, recv enough");	
-			break;
-		}
-		
-		//enlarge the recv_buf
-		int t = mrpc_buf_enlarge(b);
-		if(t < 0) {
-			E("recv_buf enlarge error");
-			return 0;
-		}
-	}
-	return r;
 }
 
 static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
