@@ -565,7 +565,8 @@ int mrpc_init()
 	struct sockaddr_in addr1;
 
 	mrpc_up.listen_fd = -1;
-	
+	INIT_LIST_HEAD(&mrpc_up.conn_list);
+
 	mrpc_up.listen_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if(mrpc_up.listen_fd < 0)  {
 		E("create rpc listen fd error");
