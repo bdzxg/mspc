@@ -542,21 +542,19 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	UNUSED(a);
 	char *url = NULL;
 	get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
-	if(url == NULL)
-	{
+	if(url == NULL) {
 		D("cmd %d url is null", msg->cmd);
 		return -1;
 	}
-	else
-	{
+	else {
 		D("cmd %d url=%s", msg->cmd, url);
 	}
-	//get proxy uri
-	//TODO
-   /* if(send_rpc_server(msg, __url, a, msp_unreg) < 0) {*/
-		/*free(url);*/
-		/*return -1;*/
-	/*}*/
+
+	msg->uri == url;
+	if(mrpc_us_send(msg) < 0) {
+		return -1;
+	}
+
 	free(url);
 	return 0;
 }
