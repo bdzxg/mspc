@@ -75,7 +75,7 @@ typedef struct mrpc_stash_req_s {
 	uint32_t seq;
 	int32_t user_id;
 	char *epid;
-	mcp_appbean_proto proto;
+	uint32_t mcp_seq;
 } mrpc_stash_req_t;
 
 int mrpc_init();

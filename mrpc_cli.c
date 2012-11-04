@@ -52,9 +52,6 @@ static mrpc_stash_req_t* _map_remove(mrpc_connection_t *c, uint32_t seq)
 	return r;
 }
 
-
-
-
 static char* get_compact_uri(rec_msg_t* msg)
 {
 	char* ret;
@@ -95,6 +92,35 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->epid.buffer = msg->epid;
 	args->zip_flag = msg->compress;
 }	
+
+
+static mrpc_stash_req_t* _stash_req_new(rec_msg_t *msg)
+{
+	mrpc_stash_req_t *r = malloc(sizeof(*r));
+	if(!r) {
+		E("no mem for mrpc_stash_req");
+		return NULL;
+	}
+	r->epid = malloc(strlen(msg->epid) + 1);
+	if(!r->epid) {
+		E("no mem for r->epid");
+		free(r);
+		return NULL;
+	}
+	
+	r->user_id = msg->userid;
+	r->mcp_seq = msg->seq;
+	strcpy(r->epid, msg->epid);
+
+	return r;
+}
+
+static void  _stash_req_free(mrpc_stash_req_t *r) 
+{
+	free(r->epid);
+	free(r);
+}
+
 
 static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 {
@@ -162,10 +188,48 @@ failed:
 }
 
 
+static int _send_inner(rec_msg_t *msg, mrpc_connection_t *c) 
+{
+	//send it
+	if(_cli_send(msg, c) < 0) {
+		E("cli_send return < 0");
+		return -1;
+	}
+	mrpc_stash_req_t *r = _stash_req_new(msg);
+	if(!r) {
+		E("no mem for mrpc_stash_req_t");
+	}
+	else {
+		r->seq = c->seq - 1;
+		_map_add(c, r);
+	}					     
+	//TODO: add a new timer to watch the timeout
+
+	//save to the sent map
+	if(_map_add(c, r) < 0) {
+		E("save the stash_req failed");
+		_stash_req_free(r);
+	}
+
+	return 0;
+}
+
 static void _send_pending(mrpc_connection_t *c)
 {
-	UNUSED(c);
-//TODO
+	rec_msg_t *iter, *n;
+	list_for_each_entry_safe(iter, n, &c->us->pending_list, head) {
+		if(_send_inner(iter, c) < 0) {
+			E("send pending request error");
+			break;
+		}
+		list_del(&iter->head);
+
+		free(iter->option);
+		free(iter->user_context);
+		free(iter->body);
+		free(iter->epid);
+		free(iter);
+	}
 }
 
 static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
@@ -180,6 +244,7 @@ static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
 		if(err == 0) {
 			c->conn_status = MRPC_CONN_CONNECTED;
 			c->connected = time(NULL);
+			_send_pending(c);
 		}
 		else {
 			c->conn_status = MRPC_CONN_DISCONNECTED;
@@ -195,29 +260,39 @@ static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
 		goto failed;
 	}
 	if(n == -1) {
-		E("recv return -1");
+		E("recv return -1, wired");
 		return;
 	}
 	
 	mrpc_message_t msg;
 	mcp_appbean_proto proto;
-	n = _parse(c->recv_buf, &msg, &proto);
-	if(n < 0) {
-		E("parse error");
-		goto failed;
-	}
-	if(n == 0) {
-		return;
+	
+	for( ;; ) {
+		n = _parse(c->recv_buf, &msg, &proto);
+		if(n < 0) {
+			E("parse error");
+			goto failed;
+		}
+		if(n == 0) {
+			return;
+		}
+
+		//find the sent request
+		uint32_t seq = msg.h.resp_head.sequence;
+		mrpc_stash_req_t *r = _map_remove(c, seq);
+		if(!r) {
+			E("cannot find the seq %u sent request", seq);
+			continue;
+		}
+		if(msg.h.resp_head.response_code != 200) {
+			//TODO find the agent, and send the error response
+		}
+		free(r);
 	}
 
-	//got the request
-	// req = ...
-	if(msg.h.resp_head.response_code != 200) {
-		//send error response the client
+	if(c->recv_buf->offset == c->recv_buf->size) {
+		mrpc_buf_reset(c->recv_buf);
 	}
-	//remove the request from the map
-//free
-	
 failed:
 	_conn_close(c);
 	_conn_free(c);
@@ -252,3 +327,47 @@ void mrpc_ev_after()
 	}
 }
 
+//error code :
+// 0 OK
+// -1 send failed
+// -2 connection timeout 
+// -3 no us_item
+// -4 max pending 
+int mrpc_us_send(rec_msg_t *msg)
+{
+	mrpc_us_item_t *us;
+	mrpc_connection_t *c;
+
+	//1. get the us_item by address
+	us = _get_us(msg->uri);
+	if(!us) {
+		us = _us_new(msg->uri);
+		if(!us) {
+			E("cannnot create us item");
+			return -3;
+		}
+	}
+	
+	//2. get the connection from the us_item
+	c = _get_conn(us);
+	if(c != NULL)  {
+		if(_send_inner(msg, c) < 0) {
+			E("send inner return -1");
+			return -1;
+		}
+	}
+	else {
+		//save to the pending list
+		if(us->pend_count >= MRPC_MAX_PENDING) {
+			E("max pending");
+			return -4;
+		}
+		rec_msg_t *m = _clone_msg(msg);
+		if(!m) {
+			E("clone msg error");
+			return -1;
+		}
+		list_append(&m->head, &us->pending_list);
+	}
+	return 0;
+}

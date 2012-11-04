@@ -47,44 +47,17 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	memcpy(sbuf->buf + sbuf->size, temp, 32 - r);
 	sbuf->size += 32 - r;
 
-	int n;
-	while(sbuf->size - sbuf->offset > 0) {
-		n = send(c->fd, sbuf->buf + sbuf->offset, sbuf->size - sbuf->offset, 0);
-		D("mrpc sent %d bytes", n);
-		if(n > 0) {
-			sbuf->offset += n;
-			break;
-		}
-		if(n == 0) {
-			E("send return 0");
-			break;
-		}
-		else {
-			if(errno == EAGAIN || errno == EWOULDBLOCK) {
-				break;
-			}
-			else if(errno == EINTR) {
-
-			}
-			else {
-				E("send return error, reason %s", strerror(errno));
-				goto failed;
-			}
-		}
+	int n = _send(c);
+	if(n < 0) {
+		goto failed;
 	}
 
 	//TODO: BIZ handler
 	
-
 	free(proto);
-	//reset the buf
-	if(b->size == b->offset) {
-		D("reset the recv buf");
+	//reset the recv buf, send_buf will be reset by _send function
+	if(b->offset == b->size) {
 		mrpc_buf_reset(b);
-	}
-	if(sbuf->size == sbuf->offset) { 
-		D("reset the send  buf");
-		mrpc_buf_reset(sbuf);
 	}
 
 	return 1;

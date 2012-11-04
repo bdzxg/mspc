@@ -125,7 +125,7 @@ static int _connect(mrpc_connection_t *c)
 	return 0;
 }
 
-static mrpc_connection_t* _conn_new()
+static mrpc_connection_t* _conn_new(mrpc_us_item_t* us)
 {
 	mrpc_connection_t *c = NULL;
 
@@ -146,11 +146,12 @@ static mrpc_connection_t* _conn_new()
 		free(c);
 	}
 	c->fd = -1;
+	c->us = us;
 	c->conn_status = MRPC_CONN_DISCONNECTED;
 
 	INIT_LIST_HEAD(&c->list_us);
 	INIT_LIST_HEAD(&c->list_to);
-	
+	c->root = RB_ROOT;
 	return c;
 }
 
@@ -319,7 +320,7 @@ static int _parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 	}
 	if(body_len < 0)  {
 		body_len = 0;
-		D("body_len == 0");
+2		D("body_len == 0");
 	}
 	if(body_len > 0) {
 		D("unpack the body, body_len is %d",body_len);
@@ -340,8 +341,6 @@ failed:
 	return -1;
 }
 
-#include "mrpc_svr.c"
-#include "mrpc_cli.c"
 
 static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 {
@@ -360,7 +359,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 				list_del(&tc->list_us);
 				list_append(&tc->list_us, &us->frozen_list);
 
-				mrpc_connection_t *nc = _conn_new();
+				mrpc_connection_t *nc = _conn_new(us);
 				if(!nc) {
 					E(" cannot new mrpc_conn");
 				}
@@ -482,52 +481,8 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 	return r;
 }
 
-//error code :
-// 0 OK
-// -1 send failed
-// -2 connection timeout 
-// -3 no us_item
-// -4 max pending 
-int mrpc_us_send(rec_msg_t *msg)
-{
-	mrpc_us_item_t *us;
-	mrpc_connection_t *c;
-
-	//1. get the us_item by address
-	us = _get_us(msg->uri);
-	if(!us) {
-		us = _us_new(msg->uri);
-		if(!us) {
-			E("cannnot create us item");
-			return -3;
-		}
-	}
-	
-	//2. get the connection from the us_item
-	c = _get_conn(us);
-	if(c != NULL)  {
-		//send it
-		if(_cli_send(msg, c) < 0) {
-			return -1;
-		}
-		//TODO: add a new timer to watch the timeout
-		//TODO:xb save the sent request 
-	}
-	else {
-		//save to the pending list
-		if(us->pend_count >= MRPC_MAX_PENDING) {
-			E("max pending");
-			return -4;
-		}
-		rec_msg_t *m = _clone_msg(msg);
-		if(!m) {
-			E("clone msg error");
-			return -1;
-		}
-		list_append(&m->head, &us->pending_list);
-	}
-	return 0;
-}
+#include "mrpc_svr.c"
+#include "mrpc_cli.c"
 
 static void mrpc_mrpc_up_accept(ev_t *ev, ev_file_item_t *ffi)
 {
@@ -547,7 +502,7 @@ static void mrpc_mrpc_up_accept(ev_t *ev, ev_file_item_t *ffi)
 		if(err < 0){
 			E("set nonblocking error"); return;
 		}
-		c = _conn_new();
+		c = _conn_new(NULL);
 		c->fd = f;
 		fi = ev_file_item_new(f,
 				      c,

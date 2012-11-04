@@ -66,7 +66,7 @@ typedef struct rec_message_s{
 	int user_context_len;
 	char *epid;
 	list_head_t head;
-	char *uri;
+	char *uri; //FIXME
 }rec_msg_t;
 
 typedef struct rpc_async_req_s{
