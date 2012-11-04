@@ -320,7 +320,7 @@ static int _parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 	}
 	if(body_len < 0)  {
 		body_len = 0;
-2		D("body_len == 0");
+		D("body_len == 0");
 	}
 	if(body_len > 0) {
 		D("unpack the body, body_len is %d",body_len);

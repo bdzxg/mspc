@@ -1,4 +1,5 @@
 
+
 static int _map_add(mrpc_connection_t *c, mrpc_stash_req_t *req)
 {
 	struct rb_root *root = &c->root;
@@ -298,34 +299,6 @@ failed:
 	_conn_free(c);
 }
 
-static void mrpc_cli_conn_send(ev_t *ev, ev_file_item_t *fi) 
-{
-	UNUSED(ev);
-	D("mrpc_cli_conn_send begins");
-	mrpc_connection_t *c = fi->data; 
-	if(_send(c) < 0) {
-		E("send error");
-		//TODO clean ev
-		_conn_close(c);
-		_conn_free(c);
-	}
-}
-
-void mrpc_ev_after()
-{
-	//check the connecting connections
-	list_head_t *head = &mrpc_up.conn_list;
-	mrpc_connection_t *c, *n;
-	time_t now = time(NULL);
-
-	list_for_each_entry_safe(c, n, head, list_to) {
-		if(now - c->connecting > MRPC_CONNECT_TO) {
-			list_del(&c->list_to);
-			_conn_close(c);
-			_conn_free(c);
-		}
-	}
-}
 
 //error code :
 // 0 OK
@@ -370,4 +343,33 @@ int mrpc_us_send(rec_msg_t *msg)
 		list_append(&m->head, &us->pending_list);
 	}
 	return 0;
+}
+
+static void mrpc_cli_conn_send(ev_t *ev, ev_file_item_t *fi) 
+{
+	UNUSED(ev);
+	D("mrpc_cli_conn_send begins");
+	mrpc_connection_t *c = fi->data; 
+	if(_send(c) < 0) {
+		E("send error");
+		//TODO clean ev
+		_conn_close(c);
+		_conn_free(c);
+	}
+}
+
+void mrpc_ev_after()
+{
+	//check the connecting connections
+	list_head_t *head = &mrpc_up.conn_list;
+	mrpc_connection_t *c, *n;
+	time_t now = time(NULL);
+
+	list_for_each_entry_safe(c, n, head, list_to) {
+		if(now - c->connecting > MRPC_CONNECT_TO) {
+			list_del(&c->list_to);
+			_conn_close(c);
+			_conn_free(c);
+		}
+	}
 }
