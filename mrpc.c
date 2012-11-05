@@ -419,6 +419,9 @@ static mrpc_us_item_t* _us_new(char *uri)
 		free(up);
 		return NULL;
 	}
+	INIT_LIST_HEAD(&us->conn_list);	
+	INIT_LIST_HEAD(&us->frozen_list);
+	INIT_LIST_HEAD(&us->pending_list);
 	
 	if(us_add_upstream(upstream_root, up) < 0){
 		E("cannot add the up to the RBTree");
