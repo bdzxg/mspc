@@ -251,7 +251,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 		D("length not enough!");
 		return -1;
 	}
-	int index = 1;
+	int index = 0;
 	char_to_int(&msg->len, b, &index, 2);
 	D("Parse packet len %d",msg->len);
 	if(msg->len > (int)b->len)
@@ -267,7 +267,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 
 	msg->version = *buffer_read(b, index++);
 	char_to_int(&msg->userid, b, &index, 4);
-	char_to_int(&msg->cmd, b, &index, 2);
+	char_to_int(&msg->cmd, b, &index, 4);
 	char_to_int(&msg->seq, b, &index, 2);
 	char_to_int(&msg->off, b, &index, 1);
 	char_to_int(&msg->format, b, &index, 1);
@@ -276,6 +276,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	char_to_int(&msg->client_version, b, &index, 2);
 	msg->body_len = msg->len - 1 - msg->off;
 	//msg->option_len =  msg->len -21 - msg->body_len;
+	msg->option_len =  0;
 	if(agent->user_ctx_len == 0){
 		msg->user_context_len = 0;
 		msg->user_context = NULL;
@@ -550,7 +551,7 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		D("cmd %d url=%s", msg->cmd, url);
 	}
 
-	msg->uri == url;
+	msg->uri = url;
 	if(mrpc_us_send(msg) < 0) {
 		return -1;
 	}

@@ -88,8 +88,31 @@ static int _connect(mrpc_connection_t *c)
 		return -1;
 	}
 
-	D("begin connect");
+	char *s = c->us->uri;
+	char *r1 = rindex(s, ':');
+	char *r2 = rindex(s, '/');
+	char r3[16] = {0};
+	int addr_len = r1 - r2 -1;
+	struct in_addr inp;
+
+	if(addr_len > 0 && addr_len <= 15) {
+		strncpy(r3, r2 + 1, addr_len);
+		if(inet_aton(r3, &inp) == 0) {
+			E("address for aton error");
+			return -1;
+		}
+	}
+	else {
+		E("address format error");
+		return -1;
+	}
+
+	D("begin connect, %s", c->us->uri);
 	c->connecting = time(NULL);
+	addr.sin_family = AF_INET;
+	addr.sin_port   = htons(atoi(r1 + 1));
+	addr.sin_addr   = inp;
+
 	int r = connect(fd,(struct sockaddr*)&addr, sizeof(addr));
 	if(r < 0) {
 		if(errno == EINPROGRESS) {
@@ -105,12 +128,19 @@ static int _connect(mrpc_connection_t *c)
 					      c,
 					      mrpc_cli_recv,
 					      mrpc_cli_conn_send,
-					      EV_WRITABLE | EV_READABLE | EPOLLET);
+					      EV_WRITABLE | EV_READABLE);
 	if(!fi) {
 		E("create fi error");
 		close(fd);
 		return -1;
 	}
+
+	if(ev_add_file_item(worker->ev, fi) < 0){
+		E("add ev error");
+		//TODO;
+		return -1;
+	}
+	D("ev item added");
 
 	if(r == 0) {
 		D("connect succ immediately");
@@ -120,7 +150,7 @@ static int _connect(mrpc_connection_t *c)
 	else {
 		c->conn_status = MRPC_CONN_CONNECTING;
 	}
-
+	D("connect finish");
 	c->fd = fd;
 	return 0;
 }
@@ -348,9 +378,12 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 	time_t now = time(NULL);
 	int i = 0;
 
+	D("start for each, us->conn_list %p %p",us->conn_list, us->conn_list.next);
 	list_for_each_entry_safe(tc, n, &us->conn_list, list_us) {
+	  D("in foreach");
 		switch(tc->conn_status)  {
 		case MRPC_CONN_DISCONNECTED:
+		        D("disconnected");
 			_connect(tc);
 			break;
 		case MRPC_CONN_CONNECTED:
@@ -381,10 +414,13 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 		i++;
 	}
 
+	D("for each quit");
 	if(c != NULL) {
 		us->current_conn = i - 1 > 0 ? i - 1 : -1;
 	}
 
+	D("start for each, us->frozen_list %p %p",us->frozen_list, us->frozen_list.next);
+	D("frozen for each");	 
 	list_for_each_entry_safe(tc, n, &us->frozen_list, list_us) {
 		if(now - tc->connected > MRPC_CONN_DURATION + MRPC_TX_TO * 1.5) {
 			list_del(&tc->list_us);
@@ -392,6 +428,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 			_conn_free(tc);
 		}
 	}
+	D("frozen for each quit, return %p", c);
 	return c;
 }
 
@@ -412,6 +449,7 @@ static mrpc_us_item_t* _us_new(char *uri)
 		return NULL;
 	}
 	up->uri = uri;
+	D("uri %s", uri);
 	
 	mrpc_us_item_t *us = calloc(1, sizeof(*us));
 	if(!us) {
@@ -419,7 +457,21 @@ static mrpc_us_item_t* _us_new(char *uri)
 		free(up);
 		return NULL;
 	}
+	us->uri = uri;
+	INIT_LIST_HEAD(&us->conn_list);
+	INIT_LIST_HEAD(&us->frozen_list);
+	INIT_LIST_HEAD(&us->pending_list);
 	
+	int i = 0;
+	for(; i < 3 ; i++) {
+		mrpc_connection_t *c = _conn_new(us);
+		if(!c) {
+			E("create connection error");
+			break;
+		}
+		list_append(&c->list_us, &us->conn_list);
+	}
+
 	if(us_add_upstream(upstream_root, up) < 0){
 		E("cannot add the up to the RBTree");
 		free(up);
@@ -440,13 +492,16 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 	}
 	memcpy(r, msg, sizeof(*r));
 
-	r->option = malloc(r->option_len);
-	if(!r->option) {
-		E("no memory for r->option");
-		free(r);
-		return NULL;
+	if(r->option_len > 0) {
+	       r->option = malloc(r->option_len);
+	       D("opt len %d", r->option_len);
+	       if(!r->option) {
+		 E("no memory for r->option");
+		 free(r);
+		 return NULL;
+	       }
+	       memcpy(r->option, msg->option, r->option_len);
 	}
-	memcpy(r->option, msg->option, r->option_len);
 
 	r->body = malloc(r->body_len);
 	if(!r->body) {

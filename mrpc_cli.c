@@ -239,21 +239,24 @@ static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
 	mrpc_connection_t *c = fi->data;
 	int err, n;
 	socklen_t err_len;
+	D("mrpc_cli_recv");
 
 	if(c->conn_status == MRPC_CONN_CONNECTING) {
+		D("connecting");
 		getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len);
 		if(err == 0) {
+			D("connected!");
 			c->conn_status = MRPC_CONN_CONNECTED;
 			c->connected = time(NULL);
 			_send_pending(c);
 		}
 		else {
+			D("connect error");
 			c->conn_status = MRPC_CONN_DISCONNECTED;
 			_conn_close(c);
 			_conn_free(c);
 			//TODO: remove the evnt from ev_main
 		}
-		return;
 	}
 
 	n = _recv(c);
@@ -323,6 +326,7 @@ int mrpc_us_send(rec_msg_t *msg)
 	
 	//2. get the connection from the us_item
 	c = _get_conn(us);
+	D("get connection %p", c);
 	if(c != NULL)  {
 		if(_send_inner(msg, c) < 0) {
 			E("send inner return -1");
@@ -335,7 +339,9 @@ int mrpc_us_send(rec_msg_t *msg)
 			E("max pending");
 			return -4;
 		}
+		D("begin clone");
 		rec_msg_t *m = _clone_msg(msg);
+		D("clone finish");
 		if(!m) {
 			E("clone msg error");
 			return -1;
