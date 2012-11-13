@@ -1,4 +1,6 @@
 
+//TODO 
+//Handle rpc exception
 
 static int _map_add(mrpc_connection_t *c, mrpc_stash_req_t *req)
 {
@@ -80,7 +82,7 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 		args->user_context.buffer = msg->user_context;
 	}else{ args->user_context.len = 0;  args->user_context.buffer = NULL;}
 
-	D("request user_context.len %d", args->user_context.len);
+	D("request user_context.len %d, body_len %d", args->user_context.len, msg->body_len);
 	if(msg->body_len > 0){	
 		args->content.len = msg->body_len;
 		args->content.buffer = msg->body;
@@ -122,28 +124,39 @@ static void  _stash_req_free(mrpc_stash_req_t *r)
 	free(r);
 }
 
+static char _service_name[3] = "MCP";
+static char _method_name[14]  = "mcore-Reg2V501";
 
 static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 {
 	mcp_appbean_proto body;
 	get_rpc_arg(&body, msg);
-	char *body_buf = malloc(body.content.len + 1024);
+	size_t buf_len = body.content.len + 1024;
+	char *body_buf = malloc(buf_len);
 	if(!body_buf) {
 		E("cannot malloc body_buf");
 		return -1;
 	}
-	struct pbc_slice s = { body_buf, sizeof(*body_buf) };
+	struct pbc_slice s = { body_buf, buf_len };
+	D("the buf size is %lu", buf_len);
 	int r =	pbc_pattern_pack(rpc_pat_mcp_appbean_proto, &body, &s);
 	if(r < 0) {
 		E("pack body error");
 		goto failed;
 	}
-	int body_len = body.content.len + 1024 - r;
 
+	int body_len = buf_len - r;
+	D("body_len is %d", body_len);
 	mrpc_request_header header;
+	memset(&header, 0, sizeof(header));
 	header.sequence = ++c->seq;
 	header.body_length = body_len + 1; // by protocol we need plus 1
+	header.to_service.buffer = _service_name;
+	header.to_service.len = sizeof(_service_name);
+	header.to_method.buffer = _method_name;
+	header.to_method.len = sizeof(_method_name);
 	//TODO: service method
+	
 	char header_buf[128];
 	struct pbc_slice s2 = {header_buf, 128};
 	r = pbc_pattern_pack(rpc_pat_mrpc_request_header, &header, &s2);
@@ -203,7 +216,7 @@ static int _send_inner(rec_msg_t *msg, mrpc_connection_t *c)
 	else {
 		r->seq = c->seq - 1;
 		_map_add(c, r);
-	}					     
+	}
 	//TODO: add a new timer to watch the timeout
 
 	//save to the sent map
@@ -225,39 +238,24 @@ static void _send_pending(mrpc_connection_t *c)
 		}
 		list_del(&iter->head);
 
-		free(iter->option);
-		free(iter->user_context);
-		free(iter->body);
+		if(iter->option_len > 0) 
+		  free(iter->option);
+		if(iter->user_context_len > 0)
+		  free(iter->user_context);
+		if(iter->body_len > 0)
+		  free(iter->body);
+
 		free(iter->epid);
 		free(iter);
 	}
 }
 
-static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
+void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	mrpc_connection_t *c = fi->data;
-	int err, n;
-	socklen_t err_len;
-	D("mrpc_cli_recv");
-
-	if(c->conn_status == MRPC_CONN_CONNECTING) {
-		D("connecting");
-		getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len);
-		if(err == 0) {
-			D("connected!");
-			c->conn_status = MRPC_CONN_CONNECTED;
-			c->connected = time(NULL);
-			_send_pending(c);
-		}
-		else {
-			D("connect error");
-			c->conn_status = MRPC_CONN_DISCONNECTED;
-			_conn_close(c);
-			_conn_free(c);
-			//TODO: remove the evnt from ev_main
-		}
-	}
+	int n;
+	D("mrpc_cli_ev_in");
 
 	n = _recv(c);
 	if(n == 0) {
@@ -300,6 +298,43 @@ static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi)
 failed:
 	_conn_close(c);
 	_conn_free(c);
+}
+
+
+void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi) 
+{
+	UNUSED(ev);
+	mrpc_connection_t *c = fi->data;
+	int err;
+	socklen_t err_len;
+
+	D("mrpc_cli_ev_out begins");
+	D("status %d, %d", c->conn_status, MRPC_CONN_CONNECTING);
+	if(c->conn_status == MRPC_CONN_CONNECTING) {
+		D("connecting");
+		getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len);
+		if(err != 0) {
+			D("connected!");
+			c->conn_status = MRPC_CONN_CONNECTED;
+			c->connected = time(NULL);
+			_send_pending(c);
+		}
+		else {
+			D("connect error");
+			c->conn_status = MRPC_CONN_DISCONNECTED;
+			_conn_close(c);
+			_conn_free(c);
+			return;
+			//TODO: remove the evnt from ev_main
+		}
+	}
+
+	if(_send(c) < 0) {
+		E("send error");
+		//TODO clean ev
+		_conn_close(c);
+		_conn_free(c);
+	}
 }
 
 
@@ -349,19 +384,6 @@ int mrpc_us_send(rec_msg_t *msg)
 		list_append(&m->head, &us->pending_list);
 	}
 	return 0;
-}
-
-static void mrpc_cli_conn_send(ev_t *ev, ev_file_item_t *fi) 
-{
-	UNUSED(ev);
-	D("mrpc_cli_conn_send begins");
-	mrpc_connection_t *c = fi->data; 
-	if(_send(c) < 0) {
-		E("send error");
-		//TODO clean ev
-		_conn_close(c);
-		_conn_free(c);
-	}
 }
 
 void mrpc_ev_after()

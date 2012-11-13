@@ -4,12 +4,11 @@
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 extern pxy_config_t* config;
-static 
-mrpc_upstreamer_t mrpc_up;
+static mrpc_upstreamer_t mrpc_up;
 static char* PROTOCOL = "MCP/3.0";
 
-static void mrpc_cli_recv(ev_t *ev, ev_file_item_t *fi);
-static void mrpc_cli_conn_send(ev_t *ev, ev_file_item_t *fi);
+void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
+void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi);
 
 static mrpc_buf_t* mrpc_buf_new(size_t size)
 {
@@ -126,9 +125,9 @@ static int _connect(mrpc_connection_t *c)
 	
 	ev_file_item_t *fi = ev_file_item_new(fd,
 					      c,
-					      mrpc_cli_recv,
-					      mrpc_cli_conn_send,
-					      EV_WRITABLE | EV_READABLE);
+					      mrpc_cli_ev_in,
+					      mrpc_cli_ev_out,
+					      EV_WRITABLE | EV_READABLE | EPOLLET);
 	if(!fi) {
 		E("create fi error");
 		close(fd);
@@ -209,12 +208,12 @@ static int _send(mrpc_connection_t *c)
 	mrpc_buf_t *b = c->send_buf;
 	while(b->offset < b->size) {
 		n = send(c->fd, b->buf + b->offset, b->size - b->offset, 0);
-		D("mrpc sent %d bytes", n);
+		D("mrpc sent %d bytes, b->offset %d, b->size %d", n, b->offset, b->size);
 		if(n > 0) {
 			b->offset += n;
 			r += n;
 		}
-		if(n == 0) {
+		else if(n == 0) {
 			E("send return 0");
 			break;
 		}
