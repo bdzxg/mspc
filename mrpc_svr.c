@@ -1,3 +1,6 @@
+//mcp_appbean_proto.protocol = "mcp3.0"
+char __resp[9] = {0x0a, 0x07, 0x4d, 0x43, 0x50, 0x2f, 0x33, 0x2e, 0x30};
+
 static int mrpc_process_client_req(mrpc_connection_t *c)
 {
 	mrpc_message_t msg;
@@ -22,6 +25,7 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	mrpc_buf_t *sbuf = c->send_buf;
 	mrpc_resp_from_req(&msg, &resp);
 	resp.h.resp_head.response_code = 200;
+	resp.h.resp_head.body_length = 10;
 
 	char temp[32];
 	struct pbc_slice obuf = {temp, 32};
@@ -30,13 +34,13 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 		E("rpc pack response header error");
 		goto failed;
 	}
-	uint32_t resp_size = 12 + 32 - r; //there is no 'body'
+	uint32_t resp_size = 12 + 32 - r + sizeof(__resp);
 	while(c->send_buf->size + resp_size > c->send_buf->len) {
 		mrpc_buf_enlarge(c->send_buf);
 	}
 
 	//write the response to the send_buf
-	*((uint32_t*)(sbuf->buf + sbuf->size)) = htonl(0XBADBEE01);
+	*((uint32_t*)(sbuf->buf + sbuf->size)) = htonl(0X0BADBEE1);
 	sbuf->size += 4;
 	*((uint32_t*)(sbuf->buf + sbuf->size)) = htonl(resp_size);
 	sbuf->size += 4;
@@ -46,7 +50,10 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	sbuf->size += 2;
 	memcpy(sbuf->buf + sbuf->size, temp, 32 - r);
 	sbuf->size += 32 - r;
+	memcpy(sbuf->buf + sbuf->size, __resp, 9);
+	sbuf->size += 9;
 
+	
 	int n = _send(c);
 	if(n < 0) {
 		goto failed;

@@ -28,6 +28,7 @@ typedef struct pxy_agent_s{
 	char* send_buf;
 	size_t send_buf_offset;
 	size_t send_buf_len;
+	ev_file_item_t *ev;
 }pxy_agent_t;
 
 typedef struct reg3_s{

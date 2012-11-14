@@ -37,6 +37,7 @@ typedef struct ev_file_item_s{
     void* data;
     ev_file_func* wfunc;
     ev_file_func* rfunc;
+  int valid;
 }ev_file_item_t;
 
 typedef struct ev_fired_s{
@@ -70,6 +71,7 @@ typedef struct ev_s{
 	__fi->wfunc = __wf;					\
 	__fi->rfunc = __rf;					\
 	__fi->data = __d;					\
+	__fi->valid = 1;					\
 	__fi->events = __e;					\
 	__fi;							\
     })								\
@@ -84,10 +86,17 @@ typedef struct ev_s{
 	__ti;						\
     })
 
+#define ev_file_free(__ev,__fi)				\
+	({						\
+		int __t = ev_del_file_item(__ev,__fi);	\
+		free(__fi);				\
+		__t;					\
+	})
+
 ev_t* ev_create();
 int ev_time_item_ctl(ev_t* ev,int op,ev_time_item_t* item);
 int ev_add_file_item(ev_t*,ev_file_item_t*);
-int ev_del_file_item(ev_t*,int);
+int ev_del_file_item(ev_t*,ev_file_item_t*);
 void ev_main(ev_t* ev);
 
 #endif

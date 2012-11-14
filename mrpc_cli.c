@@ -155,7 +155,6 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	header.to_service.len = sizeof(_service_name);
 	header.to_method.buffer = _method_name;
 	header.to_method.len = sizeof(_method_name);
-	//TODO: service method
 	
 	char header_buf[128];
 	struct pbc_slice s2 = {header_buf, 128};
@@ -212,19 +211,17 @@ static int _send_inner(rec_msg_t *msg, mrpc_connection_t *c)
 	mrpc_stash_req_t *r = _stash_req_new(msg);
 	if(!r) {
 		E("no mem for mrpc_stash_req_t");
+		return -1;
 	}
-	else {
-		r->seq = c->seq - 1;
-		_map_add(c, r);
-	}
-	//TODO: add a new timer to watch the timeout
 
+	//TODO: add a new timer to watch the timeout
+	r->seq = c->seq;
 	//save to the sent map
 	if(_map_add(c, r) < 0) {
 		E("save the stash_req failed");
 		_stash_req_free(r);
 	}
-
+	D("seq %d stashed", r->seq);
 	return 0;
 }
 
@@ -287,6 +284,7 @@ void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 			continue;
 		}
 		if(msg.h.resp_head.response_code != 200) {
+		        W("resp code %d", msg.h.resp_head.response_code);
 			//TODO find the agent, and send the error response
 		}
 		free(r);

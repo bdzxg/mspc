@@ -176,15 +176,20 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 				      NULL,
 				      EV_READABLE | EPOLLET);
 		if(!fi){
-			D("create file item error");
+			E("create file item error");
+			return;
 		}
-		ev_add_file_item(worker->ev,fi);
+		if(ev_add_file_item(worker->ev,fi) < 0) {
+			E("add file item failed");
+			return;
+		}
+		agent->ev = fi;
 
 		//map_insert(&worker->root,agent);
 		/*TODO: check the result*/
 	}	
 	else {
-		perror("accept");
+		E("accept %s", strerror(errno));
 	}
 	//}
 }

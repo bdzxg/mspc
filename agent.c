@@ -551,7 +551,9 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		D("cmd %d url=%s", msg->cmd, url);
 	}
 
-	msg->uri = url;
+//	msg->uri = url;
+	msg->uri = __url;
+	D("uri is %s", __url);
 	if(mrpc_us_send(msg) < 0) {
 		return -1;
 	}
@@ -651,9 +653,10 @@ void pxy_agent_close(pxy_agent_t *a)
 	a->logouttime = NULL;
 	buffer_t *b;
 
+	D("1-1");
 	if(a->fd > 0){
 		/* close(agent->fd); */
-		if(ev_del_file_item(worker->ev,a->fd) < 0){
+		if(ev_del_file_item(worker->ev,a->ev) < 0){
 			D("del file item err, errno is %d",errno);
 		}
 
@@ -724,7 +727,7 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 		W("fd has no agent,ev->data is NULL,close the fd");
 		close(fi->fd); return;
 	}
-
+	D("buf len %zu", agent->buf_len);
 	while(1) {
 		b = agent_get_buf_for_read(agent);
 		if(b == NULL) {
@@ -751,6 +754,7 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 		}
 
 		b->len = n;
+		D("agent_buf len %zu", agent->buf_len);
 		agent->buf_len += n;
 
 		if(n < BUFFER_SIZE) {	
@@ -768,9 +772,13 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 failed:
 	W("failed, prepare close!");
 	//Add to reg3 rbtree
-	store_connection_context_reg3(agent);
+	//store_connection_context_reg3(agent);
+	D("1");
 	worker_remove_agent(agent);
+	D("2");
 	pxy_agent_close(agent);
+	D("3");
 	free(fi);
+	D("4");
 	return;
 }

@@ -37,8 +37,10 @@ ev_add_file_item(ev_t* ev,ev_file_item_t* item)
 }
 
 int 
-ev_del_file_item(ev_t *ev,int fd)
+ev_del_file_item(ev_t *ev, ev_file_item_t* item)
 {
+        int fd = item->fd;
+        item->valid = 0;
 	return epoll_ctl(ev->fd,EV_CTL_DEL,fd,NULL);
 }
 
@@ -46,11 +48,9 @@ int
 ev_time_item_ctl(ev_t* ev,int op,ev_time_item_t* item)
 {
 	if(op == EV_CTL_ADD){
-
 		item->id = ev->next_time_id++;
 		item->next = ev->ti;
 		ev->ti = item;
-    
 		return 1;
 	}
 
@@ -81,19 +81,73 @@ ev_main(ev_t* ev)
 		j = epoll_wait(ev->fd,e,EV_COUNT,100);
 		for(i=0; i<j ;i++){
 			ev_file_item_t* fi = (ev_file_item_t*)e[i].data.ptr; 
-
-			if((e[i].events) & EPOLLIN) {
+			int evts = e[i].events;
+			
+			D("events %d", evts);
+			if(evts & EPOLLIN) {
 				if(fi->rfunc){
 					D("RFUNC");
 					fi->rfunc(ev,fi);
 				}
 			}
+			
+			//maybe after rfunc(), fi is not valid
+			if(fi->valid <= 0) {
 
-			if(e[i].events & EPOLLOUT){ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+				continue;
+			}
+			
+			if(evts & EPOLLOUT || evts & EPOLLHUP || evts & EPOLLERR) {
 				if(fi->wfunc) {
 					D("WFUNC");
 					fi->wfunc(ev,fi);
-				}
+                              }
 			}
 		}
 

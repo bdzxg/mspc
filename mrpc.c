@@ -140,6 +140,7 @@ static int _connect(mrpc_connection_t *c)
 		return -1;
 	}
 	D("ev item added");
+	c->event = fi;
 
 	if(r == 0) {
 		D("connect succ immediately");
@@ -188,6 +189,7 @@ static void _conn_close(mrpc_connection_t *c)
 {
 	close(c->fd);
 	c->conn_status = MRPC_CONN_DISCONNECTED;
+	c->event->valid = 0;
 }
 
 static void _conn_free(mrpc_connection_t *c)
@@ -196,9 +198,10 @@ static void _conn_free(mrpc_connection_t *c)
 	free(c->recv_buf);
 	list_del(&c->list_us);
 	list_del(&c->list_to);
-	if(c->us)
-		c->us->conn_count--;
+	if(c->us)  c->us->conn_count--;
+	if(c->event) ev_file_free(worker->ev, c->event);
 	free(c);
+
 }
 
 
@@ -331,6 +334,7 @@ static int _parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 	else {
 		r = pbc_pattern_unpack(rpc_pat_mrpc_response_header, &str, 
 				       &msg->h.resp_head);
+		D("resp_head.code %d", msg->h.resp_head.response_code);
 	}
 	if(r < 0) {
 		E("rpc unpack request header fail");
@@ -567,7 +571,11 @@ static void mrpc_mrpc_up_accept(ev_t *ev, ev_file_item_t *ffi)
 			E("create file item error");
 			goto failed;
 		}
-		ev_add_file_item(worker->ev,fi);
+		if(ev_add_file_item(worker->ev,fi) < 0) {
+			E("add file item failed");
+			goto failed;
+		}
+		c->event = fi;
 	}	
 	else {
 		E("accept error %s", strerror(errno));
