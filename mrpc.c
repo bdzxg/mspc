@@ -460,7 +460,8 @@ static mrpc_us_item_t* _us_new(char *uri)
 		free(up);
 		return NULL;
 	}
-	us->uri = uri;
+	
+	//us->uri = uri;
 	INIT_LIST_HEAD(&us->conn_list);
 	INIT_LIST_HEAD(&us->frozen_list);
 	INIT_LIST_HEAD(&us->pending_list);
