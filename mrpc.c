@@ -87,12 +87,14 @@ static int _connect(mrpc_connection_t *c)
 		return -1;
 	}
 
+
 	char *s = c->us->uri;
 	char *r1 = rindex(s, ':');
 	char *r2 = rindex(s, '/');
 	char r3[16] = {0};
 	int addr_len = r1 - r2 -1;
 	struct in_addr inp;
+	D("str 2");
 
 	if(addr_len > 0 && addr_len <= 15) {
 		strncpy(r3, r2 + 1, addr_len);
@@ -178,7 +180,7 @@ static mrpc_connection_t* _conn_new(mrpc_us_item_t* us)
 	c->fd = -1;
 	c->us = us;
 	c->conn_status = MRPC_CONN_DISCONNECTED;
-
+	
 	INIT_LIST_HEAD(&c->list_us);
 	INIT_LIST_HEAD(&c->list_to);
 	c->root = RB_ROOT;
@@ -189,7 +191,7 @@ static void _conn_close(mrpc_connection_t *c)
 {
 	close(c->fd);
 	c->conn_status = MRPC_CONN_DISCONNECTED;
-	c->event->valid = 0;
+	ev_del_file_item(worker->ev, c->event);
 }
 
 static void _conn_free(mrpc_connection_t *c)
@@ -199,9 +201,7 @@ static void _conn_free(mrpc_connection_t *c)
 	list_del(&c->list_us);
 	list_del(&c->list_to);
 	if(c->us)  c->us->conn_count--;
-	if(c->event) ev_file_free(worker->ev, c->event);
 	free(c);
-
 }
 
 
@@ -258,7 +258,7 @@ static int _recv(mrpc_connection_t *c)
 				return -1;
 			}
 			else {
-				W("read error,errno is %d",errno);
+				W("read error,errno is %d,reason %s",errno, strerror(errno));
 				return 0;
 			}
 		}
@@ -461,7 +461,7 @@ static mrpc_us_item_t* _us_new(char *uri)
 		return NULL;
 	}
 	
-	//us->uri = uri;
+	us->uri = uri;
 	INIT_LIST_HEAD(&us->conn_list);
 	INIT_LIST_HEAD(&us->frozen_list);
 	INIT_LIST_HEAD(&us->pending_list);

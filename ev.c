@@ -91,55 +91,10 @@ ev_main(ev_t* ev)
 				}
 			}
 			
-			//maybe after rfunc(), fi is not valid
+			
 			if(fi->valid <= 0) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+				D("ev_main free fi %p", fi);
+				free(fi);
 				continue;
 			}
 			
@@ -147,7 +102,13 @@ ev_main(ev_t* ev)
 				if(fi->wfunc) {
 					D("WFUNC");
 					fi->wfunc(ev,fi);
-                              }
+				}
+			}
+			
+			if(fi->valid <= 0) {
+				D("ev_main free fi %p", fi);
+				free(fi);
+				continue;
 			}
 		}
 

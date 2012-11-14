@@ -86,12 +86,6 @@ typedef struct ev_s{
 	__ti;						\
     })
 
-#define ev_file_free(__ev,__fi)				\
-	({						\
-		int __t = ev_del_file_item(__ev,__fi);	\
-		free(__fi);				\
-		__t;					\
-	})
 
 ev_t* ev_create();
 int ev_time_item_ctl(ev_t* ev,int op,ev_time_item_t* item);

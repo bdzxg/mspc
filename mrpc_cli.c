@@ -295,7 +295,6 @@ void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 	}
 failed:
 	_conn_close(c);
-	_conn_free(c);
 }
 
 
@@ -321,17 +320,14 @@ void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 			D("connect error");
 			c->conn_status = MRPC_CONN_DISCONNECTED;
 			_conn_close(c);
-			_conn_free(c);
 			return;
 			//TODO: remove the evnt from ev_main
 		}
 	}
 
 	if(_send(c) < 0) {
-		E("send error");
-		//TODO clean ev
+		E("send error, close connection");
 		_conn_close(c);
-		_conn_free(c);
 	}
 }
 

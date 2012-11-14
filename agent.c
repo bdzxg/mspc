@@ -536,7 +536,7 @@ void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code)
 	free(d);
 }
  
-char __url[32] = "tcp://10.10.10.81:7777";
+char __url[32] = "tcp://10.10.10.184:7777";
 
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 {
@@ -653,7 +653,6 @@ void pxy_agent_close(pxy_agent_t *a)
 	a->logouttime = NULL;
 	buffer_t *b;
 
-	D("1-1");
 	if(a->fd > 0){
 		/* close(agent->fd); */
 		if(ev_del_file_item(worker->ev,a->ev) < 0){
@@ -773,12 +772,7 @@ failed:
 	W("failed, prepare close!");
 	//Add to reg3 rbtree
 	//store_connection_context_reg3(agent);
-	D("1");
 	worker_remove_agent(agent);
-	D("2");
 	pxy_agent_close(agent);
-	D("3");
-	free(fi);
-	D("4");
 	return;
 }
