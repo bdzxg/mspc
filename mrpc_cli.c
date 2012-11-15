@@ -189,11 +189,9 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 
 	free(body_buf);
 	
-	//TODO send the buffer
 	if(_send(c) < 0) {
 		goto failed;
 	}
-	//TODO: save the request to the sent_map
 	return 0;
 failed:
 	free(body_buf);
@@ -214,7 +212,6 @@ static int _send_inner(rec_msg_t *msg, mrpc_connection_t *c)
 		return -1;
 	}
 
-	//TODO: add a new timer to watch the timeout
 	r->seq = c->seq;
 	//save to the sent map
 	if(_map_add(c, r) < 0) {
@@ -321,7 +318,6 @@ void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 			c->conn_status = MRPC_CONN_DISCONNECTED;
 			_conn_close(c);
 			return;
-			//TODO: remove the evnt from ev_main
 		}
 	}
 

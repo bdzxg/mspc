@@ -215,7 +215,10 @@ int main()
 	D("master initialized");
 
 
-	/*remove the master-worker model*/
+	/* TODO: Maybe we need remove the master-worker mode,
+	   seems useless
+	 */
+
 	if(worker_init()<0) {
 		E("worker #%d initialized failed" , getpid());
 		return -1;
@@ -223,7 +226,8 @@ int main()
 	D("worker inited");
 
 	if(worker_start() < 0) {
-		E("worker #%d started failed", getpid()); return -1;
+		E("worker #%d started failed", getpid()); 
+		return -1;
 	}
 	D("worker started");
 

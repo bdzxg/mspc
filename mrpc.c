@@ -138,7 +138,7 @@ static int _connect(mrpc_connection_t *c)
 
 	if(ev_add_file_item(worker->ev, fi) < 0){
 		E("add ev error");
-		//TODO;
+		ev_file_free(fi);
 		return -1;
 	}
 	D("ev item added");

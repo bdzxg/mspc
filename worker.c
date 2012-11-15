@@ -96,16 +96,6 @@ int worker_start()
 		E("mrpc start error");
 		goto start_failed;
 	}
-	/* TODO: Backend todo
-	   worker->bfd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-	   if(!worker->bfd){
-	   goto start_failed;
-	   }
-
-	   if(!connect(worker->bfd,(struct sockaddr*)worker->baddr,
-	   sizeof(*(worker->baddr)))){
-	   goto start_failed;
-	   }  */
 
 	ev_main(worker->ev);
 	free(fi);

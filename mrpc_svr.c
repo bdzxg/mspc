@@ -95,7 +95,7 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 	for(;;) {
 		r = mrpc_process_client_req(c);
 		if(r < 0) {
-			W("process client req error");
+			W("Process client req error");
 			goto failed;
 		}
 		else if (r == 0) {
@@ -107,7 +107,6 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 
 failed:
 	W("failed, prepare close!");
-	//TODO: clean the connection, and remove the event
 	_conn_close(c);
 	_conn_free(c);
 	return;
@@ -123,7 +122,6 @@ static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
 	return;
 
 failed:
-	//TODO clean ev
 	_conn_close(c);
 	_conn_free(c);
 }
