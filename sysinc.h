@@ -18,6 +18,8 @@
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <sys/uio.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #endif

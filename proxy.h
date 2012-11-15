@@ -5,7 +5,7 @@
 #define BUFFER_SIZE 500
 #define pxy_memzero(buf, n)       (void) memset(buf, 0, n)
 #define UNUSED(x) (void)(x)
-#define LISTENERPORT "tcp://192.168.199.8:9001"
+#define LISTENERPORT "tcp://192.168.199.8:9001" //TODO: config it
 
 #include "sysinc.h"
 #include "rbtree.h"
@@ -24,8 +24,6 @@
 #include "tool.h"
 #include "mrpc.h"
 #include "msp_pb.h"
-#include <time.h>
-#include <netinet/in.h>
 
 typedef struct {
 	char *data;
@@ -69,6 +67,8 @@ typedef struct pxy_command_s{
     int cmd;
     int fd;
 }pxy_command_t;
+
+#define ev_file_free free
 
 int worker_init();
 int worker_start();

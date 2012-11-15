@@ -1,5 +1,27 @@
+#include "proxy.h"
+
+extern pxy_worker_t *worker;
+extern upstream_map_t *upstream_root;
+extern pxy_config_t* config;
+static mrpc_upstreamer_t mrpc_up;
+static char* PROTOCOL = "MCP/3.0";
+
+
 //mcp_appbean_proto.protocol = "mcp3.0"
 char __resp[9] = {0x0a, 0x07, 0x4d, 0x43, 0x50, 0x2f, 0x33, 0x2e, 0x30};
+
+static inline 
+void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
+{
+	resp->mask = htonl(0xBADBEE01);
+	resp->h.resp_head.sequence = req->h.req_head.sequence;
+	D("the resp seq is %d-%d",req->h.req_head.sequence,
+	  resp->h.resp_head.sequence);
+	resp->h.resp_head.to_id = req->h.req_head.to_id;
+	resp->h.resp_head.from_id = req->h.req_head.from_id;
+	resp->h.resp_head.opt = 0;
+	resp->h.resp_head.body_length = 0;
+}
 
 static int mrpc_process_client_req(mrpc_connection_t *c)
 {
@@ -12,7 +34,7 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 		return -1;
 	}
 
-	int r = _parse(b, &msg, proto);
+	int r = mrpc_parse(b, &msg, proto);
 	if(r < 0) {
 		goto failed;
 	}
@@ -54,7 +76,7 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	sbuf->size += 9;
 
 	
-	int n = _send(c);
+	int n = mrpc_send(c);
 	if(n < 0) {
 		goto failed;
 	}
@@ -71,8 +93,8 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 
 failed:
 	free(proto);
-	_conn_close(c);
-	_conn_free(c);
+	mrpc_conn_close(c);
+	mrpc_conn_free(c);
 	return -1;
 }
 
@@ -82,7 +104,7 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 	int n;
 	mrpc_connection_t *c = fi->data;
 	D("rpc server recv"); 
-	n = _recv(c);
+	n = mrpc_recv(c);
 	if(n == 0) {
 		goto failed;
 	}
@@ -107,8 +129,8 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 
 failed:
 	W("failed, prepare close!");
-	_conn_close(c);
-	_conn_free(c);
+	mrpc_conn_close(c);
+	mrpc_conn_free(c);
 	return;
 }
 
@@ -117,11 +139,60 @@ static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
 	UNUSED(ev);
 	D("mrpc_svr_send begins");
 	mrpc_connection_t *c = ffi->data;
-	if(_send(c) < 0) 
+	if(mrpc_send(c) < 0) 
 		goto failed;
 	return;
 
 failed:
-	_conn_close(c);
-	_conn_free(c);
+	mrpc_conn_close(c);
+	mrpc_conn_free(c);
 }
+
+
+void mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
+{
+	UNUSED(ev);
+
+	int f,err;
+	ev_file_item_t *fi;
+	mrpc_connection_t *c = NULL;
+
+	//socklen_t sin_size = sizeof(master->addr);
+	//f = accept(ffi->fd,&(master->addr),&sin_size);
+	f = accept(ffi->fd,NULL,NULL);
+	D("rpc server: fd#%d accepted",f);
+
+	if(f>0){
+		err = setnonblocking(f);
+		if(err < 0){
+			E("set nonblocking error"); return;
+		}
+		c = mrpc_conn_new(NULL);
+		c->fd = f;
+		fi = ev_file_item_new(f,
+				      c,
+				      mrpc_svr_recv,
+				      mrpc_svr_send,
+				      EV_WRITABLE | EV_READABLE | EPOLLET);
+		if(!fi){
+			E("create file item error");
+			goto failed;
+		}
+		if(ev_add_file_item(worker->ev,fi) < 0) {
+			E("add file item failed");
+			goto failed;
+		}
+		c->event = fi;
+	}	
+	else {
+		E("accept error %s", strerror(errno));
+	}
+	return;
+
+failed:
+	if(c) {
+		mrpc_conn_close(c);
+		mrpc_conn_free(c);
+	}
+}
+

@@ -49,6 +49,8 @@ message mcp_appbean_proto
 	optional string content = 8;
 	optional string epid = 9;
 	optional int32 zip_flag = 10;
+	optional string ip = 11;
+	optional string category_name = 12;
 }
 
 message user_context 
