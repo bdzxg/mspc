@@ -12,17 +12,18 @@
 #include "ev.h"
 #include "include/pbc.h"
 #include "list.h"
-#include "buffer.h"
 #include "config.h"
 #include "mempool.h"
 #include "hashtable.h"
+#include "proto.h"
+#include "mrpc.h"
 #include "agent.h"
 #include "map.h"
 #include "log.h"
 #include "upstream.h"
 #include "freeq.h"
 #include "tool.h"
-#include "mrpc.h"
+
 #include "msp_pb.h"
 
 typedef struct {

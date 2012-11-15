@@ -89,14 +89,16 @@ mrpc_connection_t* mrpc_conn_new(mrpc_us_item_t *us);
 void mrpc_conn_close(mrpc_connection_t *c);
 void mrpc_conn_free(mrpc_connection_t *c);
 int mrpc_send(mrpc_connection_t *c);
+int mrpc_send2(mrpc_buf_t *b, int fd);
 int mrpc_recv(mrpc_connection_t *c);
+int mrpc_recv2(mrpc_buf_t *b, int fd);
 //1 OK, 0 not finish, -1 error
 int 
 mrpc_parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto);
 mrpc_buf_t* mrpc_buf_new(size_t size);
 int mrpc_buf_enlarge(mrpc_buf_t *buf);
 void mrpc_buf_reset(mrpc_buf_t *buf);
-
+void mrpc_buf_free(mrpc_buf_t *buf) ;
 
 
 

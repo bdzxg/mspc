@@ -9,6 +9,7 @@ extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 
 size_t packet_len;
+#define MSP_BUF_LEN 1024
 
 static char OVERTIME[3] = {8, 248, 3};// 504
 static char SERVERERROR[3] = {8, 244, 3};// 500
@@ -16,17 +17,6 @@ static char REQERROR[3] = {8, 144, 3};// 400
 static char NOTEXIST[3] = {8, 155, 3};// 411
 
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg);
-
-void char_to_int(int*v, buffer_t* buf, int* off, int len)
-{
-	*v = 0;
-	char* t = (char*)v;
-	int i;
-	for(i = 0 ; i < len; i++) {
-		*(t+i)= *buffer_read(buf, *off);
-		(*off)++;
-	}
-}
 
 int worker_insert_agent(pxy_agent_t *agent)
 {
@@ -105,82 +95,33 @@ void release_reg3(reg3_t* r3)
 	free(r3);
 }
 
-//TODO change the return type to int?
+
+//TODO !!!!!!!
 void send_to_client(pxy_agent_t* a, char* data, size_t len )
 {
-	D("prepare to send %lu bytes data", len);
-	//1. prepare the send buf
-	if(!a->send_buf) {
-		a->send_buf = malloc(len);
-		if(!a->send_buf) {
-			E("cannot malloc send_buf");
-			return;
-		}
-		a->send_buf_len = len;
+	mrpc_buf_t *b = a->send_buf;
+	while(b->size - b->offset > len){
+		mrpc_buf_enlarge(b);
 	}
 
-	size_t available = a->send_buf_len - a->send_buf_offset;
-
-	if(len > available) {
-		size_t newlen = a->send_buf_len + (len - available);
-		void* tmp = realloc(a->send_buf, newlen);
-		if(!tmp) {
-			E("realloc send buf error");
-			return;
-		}
-		a->send_buf = tmp;
-		a->send_buf_len = newlen;
+	int r = mrpc_send2(a->send_buf, a->fd);
+	if(r < 0) {
+		goto failed;
 	}
 
-	//2. copy to send buf
-	memcpy(a->send_buf + a->send_buf_offset, data, len);
+	return ;
 
-	//3. try to send 
-	int n  = 0;
-
-	for (;;) {
-		int to_send = a->send_buf_len - a->send_buf_offset;
-		char tmp[102400] = {0};
-		to_hex(a->send_buf, a->send_buf_len, tmp);
-		D("packet is %s" ,tmp);
-		n = send(a->fd, a->send_buf + a->send_buf_offset , to_send, 0);
-
-		if(n > 0) {
-			D("a->fd %d, send %d/%d bytes", a->fd,  n, to_send);
-			a->downflow += n;
-
-			if(n < to_send) {
-				a->send_buf_offset += n;
-				return;
-			}
-
-			free(a->send_buf);
-			a->send_buf = NULL;
-			a->send_buf_len = 0;
-			a->send_buf_offset = 0;
-			D("send_buf freed");
-			return;
-		}
-
-
-		if(n ==  0) {
-			D("send return 0");
-			return;
-		}
-
-		if(errno == EAGAIN || errno == EWOULDBLOCK) {
-			return;
-		}
-		else if(errno == EINTR) {
-
-		}
-		else {
-			E("send return error, reason %s", strerror(errno));
-			return;
-		}
-	}
+failed:
+	W("send failed, prepare close!");
+	//Add to reg3 rbtree
+	//store_connection_context_reg3(agent);
+	worker_remove_agent(a);
+	pxy_agent_close(a
+);
 	return;
+
 }
+
 
 int store_connection_context_reg3(pxy_agent_t *a)
 {
@@ -243,38 +184,40 @@ void send_client_flow_to_bean(pxy_agent_t *a)
 	/*free(str_input.buffer);*/
 }
 
+//ok 1, not finish 0, error -1
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 {
-	buffer_t *b = agent->buffer;
-	D("recive len b->len = %lu", b->len);
-	if(b->len < 3){
-		D("length not enough!");
-		return -1;
-	}
-	int index = 0;
-	char_to_int(&msg->len, b, &index, 2);
-	D("Parse packet len %d",msg->len);
-	if(msg->len > (int)b->len)
-		return -1;
-
-	if(packet_len <=0)
-		packet_len = msg->len;
-
-	if(packet_len > agent->buf_len) {
-		D("Parse packet_len %lu > agent->buf_len %lu", packet_len ,agent->buf_len);
+	mrpc_buf_t *b = agent->recv_buf;
+	size_t data_len = b->size - b->offset;
+	
+	if(data_len < 2) {
+		D("length %lu is not enough", data_len);
 		return -1;
 	}
 
-	msg->version = *buffer_read(b, index++);
-	char_to_int(&msg->userid, b, &index, 4);
-	char_to_int(&msg->cmd, b, &index, 4);
-	char_to_int(&msg->seq, b, &index, 2);
-	char_to_int(&msg->off, b, &index, 1);
-	char_to_int(&msg->format, b, &index, 1);
-	char_to_int(&msg->compress, b, &index, 1);
-	char_to_int(&msg->client_type, b, &index, 2);
-	char_to_int(&msg->client_version, b, &index, 2);
-	msg->body_len = msg->len - 1 - msg->off;
+	msg->len = (int)ntohs(*(uint16_t*)(b->buf + b->offset));
+	if(data_len < msg->len) {
+		D("%lu < %lu, wait for more data",data_len, msg->len);
+		return 0;
+	}	
+	b->offset += 2;
+	
+	msg->version = *(b->buf + b->offset++);
+	msg->userid = ntohl(*(uint32_t*)(b->buf + b->offset));
+	b->offset += 4;
+	msg->cmd = ntohl(*(uint32_t*)(b->buf + b->offset));
+	b->offset += 4;
+	msg->seq = ntohs(*(uint16_t*)(b->buf + b->offset));
+	b->offset += 2;
+	msg->off = *(b->buf + b->offset++);
+	msg->format = *(b->buf + b->offset++);
+	msg->compress = *(b->buf + b->offset++);
+	msg->client_type = ntohs(*(uint16_t*)(b->buf + b->offset));
+	b->offset += 2;
+	msg->client_version = ntohs(*(uint16_t*)(b->buf + b->offset));
+	b->offset += 2;
+
+	msg->body_len = msg->len -1 - msg->off;
 	//msg->option_len =  msg->len -21 - msg->body_len;
 	msg->option_len =  0;
 	if(agent->user_ctx_len == 0){
@@ -286,47 +229,18 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	}
 
 	if(msg->body_len >0){
-		// set body position
-		index = msg->off;
-		msg->body = calloc(msg->body_len, 1);
+		msg->body = malloc(msg->body_len);
 		if(msg->body == NULL)
 			return -1;
 
-		int t;
-		for(t = 0; t < msg->body_len; t++)
-			msg->body[t] = *buffer_read(b, index+t);
-	}else{	msg->body = NULL; msg->body_len = 0; }
-
-	//index++;// last padding byte
-	agent->buf_parsed += packet_len;
-	agent->upflow += packet_len;
-	packet_len = 0;
-
-	//user is reg state
-	if(msg->cmd == 198) {
-		if(agent->isreg == 1){
-			return -1;
-		}
-		else {
-			int ret = process_reg3_req(msg, agent);
-			if(ret < 0) {
-				//collection not reg3, close socket
-				free(msg->body);
-				worker_remove_agent(agent);
-				pxy_agent_close(agent);
-				return -1;
-			}
-			else if(ret == 0) {
-				// reg3 bad request, return wait client reg3 again
-				free(msg->body);
-				return -1;
-			}
-			else {
-				// do nothing send reqest to 198 bean
-			}
-		}
-		agent->isreg = 1;
+		memcpy(msg->body, b->buf + b->offset,msg->body_len);
 	}
+	else{
+		msg->body = NULL;
+		msg->body_len = 0; 
+	}
+
+	//packet_len = 0;
 
 	if(agent->epid != NULL) {
 		msg->epid = agent->epidr2; 
@@ -347,167 +261,12 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 		agent->clienttype = msg->client_type;
 		worker_insert_agent(agent);
 	}
+	//TODO: change this
 	msg->epid = agent->epidr2; 
 	D("msp->epid %s", msg->epid);
 	msg->logic_pool_id = agent->logic_pool_id;
 	return 1;
 }
-
-
-void release_rpc_message(rec_msg_t* msg)
-{
-	if(msg->body_len > 0 && msg->body != NULL)
-		free(msg->body);
-}
-
-/*void rpc_response(rpc_connection_t *c, rpc_int_t code, void *output, size_t output_len,void *input, size_t input_len, void *data)*/
-/*{*/
-	/*UNUSED(c);*/
-	/*UNUSED(input);*/
-	/*UNUSED(input_len);*/
-	/*rpc_async_req_t* rt = (rpc_async_req_t*)data;*/
-
-	/*W("cmd %d code %d", rt->req->cmd, (int)code);*/
-	/*if (code == RPC_CODE_OK) {*/
-		/*McpAppBeanProto rsp;*/
-		/*rpc_pb_string str = {output, output_len};*/
-		/*int r = rpc_pb_pattern_unpack(rpc_pat_mcpappbeanproto, &str, &rsp);*/
-		/*if (r < 0) {*/
-			/*D("rpc response unpack fail");*/
-			/*// send 500 to client*/
-			/*send_response_client(rt->req, rt->a, 504);*/
-			/*free(rt->rpc_bf);*/
-			/*free(data);*/
-			/*return;*/
-		/*}*/
-
-		/*// 109 msp send reg3, 105 msp send flow, 103 & unreg reg3 overtime msp send unreg;*/
-		/*if(rsp.Cmd == 199 || rsp.Cmd == 105 || (rsp.Cmd == 103 && rt->msp_unreg == 1)) {*/
-			/*D("socket closed msp send unreg!");*/
-			/*free(rt->rpc_bf);*/
-			/*free(data);*/
-			/*return;*/
-		/*}*/
-
-		/*rec_msg_t rp_msg;*/
-		/*rp_msg.cmd = rsp.Cmd;*/
-		/*rp_msg.body_len = rsp.Content.len;*/
-		/*rp_msg.body = rsp.Content.buffer;*/
-		/*rp_msg.userid = rsp.UserId;*/
-		/*rp_msg.seq = rsp.Sequence;*/
-		/*rp_msg.format = rsp.Opt;*/
-		/*rp_msg.compress = rsp.ZipFlag;*/
-		/*char* func = get_cmd_func_name(rsp.Cmd);*/
-		/*D("rpc %s func response, seq is %d", func, rp_msg.format);*/
-		/*UNUSED(func);*/
-		/*// reg2 response*/
-		/*if(rp_msg.cmd == 102 && rt->a->user_ctx == NULL) {*/
-			/*rt->a->isreg = 1;*/
-			/*rt->a->user_ctx_len = rsp.UserContext.len;*/
-			/*rt->a->user_ctx = calloc(rsp.UserContext.len, 1);*/
-			/*memcpy(rt->a->user_ctx, rsp.UserContext.buffer, rsp.UserContext.len);*/
-			/*UserContext us_ctx;*/
-			/*rpc_pb_string str_uc = {rsp.UserContext.buffer, rsp.UserContext.len};*/
-			/*int t = rpc_pb_pattern_unpack(rpc_pat_usercontext, &str_uc, &us_ctx);*/
-
-			/*if(t<0)*/
-			/*{*/
-				/*D("unpack user context fail");*/
-			/*}*/
-			/*else {*/
-				/*rt->a->user_id = us_ctx.UserId;*/
-				/*rt->a->logic_pool_id = us_ctx.LogicalPool;*/
-				/*rt->a->logintime = get_now_time();*/
-			/*}*/
-		/*}*/
-
-		/*int len = 0;*/
-		/*char* d = NULL;*/
-		/*d = get_send_data(&rp_msg, &len);*/
-		/*D("fd %d, d %p, len %d", rt->a->fd, d, len);*/
-		/*send_to_client(rt->a, d, (size_t)len);*/
-		/*free(d);*/
-		/*if(rp_msg.cmd == 103) {*/
-			/*rt->a->isreg = 0;*/
-			/*worker_remove_agent(rt->a);*/
-			/*pxy_agent_close(rt->a);*/
-		/*}*/
-	/*}*/
-	/*else {*/
-		/*if(rt->req == NULL || rt->req->cmd == 199 || rt->req->cmd == 105 ||( rt->req->cmd == 103 && rt->msp_unreg == 1))*/
-		/*{*/
-			/*D("socket closed msp send unreg!");*/
-			/*free(rt->rpc_bf);*/
-			/*free(data);*/
-			/*return;*/
-		/*}*/
-
-		/*// send 500 server error*/
-		/*send_response_client(rt->req, rt->a, 500);*/
-		/*D("send rpc response fail");*/
-		/*if(rt->req->cmd == 103) {*/
-			/*worker_remove_agent(rt->a);*/
-			/*pxy_agent_close(rt->a);*/
-		/*}*/
-	/*}*/
-	/*free(rt->rpc_bf);*/
-	/*free(data);*/
-/*}*/
-
-/*int send_rpc_server(rec_msg_t* req, char* proxy_uri, pxy_agent_t *a, int msp_unreg)*/
-/*{*/
-	/*W("cmd %d prxy uri %s", req->cmd, proxy_uri);*/
-	/*rpc_proxy_t *p ;*/
-
-	/*upstream_t *us = us_get_upstream(upstream_root, proxy_uri);*/
-	/*if(!us) {*/
-		/*W("no proxy,malloc one");*/
-		/*us = pxy_calloc(sizeof(*us));*/
-		/*if(!us) {*/
-			/*E("cannot malloc for upstream_t");*/
-			/*return -1;*/
-		/*}*/
-
-		/*rpc_client_t *cnt = rpc_client_new();*/
-		/*p = rpc_client_connect(cnt, proxy_uri);*/
-		/*p->setting.connect_timeout = 500;*/
-		/*p->setting.request_timeout = 100;//TODO: this value should be more exactly*/
-
-		/*us->uri = strdup(proxy_uri);*/
-		/*us->proxy = p;*/
-		/*us_add_upstream(upstream_root, us);*/
-	/*}*/
-	/*p = us->proxy;*/
-
-	/*rpc_args_init();*/
-	/*McpAppBeanProto args; */
-	/*get_rpc_arg(&args, req);*/
-
-	/*rpc_pb_string str_input; */
-	/*int inputsz = 1024;  */
-	/*str_input.buffer = calloc(inputsz, 1);*/
-	/*str_input.len = inputsz;*/
-	/*rpc_pb_pattern_pack(rpc_pat_mcpappbeanproto, &args, &str_input);*/
-	/*char* func_name = get_cmd_func_name(req->cmd);*/
-
-	/*D("rpc call func name %s", func_name);*/
-	/*rpc_async_req_t* rt = calloc(sizeof(rpc_async_req_t), 1);*/
-	/*rt->a = a;*/
-	/*rt->req = req;*/
-	/*rt->rpc_bf = str_input.buffer;*/
-	/*rt->msp_unreg = msp_unreg;*/
-	/*rpc_int_t code = rpc_call(p, "MCP", func_name, str_input.buffer, str_input.len, NULL, NULL);*/
-
-	/*//we only handle error here */
-	/*if(code != RPC_CODE_OK) {*/
-		/*//TODO: send the error response to the client */
-	/*}*/
-	/*D("code is %d", (int) RPC_CODE_OK);*/
-
-	/*free(str_input.buffer);*/
-	/*free(args.CompactUri.buffer);*/
-	/*return 0;*/
-/*}*/
 
 void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code) 
 {
@@ -562,83 +321,24 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	return 0;
 }
 
-
 static int process_client_req(pxy_agent_t *agent)
 {
 	rec_msg_t msg;
-	if(parse_client_data(agent, &msg) < 0)
-	{	
-		release_rpc_message(&msg);
-		return -1;
+	int r;
+	while ((r = parse_client_data(agent, &msg)) > 0) {
+		agent_to_beans(agent, &msg, 0);
+		if(msg.body_len > 0) {
+			free(msg.body);
+		}
 	}
-
-	if(agent_to_beans(agent,&msg,0) < 0) {
-		release_rpc_message(&msg);
-		return -1;
-	}
-	release_rpc_message(&msg);
-	pxy_agent_buffer_recycle(agent);
-	return 0;
-}
-
-int pxy_agent_buffer_recycle(pxy_agent_t *agent)
-{
-	int rn      = 0;
-	size_t n    = agent->buf_parsed;
-	buffer_t *b = agent->buffer,*t;
-
-	if(b){
-		D("before recycle:the agent->offset:%zu,agent->len:%zu,agent->parsed:%zu",
-				agent->buf_offset,
-				agent->buf_len,
-				agent->buf_parsed);
-	}
-
-	while(b!=NULL && n >= b->len) {
-		n  -= b->len;
-		rn += b->len;
-
-		t = b->next;
-		buffer_release(b,worker->buf_pool,worker->buf_data_pool);
-		b = t;
-
-		D("b:%p,n:%zu",b,n);
-	}
-
-	agent->buffer     = b;
-	agent->buf_len   -= rn;
-	agent->buf_parsed -= rn;
-
-	D("after recycle:the agent->offset:%zu,agent->len:%zu,agent->parsed:%zu",
-			agent->buf_offset,
-			agent->buf_len,
-			agent->buf_parsed);
-
-	return rn;
-}
-
-buffer_t* agent_get_buf_for_read(pxy_agent_t *agent)
-{
-	buffer_t *b = buffer_fetch(worker->buf_pool,worker->buf_data_pool);
-
-	if(b == NULL) {
-		D("no buf available"); 
-		return NULL;
-	}
-
-	if(agent->buffer == NULL) {
-		agent->buffer = b;
-	}
-	else {
-		buffer_append(b,agent->buffer);
-	}
-
-	return b;
+	
+	return r;
 }
 
 void pxy_agent_close(pxy_agent_t *a)
 {
-	// send flow to bean 105
+	//TODO: refact needed
+	//send flow to bean 105
 	send_client_flow_to_bean(a);
 	free(a->epid);
 	a->epid = NULL;
@@ -651,7 +351,9 @@ void pxy_agent_close(pxy_agent_t *a)
 	a->logintime = NULL;
 	free(a->logouttime);
 	a->logouttime = NULL;
-	buffer_t *b;
+
+	mrpc_buf_free(a->recv_buf);
+	mrpc_buf_free(a->send_buf);
 
 	if(a->fd > 0){
 		/* close(agent->fd); */
@@ -663,16 +365,6 @@ void pxy_agent_close(pxy_agent_t *a)
 		close(a->fd);
 	}
 
-	while(a->buffer){
-		b = a->buffer;
-		a->buffer = b->next;
-
-		if(b->data){
-			mp_free(worker->buf_data_pool,b->data);
-		}
-		mp_free(worker->buf_pool,b);
-	}
-
 	mp_free(worker->agent_pool,a);
 }
 
@@ -681,33 +373,32 @@ pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
 {
 	pxy_agent_t *agent = mp_alloc(pool);
 	if(!agent){
-		D("no mempry for agent"); 
+		E("no mempry for agent"); 
+		goto failed;
+	}
+
+	agent->send_buf = mrpc_buf_new(MSP_BUF_LEN);
+	if(!agent->send_buf) {
+		E("no mem for agent send_buf");
+		goto failed;
+	}
+	agent->recv_buf = mrpc_buf_new(MSP_BUF_LEN);
+	if(!agent->recv_buf) {
+		mrpc_buf_free(agent->send_buf);
+		E("no mem for agent recv_buf");
 		goto failed;
 	}
 
 	agent->fd         = fd;
 	agent->user_id    = userid;
-	agent->buf_sent   = 0;
-	agent->buf_parsed = 0;
-	agent->buf_offset = 0;
-	agent->buf_list_n = 0;
-	agent->buf_len = 0;
-	agent->bn_seq = 10000;
 	agent->epid = NULL;
 	agent->user_ctx = NULL;
-	agent->buffer = NULL;
 	agent->isreg = 0;
 	agent->upflow = 0;
 	agent->downflow = 0;
-	agent->send_buf = NULL;
-	agent->send_buf_len = 0;
-	agent->send_buf_offset = 0;
 	return agent;
 
 failed:
-	if(agent){
-		mp_free(worker->agent_pool,agent);
-	}
 	return NULL;
 }
 
@@ -715,56 +406,20 @@ failed:
 void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 {
 	UNUSED(ev);
-
-	int n;
-	buffer_t *b;
 	pxy_agent_t *agent = fi->data;
 
-	D("inter agent_recv_client"); 
-	if(!agent)
-	{
-		W("fd has no agent,ev->data is NULL,close the fd");
-		close(fi->fd); return;
+	int n = mrpc_recv2(agent->recv_buf,agent->fd);
+	
+	if(n == 0) {
+		goto failed;
 	}
-	D("buf len %zu", agent->buf_len);
-	while(1) {
-		b = agent_get_buf_for_read(agent);
-		if(b == NULL) {
-			E("no buf for read");
-			goto failed;
-		}
-
-		n = recv(fi->fd,b->data,BUFFER_SIZE,0);
-		D("recv %d bytes",n);
-
-		if(n < 0) {
-			if(errno == EAGAIN || errno == EWOULDBLOCK) {
-				break;
-			}
-			else {
-				W("read error,errno is %d",errno);
-				goto failed;
-			}
-		}
-
-		if(n == 0) {
-			W("socket fd #%d closed by peer",fi->fd);
-			goto failed;
-		}
-
-		b->len = n;
-		D("agent_buf len %zu", agent->buf_len);
-		agent->buf_len += n;
-
-		if(n < BUFFER_SIZE) {	
-			D("break from receive loop");	
-			break;
-		}
-	}
-	D("buffer-len %zu", agent->buf_len);
+	
 	if(process_client_req(agent) < 0) {
 		W("echo read test fail!");
 		goto failed;
+	}
+	if(agent->recv_buf->offset == agent->recv_buf->size) {
+		mrpc_buf_reset(agent->recv_buf);
 	}
 	return;
 

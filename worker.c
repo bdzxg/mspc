@@ -41,11 +41,14 @@ int worker_init()
 			return -1;
 		}
 
+		/*
+		  TODO need make sure
 		worker->buf_pool = mp_create(sizeof(buffer_t),0,"BufPool");
 		if(!worker->buf_pool) {
 			D("create buf_pool error");
 			return -1;
 		}
+		*/
 
 		upstream_root = (upstream_map_t*) pxy_calloc(sizeof(*upstream_root));
 		if(!upstream_root) {
