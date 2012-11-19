@@ -9,6 +9,8 @@ static char* PROTOCOL = "MCP/3.0";
 void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
 void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi);
 
+
+//TODO handle the error when we cannot connect the backend
 static int _connect(mrpc_connection_t *c) 
 {
 	int fd = socket(AF_INET, SOCK_STREAM, 0);

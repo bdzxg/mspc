@@ -116,8 +116,7 @@ failed:
 	//Add to reg3 rbtree
 	//store_connection_context_reg3(agent);
 	worker_remove_agent(a);
-	pxy_agent_close(a
-);
+	pxy_agent_close(a);
 	return;
 
 }
@@ -188,38 +187,46 @@ void send_client_flow_to_bean(pxy_agent_t *a)
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 {
 	mrpc_buf_t *b = agent->recv_buf;
+#define __B (b->buf + b->offset)
+#define __B1 (b->buf + b->offset++)
 	size_t data_len = b->size - b->offset;
 	
 	if(data_len < 2) {
 		D("length %lu is not enough", data_len);
-		return -1;
+		return 0;
 	}
 
-	msg->len = (int)ntohs(*(uint16_t*)(b->buf + b->offset));
+	msg->len = (int)le16toh(*(uint16_t*)__B);
+	D("b->offset is %d, msg->len %d", b->offset, msg->len);
 	if(data_len < msg->len) {
 		D("%lu < %lu, wait for more data",data_len, msg->len);
 		return 0;
 	}	
 	b->offset += 2;
 	
-	msg->version = *(b->buf + b->offset++);
-	msg->userid = ntohl(*(uint32_t*)(b->buf + b->offset));
+	msg->version = *__B1;
+	msg->userid = le32toh(*(uint32_t*)__B);
 	b->offset += 4;
-	msg->cmd = ntohl(*(uint32_t*)(b->buf + b->offset));
+	msg->cmd = le32toh(*(uint32_t*)__B);
 	b->offset += 4;
-	msg->seq = ntohs(*(uint16_t*)(b->buf + b->offset));
+	msg->seq = le16toh(*(uint16_t*)__B);
 	b->offset += 2;
-	msg->off = *(b->buf + b->offset++);
-	msg->format = *(b->buf + b->offset++);
-	msg->compress = *(b->buf + b->offset++);
-	msg->client_type = ntohs(*(uint16_t*)(b->buf + b->offset));
+	msg->off = *__B1;
+	msg->format = *__B1;
+	msg->compress = *__B1;
+	msg->client_type = le16toh(*(uint16_t*)__B);
 	b->offset += 2;
-	msg->client_version = ntohs(*(uint16_t*)(b->buf + b->offset));
+	msg->client_version = le16toh(*(uint16_t*)__B);
 	b->offset += 2;
 
-	msg->body_len = msg->len -1 - msg->off;
-	//msg->option_len =  msg->len -21 - msg->body_len;
-	msg->option_len =  0;
+
+	b->offset ++;	//oimt the empty byte
+	msg->option_len = msg->off - 21; //21 is the fixed length of header
+	b->offset += msg->option_len;
+
+	msg->body_len = msg->len - msg->off;
+	D("body_len %d", msg->body_len);
+
 	if(agent->user_ctx_len == 0){
 		msg->user_context_len = 0;
 		msg->user_context = NULL;
@@ -239,6 +246,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 		msg->body = NULL;
 		msg->body_len = 0; 
 	}
+	b->offset += msg->body_len;
 
 	//packet_len = 0;
 
@@ -267,6 +275,70 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	msg->logic_pool_id = agent->logic_pool_id;
 	return 1;
 }
+
+
+static inline void 
+_msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
+{
+	memset(m, 0, sizeof(*m));
+
+	m->userid = p->user_id;
+	m->seq = p->sequence;
+	m->cmd = p->cmd;
+	m->format = p->opt;
+	m->compress = p->zip_flag;
+
+	if(p->content.len > 0) {
+		m->body_len = p->content.len;
+		m->body = p->content.buffer;
+	}
+}
+
+void agent_mrpc_handler(mcp_appbean_proto *proto)
+{
+	int size_to_send;
+	rec_msg_t m;	
+	_msg_from_proto(proto, &m);
+	char ch[64] = {0};
+
+	memcpy(ch, proto->epid.buffer, proto->epid.len);
+	pxy_agent_t *a = map_search(&worker->root, ch);
+	if(a == NULL) {
+		E("cannot find the epid %s agent", m.epid);
+		return;
+	}
+
+	mrpc_buf_t *b = a->send_buf;
+	size_to_send = 21 + m.body_len;	//21 is the fixed header length
+	D("agent fd %d, b->len %d b->size %d size_to send %d", 
+	  a->fd, b->len, b->size, size_to_send);
+	while(b->len - b->size < size_to_send) {
+		if(mrpc_buf_enlarge(b) < 0) {
+			E("buf enlarge error");
+			return;
+		}
+	}
+	get_send_data2(&m, b->buf + b->offset);
+	b->size += size_to_send;
+
+	int r = mrpc_send2(a->send_buf, a->fd);
+	if(r < 0) {
+		W("send failed, prepare close!");
+		goto failed;
+	}
+
+	return ;
+
+failed:
+	//Add to reg3 rbtree
+	//store_connection_context_reg3(agent);
+	worker_remove_agent(a);
+	pxy_agent_close(a);
+	return;
+
+	
+}
+
 
 void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code) 
 {
@@ -330,6 +402,7 @@ static int process_client_req(pxy_agent_t *agent)
 		if(msg.body_len > 0) {
 			free(msg.body);
 		}
+		memset(&msg, 0, sizeof(msg));
 	}
 	
 	return r;

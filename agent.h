@@ -58,7 +58,7 @@ void agent_recv_client(ev_t *,ev_file_item_t*);
 void free_string_ptr(char* str);
 void agent_send_client(rec_msg_t* rec_msg, pxy_agent_t *agent);
 void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code); 
-
+void agent_mrpc_handler(mcp_appbean_proto *proto);
 int worker_insert_agent(pxy_agent_t *agent);
 void worker_remove_agent(pxy_agent_t *agent);
 void worker_insert_reg3(reg3_t* r3);

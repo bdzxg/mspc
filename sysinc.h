@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <errno.h>
+#include <endian.h>
 #include <time.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>

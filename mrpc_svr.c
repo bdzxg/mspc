@@ -23,6 +23,7 @@ void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 	resp->h.resp_head.body_length = 0;
 }
 
+//TODO can we remove the malloc(proto) ?
 static int mrpc_process_client_req(mrpc_connection_t *c)
 {
 	mrpc_message_t msg;
@@ -74,14 +75,14 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	sbuf->size += 32 - r;
 	memcpy(sbuf->buf + sbuf->size, __resp, 9);
 	sbuf->size += 9;
-
 	
 	int n = mrpc_send(c);
 	if(n < 0) {
+		//TODO: goto failed?
 		goto failed;
 	}
 
-	//TODO: BIZ handler
+	agent_mrpc_handler(proto);
 	
 	free(proto);
 	//reset the recv buf, send_buf will be reset by _send function

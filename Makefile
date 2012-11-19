@@ -1,5 +1,5 @@
 CC = 	gcc
-CFLAGS = -W -Wall -I -g -O0 -ggdb
+CFLAGS = -pipe -Wall -I -g -O0 -ggdb
 LINK =	$(CC)
 
 LIB_OBJS = \
