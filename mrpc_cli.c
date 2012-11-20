@@ -48,7 +48,7 @@ static int _connect(mrpc_connection_t *c)
 		return -1;
 	}
 
-	D("begin connect, %s", c->us->uri);
+	W("begin connect, %s", c->us->uri);
 	c->connecting = time(NULL);
 	addr.sin_family = AF_INET;
 	addr.sin_port   = htons(atoi(r1 + 1));
@@ -121,6 +121,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 				}
 				else {
 					list_append(&nc->list_us, &us->conn_list);
+					W("connect new connection for frozen");
 					_connect(nc);
 				}
 			}
@@ -168,7 +169,7 @@ static mrpc_us_item_t* _us_new(char *uri)
 		E("cannot malloc for upstream_t");
 		return NULL;
 	}
-	up->uri = uri;
+	up->uri = strdup(uri);
 	D("uri %s", uri);
 	
 	mrpc_us_item_t *us = calloc(1, sizeof(*us));
@@ -177,8 +178,8 @@ static mrpc_us_item_t* _us_new(char *uri)
 		free(up);
 		return NULL;
 	}
-	
-	us->uri = uri;
+
+	us->uri = strdup(uri);
 	INIT_LIST_HEAD(&us->conn_list);
 	INIT_LIST_HEAD(&us->frozen_list);
 	INIT_LIST_HEAD(&us->pending_list);
@@ -213,6 +214,8 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 	}
 	memcpy(r, msg, sizeof(*r));
 
+/*
+  TODO: we ignore option now
 	if(r->option_len > 0) {
 	       r->option = malloc(r->option_len);
 	       D("opt len %d", r->option_len);
@@ -223,6 +226,7 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 	       }
 	       memcpy(r->option, msg->option, r->option_len);
 	}
+*/
 
 	r->body = malloc(r->body_len);
 	if(!r->body) {
@@ -448,11 +452,10 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	memcpy(c->send_buf->buf + c->send_buf->size, body_buf, body_len);
 	c->send_buf->size += body_len;
 
-	free(body_buf);
-	
 	if(mrpc_send(c) < 0) {
 		goto failed;
 	}
+	free(body_buf);
 	return 0;
 failed:
 	free(body_buf);
@@ -493,8 +496,11 @@ static void _send_pending(mrpc_connection_t *c)
 		}
 		list_del(&iter->head);
 
+/*
+  TODO
 		if(iter->option_len > 0) 
 		  free(iter->option);
+*/
 		if(iter->user_context_len > 0)
 		  free(iter->user_context);
 		if(iter->body_len > 0)
@@ -603,6 +609,7 @@ int mrpc_us_send(rec_msg_t *msg)
 	//1. get the us_item by address
 	us = _get_us(msg->uri);
 	if(!us) {
+		W("new upstream for %s", msg->uri);
 		us = _us_new(msg->uri);
 		if(!us) {
 			E("cannnot create us item");

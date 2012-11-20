@@ -199,7 +199,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	msg->len = (int)le16toh(*(uint16_t*)__B);
 	D("b->offset is %d, msg->len %d", b->offset, msg->len);
 	if(data_len < msg->len) {
-		D("%lu < %lu, wait for more data",data_len, msg->len);
+		D("%lu < %d, wait for more data",data_len, msg->len);
 		return 0;
 	}	
 	b->offset += 2;
@@ -228,7 +228,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	D("body_len %d", msg->body_len);
 
 	if(agent->user_ctx_len == 0){
-		msg->user_context_len = 0;
+		msg->user_context_len = 0; 
 		msg->user_context = NULL;
 	}else{
 		msg->user_context_len = agent->user_ctx_len;
@@ -265,7 +265,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 		strncat(agent->epidr2, agent->epid, strlen(agent->epid));
 		strncat(agent->epidr2, ",", 1);
 		strncat(agent->epidr2, LISTENERPORT, strlen(LISTENERPORT));
-		W("REG2 epid %s", agent->epidr2);
+		I("REG2 epid %s", agent->epidr2);
 		agent->clienttype = msg->client_type;
 		worker_insert_agent(agent);
 	}
@@ -382,8 +382,8 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		D("cmd %d url=%s", msg->cmd, url);
 	}
 
-//	msg->uri = url;
-	msg->uri = __url;
+	msg->uri = url;
+//	msg->uri = __url;
 	D("uri is %s", __url);
 	if(mrpc_us_send(msg) < 0) {
 		return -1;
