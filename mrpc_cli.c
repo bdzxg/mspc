@@ -143,7 +143,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 
 	list_for_each_entry_safe(tc, n, &us->frozen_list, list_us) {
 		if(now - tc->connected > MRPC_CONN_DURATION + MRPC_TX_TO * 1.5) {
-			list_del(&tc->list_us);
+			//list_del(&tc->list_us);
 			mrpc_conn_close(tc);
 			mrpc_conn_free(tc);
 		}
@@ -313,14 +313,11 @@ static mrpc_stash_req_t* _map_remove(mrpc_connection_t *c, uint32_t seq)
 	return r;
 }
 
+char __compact_uri[64] = {0};
 static char* get_compact_uri(rec_msg_t* msg)
 {
-	char* ret;
-	ret = malloc(36);
-	if(ret == NULL)
-		return ret;
-	sprintf(ret, "id:%d;p=%d;", msg->userid,msg->logic_pool_id);	
-	return ret;
+	sprintf(__compact_uri, "id:%d;p=%d;", msg->userid,msg->logic_pool_id);	
+	return __compact_uri;
 }
 
 static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
@@ -383,8 +380,6 @@ static void  _stash_req_free(mrpc_stash_req_t *r)
 }
 
 static char _service_name[3] = "MCP";
-static char _method_name[14]  = "mcore-Reg2V501";
-
 static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 {
 	mcp_appbean_proto body;
@@ -411,8 +406,16 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	header.body_length = body_len + 1; // by protocol we need plus 1
 	header.to_service.buffer = _service_name;
 	header.to_service.len = sizeof(_service_name);
-	header.to_method.buffer = _method_name;
-	header.to_method.len = sizeof(_method_name);
+
+	//TODO to load from the config
+	char *fname = get_cmd_func_name(msg->cmd);
+	if(fname == NULL) {
+		W("no func name for cmd %d", msg->cmd);
+		goto failed;
+	}
+	D("the funcname is %s", fname);
+	header.to_method.buffer = fname;
+	header.to_method.len = strlen(fname);
 	
 	char header_buf[128];
 	struct pbc_slice s2 = {header_buf, 128};
@@ -423,7 +426,7 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	}
 	int head_len = 128 - r;
 	size_t pkg_len = 12 + body_len + head_len;
-	while( c->send_buf->len - c->send_buf->size < pkg_len) {
+	while(c->send_buf->len - c->send_buf->size < pkg_len) {
 		if(mrpc_buf_enlarge(c->send_buf) < 0) {
 			E("enlarge error");
 			goto failed;

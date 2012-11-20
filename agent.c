@@ -108,7 +108,7 @@ void send_to_client(pxy_agent_t* a, char* data, size_t len )
 	if(r < 0) {
 		goto failed;
 	}
-
+	a->downflow += len;
 	return ;
 
 failed:
@@ -482,13 +482,13 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	pxy_agent_t *agent = fi->data;
 
 	int n = mrpc_recv2(agent->recv_buf,agent->fd);
-	
 	if(n == 0) {
 		goto failed;
 	}
-	
+	agent->upflow += n;
+
 	if(process_client_req(agent) < 0) {
-		W("echo read test fail!");
+		W("prceoss client request failed");
 		goto failed;
 	}
 	if(agent->recv_buf->offset == agent->recv_buf->size) {
@@ -497,7 +497,7 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	return;
 
 failed:
-	W("failed, prepare close!");
+	W("operation failed, prepare close!");
 	//Add to reg3 rbtree
 	//store_connection_context_reg3(agent);
 	worker_remove_agent(agent);
