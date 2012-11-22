@@ -96,32 +96,6 @@ failed:
 
 }
 
-void send_client_flow_to_bean(pxy_agent_t *a)
-{
-	UNUSED(a);
-	//TODO:
-	return;
-
-	/*MobileFlowEventArgs args;*/
-	/*args.ClientType = a->clienttype;*/
-	/*args.DownFlow = a->downflow;*/
-	/*args.UpFlow = a->upflow;*/
-	/*args.LoginTime.len = strlen(a->logintime);*/
-	/*args.LoginTime.buffer = a->logintime;*/
-	/*args.LogoffTime.buffer = get_now_time();*/
-	/*args.LogoffTime.len = strlen(args.LogoffTime.buffer);*/
-
-	/*rpc_pb_string str_input; */
-	/*int inputsz = 1024;  */
-	/*str_input.buffer = calloc(inputsz, 1);*/
-	/*str_input.len = inputsz;*/
-	/*rpc_pb_pattern_pack(rpc_pat_mobilefloweventargs, &args, &str_input);*/
-
-	/*W("105 len %d", str_input.len);*/
-	/*msp_send_req_to_bean(a, 105, str_input.len, str_input.buffer);*/
-	/*free(str_input.buffer);*/
-}
-
 //ok 1, not finish 0, error -1
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 {
@@ -247,6 +221,7 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 		a->user_id = p->user_id;
 		return 1;
 	case CMD_CLOSE_CONNECTION:
+		worker_remove_agent(a);
 		pxy_agent_close(a);
 		return 1;
 	}
@@ -254,7 +229,7 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 	return 0;
 }
 
-void get_send_data2(rec_msg_t *t, char* rval) 
+static void get_send_data2(rec_msg_t *t, char* rval) 
 {
 	int hl = 21;
 	int length = hl + t->body_len;
@@ -421,7 +396,9 @@ void pxy_agent_close(pxy_agent_t *a)
 {
 	//TODO: refact needed
 	//send flow to bean 105
-	send_client_flow_to_bean(a);
+	agent_send_netstat(a);
+	agent_send_offstate(a);
+
 	free(a->epid);
 	a->epid = NULL;
 	free(a->epidr2);
@@ -485,18 +462,76 @@ failed:
 }
 
 
+void send_client_flow_to_bean(pxy_agent_t *a)
+{
+	UNUSED(a);
+	//TODO:
+	return;
+
+	/*MobileFlowEventArgs args;*/
+	/*args.ClientType = a->clienttype;*/
+	/*args.DownFlow = a->downflow;*/
+	/*args.UpFlow = a->upflow;*/
+	/*args.LoginTime.len = strlen(a->logintime);*/
+	/*args.LoginTime.buffer = a->logintime;*/
+	/*args.LogoffTime.buffer = get_now_time();*/
+	/*args.LogoffTime.len = strlen(args.LogoffTime.buffer);*/
+
+	/*rpc_pb_string str_input; */
+	/*int inputsz = 1024;  */
+	/*str_input.buffer = calloc(inputsz, 1);*/
+	/*str_input.len = inputsz;*/
+	/*rpc_pb_pattern_pack(rpc_pat_mobilefloweventargs, &args, &str_input);*/
+
+	/*W("105 len %d", str_input.len);*/
+	/*msp_send_req_to_bean(a, 105, str_input.len, str_input.buffer);*/
+	/*free(str_input.buffer);*/
+}
+
 int agent_send_netstat(pxy_agent_t *agent)
 {
+	if(agent->user_id<=0) {
+		return 0;
+	}
+
+	I("user %d send netstat", agent->user_id);
+	rec_msg_t msg = {0};
+	msg.cmd = CMD_NET_STAT;
+	msg.userid = agent->user_id;
+	msg.logic_pool_id = agent->logic_pool_id;
+	msg.epid = agent->epid;
+	msg.user_context_len = agent->user_ctx_len;
+	msg.user_context = agent->user_ctx;
+
+	char tmp[128] = {0};
+	struct pbc_slice s = {tmp, 128};
+
+	mobile_flow_event_args args;
+	memset(&args, 0, sizeof(args));
+	args.upflow = agent->upflow;
+	args.downflow = agent->downflow;
+	
+	int r = pbc_pattern_pack(rpc_pat_mobile_flow_event_args, 
+				 &args, 
+				 &s);
+	if(r < 0) {
+		E("pack args error");
+		return -1;
+	}
+
+	msg.body_len = 128 -r;
+	msg.body = tmp;
+	agent_to_beans(agent, &msg, 0);
 	return 0;
 }
 
-#define CMD_OFFSTATE 10107
+
 int agent_send_offstate(pxy_agent_t *agent)
 {
 	rec_msg_t msg = {0};
 
 	I("userid %d send offstate", agent->user_id);
-	msg.cmd = CMD_OFFSTATE;
+	msg.cmd = CMD_CONNECTION_CLOSED;
 	msg.userid = agent->user_id;
 	msg.logic_pool_id = agent->logic_pool_id;
 	msg.epid = agent->epid;
@@ -531,8 +566,6 @@ int agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 
 failed:
 	W("operation failed, prepare close!");
-	agent_send_netstat(agent);
-	agent_send_offstate(agent);
 	worker_remove_agent(agent);
 	pxy_agent_close(agent);
 	return -1;

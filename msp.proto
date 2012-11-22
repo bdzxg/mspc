@@ -29,6 +29,12 @@ message mrpc_response_head
   optional int32 from_id = 6;         // 用于优化消息长度的交换后id, 针对服务器端为单服务器上有效
 }
 
+message mrpc_excetion
+{
+	optional string reason = 1;
+}
+
+
 
 message reg3_args 
 {
