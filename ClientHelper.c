@@ -191,6 +191,7 @@ static char* generate_client_epid(int type, int version)
 	return epid;
 }
 
+/*
 static char* get_now_time()
 {
 	time_t tmp_time;
@@ -202,4 +203,4 @@ static char* get_now_time()
 	W("%d-%d-%d %d:%d:%d\n",(1900+ptime->tm_year),(1+ptime->tm_mon),ptime->tm_mday,	ptime->tm_hour,ptime->tm_min,ptime->tm_sec);
 	return t;
 }
-
+*/

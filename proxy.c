@@ -17,7 +17,7 @@ pxy_init_config()
 	config = (pxy_config_t*)pxy_calloc(sizeof(*config));
 
 	if(config){
-		config->client_port = 8014;
+		config->client_port = 8015;
 		config->backend_port = 9001;
 		config->worker_count = 1;
 
@@ -145,47 +145,6 @@ void set2buf(char** buf, char* source, int len)
 		**buf = *(source+j);	
 		(*buf)++;
 	}
-}
-
-void get_send_data2(rec_msg_t *t, char* rval) 
-{
-	int hl = 21;
-	int length = hl + t->body_len;
-	int offset = hl;
-	char padding = 0;
-	int idx = 0;
-
-#define __SB(b, d, l, idx)			\
-	({					\
-		char *__d = (char*)d;		\
-		int j;				\
-		for(j = 0;j < l;j++) {		\
-			b[idx++] = __d[j];	\
-		}				\
-	})
-
-	__SB(rval, &length, 2, idx);
-	__SB(rval, &t->version, 1, idx);
-	__SB(rval, &t->userid, 4, idx);
-	__SB(rval, &t->cmd, 4, idx);
-	__SB(rval, &t->seq, 2, idx);
-	__SB(rval, &offset, 1, idx);
-	__SB(rval, &t->format, 1, idx);
-	__SB(rval, &t->compress, 1, idx);
-	__SB(rval, &t->client_type, 2, idx);
-	__SB(rval, &t->client_version, 2, idx);
-	__SB(rval, &padding, 1, idx);
-	
-	// option use 0 template
-	//set2buf(&rval, (char*)&padding, 4);
-
-	if(t->body_len > 0) {
-		memcpy(rval + idx, t->body, t->body_len);
-	}
-
-	char tmp[102400] = {0};
-	to_hex(t->body, t->body_len, tmp);
-	D("body is %s", tmp);
 }
 
 char* get_send_data(rec_msg_t* t, int* length)

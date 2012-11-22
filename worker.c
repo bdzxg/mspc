@@ -12,8 +12,6 @@ upstream_map_t *upstream_root;
 int worker_init();
 int worker_start();
 int worker_close();
-void worker_accept(ev_t*,ev_file_item_t*);
-void worker_recv_client(ev_t*,ev_file_item_t*);
 void worker_recv_cmd(ev_t*,ev_file_item_t*);
 void worker_ev_after(ev_t *);
 
@@ -134,7 +132,7 @@ worker_close()
 } 
  
 
-void
+int
 worker_accept(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
@@ -155,26 +153,26 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 		 * delay add events */
 		err = setnonblocking(f);
 		if(err < 0){
-			D("set nonblocking error"); return;
+			D("set nonblocking error"); return 0;
 		}
 
 		agent = pxy_agent_new(worker->agent_pool,f,0);
 		if(!agent){
-			D("create new agent error"); return;
+			D("create new agent error"); return 0;
 		}
 
 		fi = ev_file_item_new(f,
 				      agent,
 				      agent_recv_client,
-				      NULL,
+				      NULL, //TODO add send event and writable
 				      EV_READABLE | EPOLLET);
 		if(!fi){
 			E("create file item error");
-			return;
+			return 0;
 		}
 		if(ev_add_file_item(worker->ev,fi) < 0) {
 			E("add file item failed");
-			return;
+			return 0;
 		}
 		agent->ev = fi;
 
@@ -184,7 +182,8 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 	else {
 		E("accept %s", strerror(errno));
 	}
-	//}
+
+	return 0;
 }
 
 void 
@@ -194,13 +193,6 @@ worker_recv_cmd(ev_t *ev,ev_file_item_t *fi)
 	UNUSED(fi);
 	/* only for quit now */
 	worker_close();
-}
-
-static pxy_agent_t* get_agent(char* key)
-{
-	pxy_agent_t* ret = NULL;
-	ret = map_search(&worker->root, key);
-	return ret;
 }
 
 void worker_ev_after(ev_t *ev)

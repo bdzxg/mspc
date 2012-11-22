@@ -99,7 +99,7 @@ failed:
 	return -1;
 }
 
-static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
+static int mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	int n;
@@ -111,7 +111,7 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 	}
 	if( n == -1) {
 		E("recv return -1");
-		return;
+		return 0;
 	}
 
 	int r;
@@ -126,31 +126,32 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 		}
 		else {}
 	}
-	return;
+	return 0;
 
 failed:
 	W("failed, prepare close!");
 	mrpc_conn_close(c);
 	mrpc_conn_free(c);
-	return;
+	return -1;
 }
 
-static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
+static int mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
 	D("mrpc_svr_send begins");
 	mrpc_connection_t *c = ffi->data;
 	if(mrpc_send(c) < 0) 
 		goto failed;
-	return;
+	return 0;
 
 failed:
 	mrpc_conn_close(c);
 	mrpc_conn_free(c);
+	return -1;
 }
 
 
-void mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
+int mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
 
@@ -166,7 +167,7 @@ void mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 	if(f>0){
 		err = setnonblocking(f);
 		if(err < 0){
-			E("set nonblocking error"); return;
+			E("set nonblocking error"); return 0;
 		}
 		c = mrpc_conn_new(NULL);
 		c->fd = f;
@@ -188,12 +189,13 @@ void mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 	else {
 		E("accept error %s", strerror(errno));
 	}
-	return;
+	return 0;
 
 failed:
 	if(c) {
 		mrpc_conn_close(c);
 		mrpc_conn_free(c);
 	}
+	return 0;
 }
 

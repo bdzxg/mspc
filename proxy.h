@@ -74,8 +74,8 @@ typedef struct pxy_command_s{
 int worker_init();
 int worker_start();
 int worker_close();
-void worker_accept(ev_t*,ev_file_item_t*);
-void worker_recv_client(ev_t*,ev_file_item_t*);
+int worker_accept(ev_t*,ev_file_item_t*);
+int worker_recv_client(ev_t*,ev_file_item_t*);
 void worker_recv_cmd(ev_t*,ev_file_item_t*);
 char* get_send_data(rec_msg_t* t, int* length);
 void *rpc_server_thread(void *arg);

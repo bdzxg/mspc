@@ -253,7 +253,7 @@ int mrpc_start();
 int mrpc_us_send(rec_msg_t *);
 void mrpc_us_send_err(rec_msg_t *);
 void mrpc_ev_after();
-void mrpc_svr_accept(ev_t *, ev_file_item_t*);
+int mrpc_svr_accept(ev_t *, ev_file_item_t*);
 
 mrpc_connection_t* mrpc_conn_new(mrpc_us_item_t *us);
 void mrpc_conn_close(mrpc_connection_t *c);

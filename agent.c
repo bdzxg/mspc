@@ -51,6 +51,7 @@ reg3_t* worker_remove_reg3(char* key)
 	return r3;
 }
 
+/*
 void msp_send_unreg(reg3_t* a)
 {
 	if(a->user_context!= NULL) {
@@ -68,33 +69,7 @@ void msp_send_unreg(reg3_t* a)
 		agent_to_beans(NULL, &msg, 1);
 	}
 }
-
-void msp_send_req_to_bean(pxy_agent_t* a, int cmd, int bodylen, char* body)
-{
-	if(a->user_ctx != NULL) {
-		rec_msg_t msg;
-		msg.cmd = cmd;
-		msg.userid = a->user_id;
-		msg.logic_pool_id = a->logic_pool_id;
-		msg.seq = 100000;
-		msg.format = 0;
-		msg.user_context_len = a->user_ctx_len;
-		msg.user_context = a->user_ctx;
-		msg.body_len = bodylen;
-		msg.body = body;
-		msg.epid = a->epid;
-		msg.compress = 0;
-		agent_to_beans(a, &msg, 1);
-	}
-}
-
-void release_reg3(reg3_t* r3)
-{
-	free(r3->epid);
-	free(r3->user_context);
-	free(r3);
-}
-
+*/
 
 //TODO !!!!!!!
 void send_to_client(pxy_agent_t* a, char* data, size_t len )
@@ -119,42 +94,6 @@ failed:
 	pxy_agent_close(a);
 	return;
 
-}
-
-
-int store_connection_context_reg3(pxy_agent_t *a)
-{
-	if(a->isreg == 1 && a->epid != NULL && a->user_ctx_len > 0)
-	{
-		// epid
-		reg3_t* r3 = calloc(sizeof(reg3_t), 1);
-		r3->epid = calloc(strlen(a->epid)+1, 1);
-		memcpy(r3->epid, a->epid, strlen(a->epid));
-
-		// context
-		r3->user_context_len = a->user_ctx_len;
-		r3->user_context = calloc(r3->user_context_len, 1);
-		memcpy(r3->user_context, a->user_ctx, r3->user_context_len);
-
-		r3->user_id = a->user_id;
-		r3->logic_pool_id = a->logic_pool_id;
-
-		r3->remove_time = time(NULL)+REG3_REMOVE_INTERVAL_MIN*60; 
-		worker_insert_reg3(r3);
-
-		// send 199 to appbean
-		msp_send_req_to_bean(a, 199, 0, NULL);
-		return 1;
-	}
-	else
-		return 0;
-}
-
-int process_reg3_req(rec_msg_t* msg, pxy_agent_t* a)
-{
-	UNUSED(msg);
-	UNUSED(a);
-	return 1;
 }
 
 void send_client_flow_to_bean(pxy_agent_t *a)
@@ -197,9 +136,9 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	}
 
 	msg->len = (int)le16toh(*(uint16_t*)__B);
-	D("b->offset is %d, msg->len %d", b->offset, msg->len);
+	D("b->offset is %zu, msg->len %d", b->offset, msg->len);
 	if(data_len < msg->len) {
-		D("%lu < %d, wait for more data",data_len, msg->len);
+		D("%zu < %d, wait for more data",data_len, msg->len);
 		return 0;
 	}	
 	b->offset += 2;
@@ -294,6 +233,68 @@ _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 	}
 }
 
+#define CMD_USER_VALID 101
+#define CMD_CLOSE_CONNECTION 102
+#define CMD_CONNECTION_CLOSED 103
+#define CMD_NET_STAT 104
+
+//if match the internal cmd return 1,else return 0
+static int 
+_try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
+{
+	switch(p->cmd) {
+	case CMD_USER_VALID:
+		a->user_id = p->user_id;
+		return 1;
+	case CMD_CLOSE_CONNECTION:
+		pxy_agent_close(a);
+		return 1;
+	}
+
+	return 0;
+}
+
+void get_send_data2(rec_msg_t *t, char* rval) 
+{
+	int hl = 21;
+	int length = hl + t->body_len;
+	int offset = hl;
+	char padding = 0;
+	int idx = 0;
+
+#define __SB(b, d, l, idx)			\
+	({					\
+		char *__d = (char*)d;		\
+		int j;				\
+		for(j = 0;j < l;j++) {		\
+			b[idx++] = __d[j];	\
+		}				\
+	})
+
+	__SB(rval, &length, 2, idx);
+	__SB(rval, &t->version, 1, idx);
+	__SB(rval, &t->userid, 4, idx);
+	__SB(rval, &t->cmd, 4, idx);
+	__SB(rval, &t->seq, 2, idx);
+	__SB(rval, &offset, 1, idx);
+	__SB(rval, &t->format, 1, idx);
+	__SB(rval, &t->compress, 1, idx);
+	__SB(rval, &t->client_type, 2, idx);
+	__SB(rval, &t->client_version, 2, idx);
+	__SB(rval, &padding, 1, idx);
+	
+	// option use 0 template
+	//set2buf(&rval, (char*)&padding, 4);
+
+	if(t->body_len > 0) {
+		memcpy(rval + idx, t->body, t->body_len);
+	}
+
+	char tmp[102400] = {0};
+	to_hex(t->body, t->body_len, tmp);
+	D("body is %s", tmp);
+}
+
 void agent_mrpc_handler(mcp_appbean_proto *proto)
 {
 	int size_to_send;
@@ -308,9 +309,13 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 		return;
 	}
 
+	if(_try_process_internal_cmd(a, proto) > 0) {
+		return;
+	}
+
 	mrpc_buf_t *b = a->send_buf;
 	size_to_send = 21 + m.body_len;	//21 is the fixed header length
-	D("agent fd %d, b->len %d b->size %d size_to send %d", 
+	D("agent fd %d, b->len %zu b->size %zu size_to send %d", 
 	  a->fd, b->len, b->size, size_to_send);
 	while(b->len - b->size < size_to_send) {
 		if(mrpc_buf_enlarge(b) < 0) {
@@ -335,8 +340,6 @@ failed:
 	worker_remove_agent(a);
 	pxy_agent_close(a);
 	return;
-
-	
 }
 
 
@@ -383,9 +386,8 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	}
 
 	msg->uri = url;
-//	msg->uri = __url;
-	D("uri is %s", __url);
 	if(mrpc_us_send(msg) < 0) {
+		W("mrpc send error");
 		return -1;
 	}
 
@@ -398,6 +400,13 @@ static int process_client_req(pxy_agent_t *agent)
 	rec_msg_t msg;
 	int r;
 	while ((r = parse_client_data(agent, &msg)) > 0) {
+		if(agent->user_id > 0) {
+			if(msg.userid != agent->user_id) {
+				W("user id %d not match with %d", 
+				  msg.userid, agent->user_id);
+				return -1;
+			}
+		}
 		agent_to_beans(agent, &msg, 0);
 		if(msg.body_len > 0) {
 			free(msg.body);
@@ -475,8 +484,32 @@ failed:
 	return NULL;
 }
 
+
+int agent_send_netstat(pxy_agent_t *agent)
+{
+	return 0;
+}
+
+#define CMD_OFFSTATE 10107
+int agent_send_offstate(pxy_agent_t *agent)
+{
+	rec_msg_t msg = {0};
+
+	I("userid %d send offstate", agent->user_id);
+	msg.cmd = CMD_OFFSTATE;
+	msg.userid = agent->user_id;
+	msg.logic_pool_id = agent->logic_pool_id;
+	msg.epid = agent->epid;
+	msg.user_context_len = agent->user_ctx_len;
+	msg.user_context = agent->user_ctx;
+
+	agent_to_beans(agent, &msg, 0);
+	return 0;
+}
+
+
 // client data
-void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
+int agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	pxy_agent_t *agent = fi->data;
@@ -494,13 +527,13 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	if(agent->recv_buf->offset == agent->recv_buf->size) {
 		mrpc_buf_reset(agent->recv_buf);
 	}
-	return;
+	return 0;
 
 failed:
 	W("operation failed, prepare close!");
-	//Add to reg3 rbtree
-	//store_connection_context_reg3(agent);
+	agent_send_netstat(agent);
+	agent_send_offstate(agent);
 	worker_remove_agent(agent);
 	pxy_agent_close(agent);
-	return;
+	return -1;
 }

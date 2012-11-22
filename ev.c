@@ -87,15 +87,9 @@ ev_main(ev_t* ev)
 			if(evts & EPOLLIN) {
 				if(fi->rfunc){
 					D("RFUNC");
-					fi->rfunc(ev,fi);
+					if(fi->rfunc(ev,fi) < 0)
+						continue;
 				}
-			}
-			
-			
-			if(fi->valid <= 0) {
-				D("ev_main free fi %p", fi);
-				free(fi);
-				continue;
 			}
 			
 			if(evts & EPOLLOUT || evts & EPOLLHUP || evts & EPOLLERR) {
@@ -103,12 +97,6 @@ ev_main(ev_t* ev)
 					D("WFUNC");
 					fi->wfunc(ev,fi);
 				}
-			}
-			
-			if(fi->valid <= 0) {
-				D("ev_main free fi %p", fi);
-				free(fi);
-				continue;
 			}
 		}
 

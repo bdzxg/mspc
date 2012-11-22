@@ -6,8 +6,8 @@ extern pxy_config_t* config;
 static mrpc_upstreamer_t mrpc_up;
 static char* PROTOCOL = "MCP/3.0";
 
-void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
-void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi);
+int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
+int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi);
 
 
 //TODO handle the error when we cannot connect the backend
@@ -26,7 +26,6 @@ static int _connect(mrpc_connection_t *c)
 		close(fd);
 		return -1;
 	}
-
 
 	char *s = c->us->uri;
 	char *r1 = rindex(s, ':');
@@ -48,7 +47,7 @@ static int _connect(mrpc_connection_t *c)
 		return -1;
 	}
 
-	W("begin connect, %s", c->us->uri);
+	D("begin connect, %s", c->us->uri);
 	c->connecting = time(NULL);
 	addr.sin_family = AF_INET;
 	addr.sin_port   = htons(atoi(r1 + 1));
@@ -149,7 +148,6 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 			mrpc_conn_free(tc);
 		}
 	}
-	D("frozen for each quit, return %p", c);
 	return c;
 }
 
@@ -511,7 +509,7 @@ static void _send_pending(mrpc_connection_t *c)
 	}
 }
 
-void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
+int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	mrpc_connection_t *c = fi->data;
@@ -524,7 +522,7 @@ void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 	}
 	if(n == -1) {
 		E("recv return -1, wired");
-		return;
+		return 0;
 	}
 	
 	mrpc_message_t msg;
@@ -537,7 +535,7 @@ void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 			goto failed;
 		}
 		if(n == 0) {
-			return;
+			return 0;
 		}
 
 		//find the sent request
@@ -559,20 +557,18 @@ void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 	}
 failed:
 	mrpc_conn_close(c);
+	return -1;
 }
 
 
-void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi) 
+int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi) 
 {
 	UNUSED(ev);
 	mrpc_connection_t *c = fi->data;
 	int err;
 	socklen_t err_len;
 
-	D("mrpc_cli_ev_out begins");
-	D("status %d, %d", c->conn_status, MRPC_CONN_CONNECTING);
 	if(c->conn_status == MRPC_CONN_CONNECTING) {
-		D("connecting");
 		getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len);
 		if(err != 0) {
 			D("connected!");
@@ -583,8 +579,7 @@ void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 		else {
 			D("connect error");
 			c->conn_status = MRPC_CONN_DISCONNECTED;
-			mrpc_conn_close(c);
-			return;
+			goto failed;
 		}
 	}
 
@@ -592,6 +587,11 @@ void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 		E("send error, close connection");
 		mrpc_conn_close(c);
 	}
+
+	return 0;
+failed :
+	mrpc_conn_close(c);
+	return -1;
 }
 
 
