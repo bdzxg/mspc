@@ -84,7 +84,7 @@ static int _connect(mrpc_connection_t *c)
 	c->event = fi;
 
 	if(r == 0) {
-		D("connect succ immediately");
+		E("connect succ immediately");
 		c->conn_status = MRPC_CONN_CONNECTED;
 		c->connected = time(NULL);
 	}
@@ -524,12 +524,16 @@ int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 		E("recv return -1, wired");
 		return 0;
 	}
+
+	E("recv %d", n);
 	
 	mrpc_message_t msg;
 	mcp_appbean_proto proto;
 	
 	for( ;; ) {
 		n = mrpc_parse(c->recv_buf, &msg, &proto);
+		E("n is %d, offset %zu, size %zu", n, c->recv_buf->offset, c->recv_buf->size);
+
 		if(n < 0) {
 			E("parse error");
 			goto failed;
@@ -549,13 +553,16 @@ int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 		        W("resp code %d", msg.h.resp_head.response_code);
 			//TODO find the agent, and send the error response
 		}
-		free(r);
+		_stash_req_free(r);
 	}
+
+
 
 	if(c->recv_buf->offset == c->recv_buf->size) {
 		mrpc_buf_reset(c->recv_buf);
 	}
 failed:
+	W("cli recv failed, address %s, fd %d, %p",c->us->uri, c->fd, c);
 	mrpc_conn_close(c);
 	return -1;
 }
@@ -569,15 +576,20 @@ int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 	socklen_t err_len;
 
 	if(c->conn_status == MRPC_CONN_CONNECTING) {
-		getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len);
-		if(err != 0) {
-			D("connected!");
+		if(getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len) < 0) {
+			E("getsockopt error");
+			return 0;
+				
+		}
+		
+		if(err == 0 || err_len == 0) {
+			E("connected!");
 			c->conn_status = MRPC_CONN_CONNECTED;
 			c->connected = time(NULL);
 			_send_pending(c);
 		}
 		else {
-			D("connect error");
+			E("err is %d", err);
 			c->conn_status = MRPC_CONN_DISCONNECTED;
 			goto failed;
 		}
@@ -585,7 +597,7 @@ int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 
 	if(mrpc_send(c) < 0) {
 		E("send error, close connection");
-		mrpc_conn_close(c);
+		goto failed;
 	}
 
 	return 0;
@@ -632,9 +644,7 @@ int mrpc_us_send(rec_msg_t *msg)
 			E("max pending");
 			return -4;
 		}
-		D("begin clone");
 		rec_msg_t *m = _clone_msg(msg);
-		D("clone finish");
 		if(!m) {
 			E("clone msg error");
 			return -1;

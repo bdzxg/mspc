@@ -303,7 +303,7 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 
 	int r = mrpc_send2(a->send_buf, a->fd);
 	if(r < 0) {
-		W("send failed, prepare close!");
+		I("send failed, prepare close!");
 		goto failed;
 	}
 
@@ -528,6 +528,10 @@ int agent_send_netstat(pxy_agent_t *agent)
 
 int agent_send_offstate(pxy_agent_t *agent)
 {
+	if(agent->user_id <= 0) {
+		return 0;
+	}
+
 	rec_msg_t msg = {0};
 
 	I("userid %d send offstate", agent->user_id);
@@ -556,7 +560,7 @@ int agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	agent->upflow += n;
 
 	if(process_client_req(agent) < 0) {
-		W("prceoss client request failed");
+		I("prceoss client request failed");
 		goto failed;
 	}
 	if(agent->recv_buf->offset == agent->recv_buf->size) {
@@ -565,7 +569,7 @@ int agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	return 0;
 
 failed:
-	W("operation failed, prepare close!");
+	I("operation failed, prepare close!");
 	worker_remove_agent(agent);
 	pxy_agent_close(agent);
 	return -1;

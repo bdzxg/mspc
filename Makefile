@@ -62,6 +62,7 @@ clean:
 	rm -f $(TEST)
 	rm -f $(MAP_TEST) 
 	rm -f $(FUNC_TEST)
+	rm -f $(MRPC_OBJS)
 
 ht_test: $(LIB_OBJS) $(HT_TEST)
 	$(LINK) $(LIB_OBJS) $(TEST) -o $@

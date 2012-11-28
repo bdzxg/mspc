@@ -17,7 +17,7 @@ pxy_init_config()
 	config = (pxy_config_t*)pxy_calloc(sizeof(*config));
 
 	if(config){
-		config->client_port = 8015;
+		config->client_port = 8014;
 		config->backend_port = 9001;
 		config->worker_count = 1;
 
@@ -203,6 +203,7 @@ char* get_send_data(rec_msg_t* t, int* length)
 
 int main()
 {
+	D("process start");
 	char ch[80];
 	pxy_worker_t *w;
 	log_file = stdout;

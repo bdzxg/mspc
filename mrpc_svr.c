@@ -28,14 +28,9 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 {
 	mrpc_message_t msg;
 	mrpc_buf_t *b = c->recv_buf;
-	mcp_appbean_proto *proto;
-	proto = malloc(sizeof(*proto));
-	if(!proto) {
-		E("no mem for proto");
-		return -1;
-	}
+	mcp_appbean_proto proto;
 
-	int r = mrpc_parse(b, &msg, proto);
+	int r = mrpc_parse(b, &msg, &proto);
 	if(r < 0) {
 		goto failed;
 	}
@@ -82,9 +77,8 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 		goto failed;
 	}
 
-	agent_mrpc_handler(proto);
+	agent_mrpc_handler(&proto);
 	
-	free(proto);
 	//reset the recv buf, send_buf will be reset by _send function
 	if(b->offset == b->size) {
 		mrpc_buf_reset(b);
@@ -93,7 +87,6 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	return 1;
 
 failed:
-	free(proto);
 	mrpc_conn_close(c);
 	mrpc_conn_free(c);
 	return -1;

@@ -39,9 +39,10 @@ ev_add_file_item(ev_t* ev,ev_file_item_t* item)
 int 
 ev_del_file_item(ev_t *ev, ev_file_item_t* item)
 {
-        int fd = item->fd;
-        item->valid = 0;
-	return epoll_ctl(ev->fd,EV_CTL_DEL,fd,NULL);
+	struct epoll_event epev;
+	epev.events = item->events;
+	epev.data.ptr = item;
+	return epoll_ctl(ev->fd,EV_CTL_DEL,item->fd, &epev);
 }
 
 int 
@@ -92,7 +93,8 @@ ev_main(ev_t* ev)
 				}
 			}
 			
-			if(evts & EPOLLOUT || evts & EPOLLHUP || evts & EPOLLERR) {
+//			if(evts & EPOLLOUT || evts & EPOLLHUP || evts & EPOLLERR) {
+			if(evts & EPOLLOUT) {
 				if(fi->wfunc) {
 					D("WFUNC");
 					fi->wfunc(ev,fi);

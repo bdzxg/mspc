@@ -12,7 +12,7 @@ extern FILE *log_file;
 #define LOG_LEVEL_WARN  2
 #define LOG_LEVEL_ERROR 3
 
-#define LOG_LEVEL LOG_LEVEL_DEBUG
+#define LOG_LEVEL LOG_LEVEL_WARN
 
 #define L(l,format,...)							\
 	do {								\
@@ -50,4 +50,3 @@ extern FILE *log_file;
 
 
 #endif
-
