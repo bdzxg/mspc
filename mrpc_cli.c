@@ -3,7 +3,6 @@
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 extern pxy_config_t* config;
-static mrpc_upstreamer_t mrpc_up;
 static char* PROTOCOL = "MCP/3.0";
 
 int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
@@ -525,21 +524,18 @@ int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 		return 0;
 	}
 
-	E("recv %d", n);
-	
 	mrpc_message_t msg;
 	mcp_appbean_proto proto;
 	
 	for( ;; ) {
 		n = mrpc_parse(c->recv_buf, &msg, &proto);
-		E("n is %d, offset %zu, size %zu", n, c->recv_buf->offset, c->recv_buf->size);
 
 		if(n < 0) {
 			E("parse error");
 			goto failed;
 		}
 		if(n == 0) {
-			return 0;
+			break;
 		}
 
 		//find the sent request
@@ -556,13 +552,13 @@ int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 		_stash_req_free(r);
 	}
 
-
-
 	if(c->recv_buf->offset == c->recv_buf->size) {
 		mrpc_buf_reset(c->recv_buf);
 	}
+
+	return 0;
 failed:
-	W("cli recv failed, address %s, fd %d, %p",c->us->uri, c->fd, c);
+	I("cli recv failed, address %s, fd %d, %p",c->us->uri, c->fd, c);
 	mrpc_conn_close(c);
 	return -1;
 }
@@ -631,7 +627,6 @@ int mrpc_us_send(rec_msg_t *msg)
 	
 	//2. get the connection from the us_item
 	c = _get_conn(us);
-	D("get connection %p", c);
 	if(c != NULL)  {
 		if(_send_inner(msg, c) < 0) {
 			E("send inner return -1");
@@ -650,6 +645,7 @@ int mrpc_us_send(rec_msg_t *msg)
 			return -1;
 		}
 		list_append(&m->head, &us->pending_list);
+		us->pend_count++;
 	}
 	return 0;
 }

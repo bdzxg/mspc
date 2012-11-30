@@ -12,12 +12,14 @@ size_t packet_len;
 #define MSP_BUF_LEN 1024
 
 static char OVERTIME[3] = {8, 248, 3};// 504
+static char BADGATEWAY[3] = {8, 246, 3};// 502
 static char SERVERERROR[3] = {8, 244, 3};// 500
 static char REQERROR[3] = {8, 144, 3};// 400
 static char NOTEXIST[3] = {8, 155, 3};// 411
 
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg);
-
+int agent_send_netstat(pxy_agent_t *agent);
+int agent_send_offstate(a);
 int worker_insert_agent(pxy_agent_t *agent)
 {
 	int ret = 0;
@@ -71,30 +73,6 @@ void msp_send_unreg(reg3_t* a)
 }
 */
 
-//TODO !!!!!!!
-void send_to_client(pxy_agent_t* a, char* data, size_t len )
-{
-	mrpc_buf_t *b = a->send_buf;
-	while(b->size - b->offset > len){
-		mrpc_buf_enlarge(b);
-	}
-
-	int r = mrpc_send2(a->send_buf, a->fd);
-	if(r < 0) {
-		goto failed;
-	}
-	a->downflow += len;
-	return ;
-
-failed:
-	W("send failed, prepare close!");
-	//Add to reg3 rbtree
-	//store_connection_context_reg3(agent);
-	worker_remove_agent(a);
-	pxy_agent_close(a);
-	return;
-
-}
 
 //ok 1, not finish 0, error -1
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
@@ -270,9 +248,34 @@ static void get_send_data2(rec_msg_t *t, char* rval)
 	D("body is %s", tmp);
 }
 
+static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
+{
+	mrpc_buf_t *b = a->send_buf;
+	size_t size_to_send = 21 + m->body_len;	//21 is the fixed header length
+
+	D("agent fd %d, b->len %zu b->size %zu size_to send %d", 
+	  a->fd, b->len, b->size, size_to_send);
+
+	while(b->len - b->size < size_to_send) {
+		if(mrpc_buf_enlarge(b) < 0) {
+			E("buf enlarge error");
+			return 0;
+		}
+	}
+
+	get_send_data2(m, b->buf + b->offset);
+	b->size += size_to_send;
+
+	int r = mrpc_send2(a->send_buf, a->fd);
+	if(r < 0) {
+		I("send failed, prepare close!");
+		return -1;
+	}
+	return 0;
+}
+
 void agent_mrpc_handler(mcp_appbean_proto *proto)
 {
-	int size_to_send;
 	rec_msg_t m;	
 	_msg_from_proto(proto, &m);
 	char ch[64] = {0};
@@ -280,7 +283,7 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 	memcpy(ch, proto->epid.buffer, proto->epid.len);
 	pxy_agent_t *a = map_search(&worker->root, ch);
 	if(a == NULL) {
-		E("cannot find the epid %s agent", m.epid);
+		W("cannot find the epid %s agent, cmd is %d", ch, m.cmd);
 		return;
 	}
 
@@ -288,22 +291,7 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 		return;
 	}
 
-	mrpc_buf_t *b = a->send_buf;
-	size_to_send = 21 + m.body_len;	//21 is the fixed header length
-	D("agent fd %d, b->len %zu b->size %zu size_to send %d", 
-	  a->fd, b->len, b->size, size_to_send);
-	while(b->len - b->size < size_to_send) {
-		if(mrpc_buf_enlarge(b) < 0) {
-			E("buf enlarge error");
-			return;
-		}
-	}
-	get_send_data2(&m, b->buf + b->offset);
-	b->size += size_to_send;
-
-	int r = mrpc_send2(a->send_buf, a->fd);
-	if(r < 0) {
-		I("send failed, prepare close!");
+	if(_send_to_client(&m, a) < 0) {
 		goto failed;
 	}
 
@@ -318,34 +306,7 @@ failed:
 }
 
 
-void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code) 
-{
-	rec_msg_t rp_msg;
-	rp_msg.cmd = req->cmd;
-	rp_msg.body_len = 3;
-	if(code == 504)
-		rp_msg.body = OVERTIME;
-	else if(code == 400)
-		rp_msg.body = REQERROR;
-	else if(code == 411)
-		rp_msg.body = NOTEXIST;
-	else 
-		rp_msg.body = SERVERERROR;
-
-	rp_msg.userid = req->userid;
-	rp_msg.seq = req->seq;
-	rp_msg.format = 128;
-	rp_msg.compress = 0; 
-	rp_msg.client_type = req->client_type;
-	rp_msg.client_version = req->client_version;
-	int len;
-	char* d = get_send_data(&rp_msg, &len);
-	D("fd %d, d %p, len %d", a->fd, d, len);
-	send_to_client(a, d, (size_t)len);
-	free(d);
-}
- 
-char __url[32] = "tcp://10.10.10.184:7777";
+char __url[32] = "tcp://10.10.41.9:7700";
 
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 {
@@ -360,9 +321,11 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		D("cmd %d url=%s", msg->cmd, url);
 	}
 
-	msg->uri = url;
+//	msg->uri = url;
+	msg->uri = __url;
+
 	if(mrpc_us_send(msg) < 0) {
-		W("mrpc send error");
+		E("mrpc send error");
 		return -1;
 	}
 
@@ -382,7 +345,24 @@ static int process_client_req(pxy_agent_t *agent)
 				return -1;
 			}
 		}
-		agent_to_beans(agent, &msg, 0);
+		
+		//when send failed, we should give a error response
+		if(agent_to_beans(agent, &msg, 0) < 0) {
+			if(msg.body_len > 0) {
+				free(msg.body);
+			}
+			
+			msg.body = BADGATEWAY;
+			msg.body_len = sizeof(BADGATEWAY);
+			msg.format = 128; //response
+			
+			if(_send_to_client(&msg, agent) < 0) {
+				return -1;
+			}
+
+			continue;
+		}
+
 		if(msg.body_len > 0) {
 			free(msg.body);
 		}
@@ -462,32 +442,6 @@ failed:
 }
 
 
-void send_client_flow_to_bean(pxy_agent_t *a)
-{
-	UNUSED(a);
-	//TODO:
-	return;
-
-	/*MobileFlowEventArgs args;*/
-	/*args.ClientType = a->clienttype;*/
-	/*args.DownFlow = a->downflow;*/
-	/*args.UpFlow = a->upflow;*/
-	/*args.LoginTime.len = strlen(a->logintime);*/
-	/*args.LoginTime.buffer = a->logintime;*/
-	/*args.LogoffTime.buffer = get_now_time();*/
-	/*args.LogoffTime.len = strlen(args.LogoffTime.buffer);*/
-
-	/*rpc_pb_string str_input; */
-	/*int inputsz = 1024;  */
-	/*str_input.buffer = calloc(inputsz, 1);*/
-	/*str_input.len = inputsz;*/
-	/*rpc_pb_pattern_pack(rpc_pat_mobilefloweventargs, &args, &str_input);*/
-
-	/*W("105 len %d", str_input.len);*/
-	/*msp_send_req_to_bean(a, 105, str_input.len, str_input.buffer);*/
-	/*free(str_input.buffer);*/
-}
-
 int agent_send_netstat(pxy_agent_t *agent)
 {
 	if(agent->user_id<=0) {
@@ -524,7 +478,6 @@ int agent_send_netstat(pxy_agent_t *agent)
 	agent_to_beans(agent, &msg, 0);
 	return 0;
 }
-
 
 int agent_send_offstate(pxy_agent_t *agent)
 {

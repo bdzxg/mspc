@@ -31,6 +31,7 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	mcp_appbean_proto proto;
 
 	int r = mrpc_parse(b, &msg, &proto);
+	
 	if(r < 0) {
 		goto failed;
 	}

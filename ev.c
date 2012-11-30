@@ -93,8 +93,7 @@ ev_main(ev_t* ev)
 				}
 			}
 			
-//			if(evts & EPOLLOUT || evts & EPOLLHUP || evts & EPOLLERR) {
-			if(evts & EPOLLOUT) {
+			if(evts & EPOLLOUT || evts & EPOLLHUP || evts & EPOLLERR) {
 				if(fi->wfunc) {
 					D("WFUNC");
 					fi->wfunc(ev,fi);
