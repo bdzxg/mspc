@@ -23,34 +23,20 @@ int agent_send_offstate(a);
 int worker_insert_agent(pxy_agent_t *agent)
 {
 	int ret = 0;
-	pthread_mutex_lock (&worker->mutex);
 	ret = map_insert(&worker->root,agent);
-	pthread_mutex_unlock(&worker->mutex);
 	return ret;
 }
 
 void worker_remove_agent(pxy_agent_t *agent)
 {
 	if(agent->epid != NULL) {
-		pthread_mutex_lock(&worker->mutex);	
 		map_remove(&worker->root, agent->epid);
-		pthread_mutex_unlock(&worker->mutex);
 	}
 }
 
 void worker_insert_reg3(reg3_t* r3)
 {
-	pthread_mutex_lock(&worker->r3_mutex);
 	map_insert_reg3(&worker->r3_root, r3);	
-	pthread_mutex_unlock(&worker->r3_mutex);
-}
-
-reg3_t* worker_remove_reg3(char* key)
-{
-	pthread_mutex_lock(&worker->r3_mutex);
-	reg3_t* r3 = map_remove_reg3(&worker->r3_root, key);
-	pthread_mutex_unlock(&worker->r3_mutex);
-	return r3;
 }
 
 /*
@@ -151,13 +137,12 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
  		*/
 	}
 	else {
-		msg->epid = agent->epid = generate_client_epid(msg->client_type, msg->client_version);
-		agent->epidr2 = calloc(strlen(agent->epid)+strlen(LISTENERPORT)+2, 1);
-		strncat(agent->epidr2, agent->epid, strlen(agent->epid));
-		strncat(agent->epidr2, ",", 1);
-		strncat(agent->epidr2, LISTENERPORT, strlen(LISTENERPORT));
-		I("REG2 epid %s", agent->epidr2);
+		char* t = generate_client_epid(msg->client_type, msg->client_version);
+		msg->epid = agent->epid = t;
+		agent->epidr2 = calloc(strlen(agent->epid)+strlen(LISTENERPORT)+2, 1);		
+		sprintf("%s,%s", agent->epid, LISTENERPORT);
 		agent->clienttype = msg->client_type;
+
 		worker_insert_agent(agent);
 	}
 	//TODO: change this
@@ -189,11 +174,40 @@ _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 #define CMD_CLOSE_CONNECTION 102
 #define CMD_CONNECTION_CLOSED 103
 #define CMD_NET_STAT 104
+#define CMD_REFRESH_EPID 105
+
+
+static int
+ _refresh_agent_epid(pxy_agent_t *a, struct pbc_slice *slice)
+{
+	char* t = calloc(slice->len + 1, 1);
+	if(!t) {
+		E("cannnot malloc for new epid");
+		return -1;
+	}
+	char *t2 = calloc(slice->len + strlen(LISTENERPORT) + 2 , 1);
+	if(!t2) {
+		E("cannnot malloc for new epid2");
+		free(t);
+		return -1;
+	}
+
+	free(a->epid);
+	free(a->epidr2);
+
+	strncpy(t, slice->buffer, slice->len);
+	sprintf(t2, "%s,%s", t, LISTENERPORT);	
+
+	a->epid = t;
+	a->epidr2 = t2;
+	return 0;
+}
 
 //if match the internal cmd return 1,else return 0
 static int 
 _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 {
+	retval r;
 	switch(p->cmd) {
 	case CMD_USER_VALID:
 		a->user_id = p->user_id;
@@ -202,8 +216,17 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 		worker_remove_agent(a);
 		pxy_agent_close(a);
 		return 1;
+	case CMD_REFRESH_EPID:
+		if(pbc_pattern_unpack(rpc_pat_retval, &p->content, &r) < 0) {
+			E("unpack args error");
+			return 1;
+		}
+		W("%s", r.option.buffer);
+		worker_remove_agent(a);
+		_refresh_agent_epid(a, &r.option);
+		worker_insert_agent(a);
+		return 1;
 	}
-
 	return 0;
 }
 
@@ -321,8 +344,8 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		D("cmd %d url=%s", msg->cmd, url);
 	}
 
-//	msg->uri = url;
-	msg->uri = __url;
+	msg->uri = url;
+//	msg->uri = __url;
 
 	if(mrpc_us_send(msg) < 0) {
 		E("mrpc send error");

@@ -145,6 +145,10 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 	/*try to accept 100 times*/
 	socklen_t sin_size = sizeof(master->addr);
 	f = accept(ffi->fd,&(master->addr),&sin_size);
+	int k = 1;
+	if(setsockopt(f, SOL_SOCKET, SO_KEEPALIVE, (void *)&k, sizeof(k)) < 0) {
+		E("set keel alive failed");
+	}
 	D("fd#%d accepted",f);
 
 	if(f>0){
