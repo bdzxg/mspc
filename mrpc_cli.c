@@ -350,6 +350,19 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->epid.len = strlen(msg->epid);
 	args->epid.buffer = msg->epid;
 	args->zip_flag = msg->compress;
+	args->ip.len = strlen(LISTENERPORT);
+	args->ip.buffer = LISTENERPORT;
+	
+
+	char name[128] = {0};
+	if(get_app_category_minus_name(msg->cmd, 1, name) > 0){
+		args->category_name.len = strlen(name);
+		args->category_name.buffer = name;
+	}
+	else{
+		//TODO, we should handle this error
+		E("get catetory minus name error");
+	}	
 }	
 
 
@@ -381,6 +394,8 @@ static void  _stash_req_free(mrpc_stash_req_t *r)
 }
 
 static char _service_name[3] = "MCP";
+static char _func_name[32] = "requestReceived";
+
 static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 {
 	mcp_appbean_proto body;
@@ -408,15 +423,8 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	header.to_service.buffer = _service_name;
 	header.to_service.len = sizeof(_service_name);
 
-	//TODO to load from the config
-	char *fname = get_cmd_func_name(msg->cmd);
-	if(fname == NULL) {
-		W("no func name for cmd %d", msg->cmd);
-		goto failed;
-	}
-	D("the funcname is %s", fname);
-	header.to_method.buffer = fname;
-	header.to_method.len = strlen(fname);
+	header.to_method.buffer = _func_name;
+	header.to_method.len = strlen(_func_name);
 	
 	char header_buf[128];
 	struct pbc_slice s2 = {header_buf, 128};

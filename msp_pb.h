@@ -1,43 +1,14 @@
 /*
  * rpc_args.h
  *
- *  Created on: 2012-10-30
+ *  Created on: 2012-12-20
  *      Author: liulijin
  */
 
-#ifndef _MSP_H_INCLUDED_
-#define _MSP_H_INCLUDED_
+#ifndef _MSP_PB_H_
+#define _MSP_PB_H_
 
 #include "proxy.h"
-
-typedef struct {
-  int32_t from_id;
-  int32_t to_id;
-  int32_t sequence;
-  int32_t body_length;
-  int32_t opt;
-  struct pbc_slice context_uri;
-  struct pbc_slice from_computer;
-  struct pbc_slice from_service;
-  struct pbc_slice to_service;
-  struct pbc_slice to_method;
-  pbc_array ext;
-}mrpc_request_header;
-
-typedef struct {
-  int32_t sequence;
-  int32_t response_code;
-  int32_t body_length;
-  int32_t opt;
-  int32_t to_id;
-  int32_t from_id;
-}mrpc_response_header;
-
-typedef struct {
-  struct pbc_slice response;
-  int32_t user_id;
-  struct pbc_slice epid;
-}reg3_args;
 
 typedef struct {
   struct pbc_slice protocol;
@@ -50,6 +21,8 @@ typedef struct {
   struct pbc_slice content;
   struct pbc_slice epid;
   int32_t zip_flag;
+  struct pbc_slice ip;
+  struct pbc_slice category_name;
 }mcp_appbean_proto;
 
 typedef struct {
@@ -90,16 +63,8 @@ typedef struct {
   struct pbc_slice ip_address;
 }mobile_flow_event_args;
 
-typedef struct {
-  int32_t id;
-  int32_t length;
-}mrpc_request_extension;
+int32_t msp_args_init();
 
-
-int rpc_args_init();
-
-struct pbc_pattern *rpc_pat_mrpc_request_header;
-struct pbc_pattern *rpc_pat_mrpc_response_header;
 struct pbc_pattern *rpc_pat_reg3_args;
 struct pbc_pattern *rpc_pat_mcp_appbean_proto;
 struct pbc_pattern *rpc_pat_user_context;
@@ -108,4 +73,3 @@ struct pbc_pattern *rpc_pat_mobile_flow_event_args;
 struct pbc_pattern *rpc_pat_mrpc_request_extension;
 
 #endif
-

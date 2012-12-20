@@ -22,13 +22,14 @@ PXY_OBJS = \
 	./proxy.o \
 	./agent.o \
 	./upstream.o \
+	./msp_pb.o
 
 MRPC_OBJS = \
-	./msp_pb.o \
 	./mrpc.o \
 	./mrpc_cli.o \
 	./mrpc_svr.o \
-	./mrpc_common.o
+	./mrpc_common.o \
+	./mrpc_pb.o
 
 PXY_TEST = \
 	./pxy_test.o \

@@ -34,9 +34,9 @@ start_failed:
 int mrpc_init()
 {
 	D("mrpc init begins");
+	mrpc_args_init();
 
 	struct sockaddr_in addr1;
-
 	mrpc_up.listen_fd = -1;
 	INIT_LIST_HEAD(&mrpc_up.conn_list);
 

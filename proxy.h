@@ -25,6 +25,7 @@
 #include "tool.h"
 
 #include "msp_pb.h"
+#include "mrpc_pb.h"
 
 typedef struct {
 	char *data;

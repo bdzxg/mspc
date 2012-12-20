@@ -1,0 +1,35 @@
+message mrpc_request_extension
+{
+  required int32 id = 1;      //扩展字段序号
+  required int32 length = 2;  //扩展字段长度
+}
+
+message mrpc_request_header
+{
+  required int32 from_id = 1;         // 交换后使用缩写的from代替service@computer, 0表示未交换, 交换数据从1开始
+  required int32 to_id = 2;           // 交换后用id代替service.method, 0表示未交换, 交换数据从1开始
+  required int32 sequence = 3;        // 事务序号, 客户端生成, 如果不复用连接，则都为0
+  required int32 body_length = 4;     // 包体长度: 0代表传空，1代表全默认，len-1为实际长度
+  optional int32 opt = 5;              // 消息可选项
+  optional string context_uri = 6;    // 上下文标识
+  optional string from_computer = 7;  // 来源计算机
+  optional string from_service = 8;   // 来源服务  
+  optional string to_service = 9;     // 访问服务  
+  optional string to_method = 10;     // 访问方法名  
+  repeated mrpc_request_extension ext = 11; // 扩展字段
+}
+
+message mrpc_response_header
+{
+  required int32 sequence = 1;        // 与请求一致
+  required int32 response_code = 2;   // 返回码
+  required int32 body_length = 3;     // 包体长度: 0代表传空，1代表全默认，len-1为实际长度
+  optional int32 opt = 4;              // 消息可选项
+  optional int32 to_id = 5;           // 用于优化消息长度的交换后id, 针对服务器端为单服务器上有效
+  optional int32 from_id = 6;         // 用于优化消息长度的交换后id, 针对服务器端为单服务器上有效
+}
+
+message mrpc_excetion
+{
+  optional string reason = 1;
+}

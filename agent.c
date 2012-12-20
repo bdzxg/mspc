@@ -19,7 +19,7 @@ static char NOTEXIST[3] = {8, 155, 3};// 411
 
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg);
 int agent_send_netstat(pxy_agent_t *agent);
-int agent_send_offstate(a);
+
 int worker_insert_agent(pxy_agent_t *agent)
 {
 	int ret = 0;
@@ -128,7 +128,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	//packet_len = 0;
 
 	if(agent->epid != NULL) {
-		msg->epid = agent->epidr2; 
+		//msg->epid = agent->epidr2; 
 		/* 
 		if(msg->cmd == 102)
 			msg->epid = agent->epidr2; 
@@ -139,14 +139,15 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	else {
 		char* t = generate_client_epid(msg->client_type, msg->client_version);
 		msg->epid = agent->epid = t;
-		agent->epidr2 = calloc(strlen(agent->epid)+strlen(LISTENERPORT)+2, 1);		
-		sprintf("%s,%s", agent->epid, LISTENERPORT);
+		//agent->epidr2 = calloc(strlen(agent->epid)+strlen(LISTENERPORT)+2, 1);		
+		//E("%s-%zu",agent->epid, strlen(agent->epid));
+		//sprintf(agent->epidr2, "%s,%s", agent->epid, LISTENERPORT);
 		agent->clienttype = msg->client_type;
 
 		worker_insert_agent(agent);
 	}
 	//TODO: change this
-	msg->epid = agent->epidr2; 
+	//msg->epid = agent->epidr2; 
 	D("msp->epid %s", msg->epid);
 	msg->logic_pool_id = agent->logic_pool_id;
 	return 1;
@@ -193,13 +194,13 @@ static int
 	}
 
 	free(a->epid);
-	free(a->epidr2);
+	//free(a->epidr2);
 
 	strncpy(t, slice->buffer, slice->len);
-	sprintf(t2, "%s,%s", t, LISTENERPORT);	
+	//sprintf(t2, "%s,%s", t, LISTENERPORT);	
 
 	a->epid = t;
-	a->epidr2 = t2;
+	//a->epidr2 = t2;
 	return 0;
 }
 
@@ -221,7 +222,6 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 			E("unpack args error");
 			return 1;
 		}
-		W("%s", r.option.buffer);
 		worker_remove_agent(a);
 		_refresh_agent_epid(a, &r.option);
 		worker_insert_agent(a);
@@ -334,14 +334,17 @@ char __url[32] = "tcp://10.10.41.9:7700";
 static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 {
 	UNUSED(a);
-	char *url = NULL;
-	get_app_url(msg->cmd, 1, NULL, NULL, NULL, &url);
-	if(url == NULL) {
+	char url[32] = {0};
+	char uid[15] = {0};
+	sprintf(uid, "%d", a->user_id);
+
+	int r = get_app_url(msg->cmd, 1, uid, NULL, NULL, NULL, url);
+	if(r <= 0){
 		D("cmd %d url is null", msg->cmd);
 		return -1;
 	}
 	else {
-		D("cmd %d url=%s", msg->cmd, url);
+		E("cmd %d url=%s", msg->cmd, url);
 	}
 
 	msg->uri = url;
@@ -352,7 +355,6 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		return -1;
 	}
 
-	free(url);
 	return 0;
 }
 
@@ -404,8 +406,6 @@ void pxy_agent_close(pxy_agent_t *a)
 
 	free(a->epid);
 	a->epid = NULL;
-	free(a->epidr2);
-	a->epidr2 = NULL;
 	a->user_ctx_len = 0;
 	free(a->user_ctx);
 	a->user_ctx = NULL;

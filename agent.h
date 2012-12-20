@@ -13,7 +13,6 @@ typedef struct pxy_agent_s{
 	char* user_ctx;
 	int user_ctx_len;
 	int logic_pool_id;
-	char* epidr2;
 	size_t isreg;
 	int clienttype;
 	long upflow;

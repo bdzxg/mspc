@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include "msp_pb.h"
+#include "mrpc_pb.h"
 #include "proxy.h"
 
 #define MRPC_BUF_SIZE 4096
