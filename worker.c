@@ -77,10 +77,10 @@ int worker_init()
 int worker_start()
 {
 	//TODO: Hard coding 
-	char *zk_url= "192.168.110.231:8998"; //sitec
+	//char *zk_url= "192.168.110.231:8998"; //sitec
 	//char *zk_url = "192.168.199.8:2181";
 	
-	//char *zk_url= "192.168.110.125:8998";// sitea
+	char *zk_url= "192.168.110.125:8998";// sitea
 	route_init(zk_url);
 
 	ev_file_item_t* fi ;

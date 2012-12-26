@@ -352,17 +352,6 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->zip_flag = msg->compress;
 	args->ip.len = strlen(LISTENERPORT);
 	args->ip.buffer = LISTENERPORT;
-	
-
-	char name[128] = {0};
-	if(get_app_category_minus_name(msg->cmd, 1, name) > 0){
-		args->category_name.len = strlen(name);
-		args->category_name.buffer = name;
-	}
-	else{
-		//TODO, we should handle this error
-		E("get catetory minus name error");
-	}	
 }	
 
 
@@ -400,6 +389,18 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 {
 	mcp_appbean_proto body;
 	get_rpc_arg(&body, msg);
+
+	char name[128] = {0};
+	if(get_app_category_minus_name(msg->cmd, 1, name) > 0){
+		body.category_name.len = strlen(name);
+		body.category_name.buffer = name;
+		E("minus name %s", name);
+	}
+	else{
+		//TODO, we should handle this error
+		E("get catetory minus name error");
+	}	
+
 	size_t buf_len = body.content.len + 1024;
 	char *body_buf = malloc(buf_len);
 	if(!body_buf) {

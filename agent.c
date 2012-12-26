@@ -303,6 +303,11 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 	_msg_from_proto(proto, &m);
 	char ch[64] = {0};
 
+	if(proto->epid.len > sizeof(ch)) {
+		W("bad epid");
+		return;
+	}
+
 	memcpy(ch, proto->epid.buffer, proto->epid.len);
 	pxy_agent_t *a = map_search(&worker->root, ch);
 	if(a == NULL) {
