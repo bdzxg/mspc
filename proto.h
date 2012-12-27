@@ -13,11 +13,11 @@ typedef struct rec_message_s{
 	uint16_t client_version;
 	int logic_pool_id;
 	char *option;
-	int option_len;
+	size_t option_len;
 	char *body;
-	int body_len;
+	size_t body_len;
 	char *user_context;
-	int user_context_len;
+	size_t user_context_len;
 	char *epid;
 	list_head_t head;
 	char *uri; //FIXME

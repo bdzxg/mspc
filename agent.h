@@ -5,13 +5,13 @@
 typedef struct pxy_agent_s{
 	int fd;
 	int user_id;
-	int bn_seq;
+	uint16_t bn_seq;
 	char* epid;
 	mrpc_buf_t *send_buf;
 	mrpc_buf_t *recv_buf;
 	struct rb_node rbnode;
 	char* user_ctx;
-	int user_ctx_len;
+	size_t user_ctx_len;
 	int logic_pool_id;
 	size_t isreg;
 	int clienttype;

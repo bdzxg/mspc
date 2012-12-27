@@ -114,6 +114,12 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	}
 	msg->epid = agent->epid;
 
+	//user context
+	if(agent->user_ctx != NULL && agent->user_ctx_len > 0) {
+		msg->user_context = agent->user_ctx;
+		msg->user_context_len = agent->user_ctx_len;
+	}
+	
 	D("msp->epid %s", msg->epid);
 	msg->logic_pool_id = agent->logic_pool_id;
 	return 1;
@@ -178,6 +184,18 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 	switch(p->cmd) {
 	case CMD_USER_VALID:
 		a->user_id = p->user_id;
+		size_t l = p->user_context.len;
+		if(l > 0) {
+			a->user_ctx = malloc(l);
+			if(!a->user_ctx) {
+				W("cannot malloc for usercontext");
+				return 1;
+			}
+
+			a->user_ctx_len = l;
+			memcpy(a->user_ctx, p->user_context.buffer, l);
+			I("save %zu length ctx", l);
+		}
 		return 1;
 	case CMD_CLOSE_CONNECTION:
 		worker_remove_agent(a);
@@ -196,7 +214,7 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 	return 0;
 }
 
-static void get_send_data2(rec_msg_t *t, char* rval) 
+static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
 {
 	int hl = 21;
 	int length = hl + t->body_len;
@@ -217,7 +235,13 @@ static void get_send_data2(rec_msg_t *t, char* rval)
 	__SB(rval, &t->version, 1, idx);
 	__SB(rval, &t->userid, 4, idx);
 	__SB(rval, &t->cmd, 4, idx);
-	__SB(rval, &t->seq, 2, idx);
+	if(t->format < 128) {
+		__SB(rval, &a->bn_seq, 2, idx);
+		a->bn_seq ++;
+	}
+	else {
+		__SB(rval, &t->seq, 2, idx);
+	}
 	__SB(rval, &offset, 1, idx);
 	__SB(rval, &t->format, 1, idx);
 	__SB(rval, &t->compress, 1, idx);
@@ -252,7 +276,7 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 		}
 	}
 
-	get_send_data2(m, b->buf + b->offset);
+	get_send_data2(m, b->buf + b->offset, a);
 	b->size += size_to_send;
 
 	int r = mrpc_send2(a->send_buf, a->fd);
@@ -273,6 +297,9 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 		W("bad epid");
 		return;
 	}
+
+	I("receive the cmd %d, seq %d, opt %d",
+	  proto->cmd, proto->sequence, proto->opt);
 
 	memcpy(ch, proto->epid.buffer, proto->epid.len);
 	pxy_agent_t *a = map_search(&worker->root, ch);
@@ -341,6 +368,11 @@ static int process_client_req(pxy_agent_t *agent)
 				return -1;
 			}
 		}
+
+		//we need to refresh the seq to make sure seq conflict
+		if(msg.format < 128) {
+			agent->bn_seq = msg.seq + 1;
+		}
 		
 		//when send failed, we should give a error response
 		if(agent_to_beans(agent, &msg, 0) < 0) {
@@ -377,8 +409,10 @@ void pxy_agent_close(pxy_agent_t *a)
 
 	free(a->epid);
 	a->epid = NULL;
-	a->user_ctx_len = 0;
-	free(a->user_ctx);
+	if(a->user_ctx_len > 0) {
+		a->user_ctx_len = 0;
+		free(a->user_ctx);
+	}
 	a->user_ctx = NULL;
 	free(a->logintime);
 	a->logintime = NULL;
@@ -422,10 +456,11 @@ pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
 		goto failed;
 	}
 
-	agent->fd         = fd;
-	agent->user_id    = userid;
+	agent->fd = fd;
+	agent->user_id = userid;
 	agent->epid = NULL;
 	agent->user_ctx = NULL;
+	agent->user_ctx_len = 0;
 	agent->isreg = 0;
 	agent->upflow = 0;
 	agent->downflow = 0;
