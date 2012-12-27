@@ -22,9 +22,7 @@ int agent_send_netstat(pxy_agent_t *agent);
 
 int worker_insert_agent(pxy_agent_t *agent)
 {
-	int ret = 0;
-	ret = map_insert(&worker->root,agent);
-	return ret;
+	return map_insert(&worker->root,agent);
 }
 
 void worker_remove_agent(pxy_agent_t *agent)
@@ -38,27 +36,6 @@ void worker_insert_reg3(reg3_t* r3)
 {
 	map_insert_reg3(&worker->r3_root, r3);	
 }
-
-/*
-void msp_send_unreg(reg3_t* a)
-{
-	if(a->user_context!= NULL) {
-		rec_msg_t msg;
-		msg.cmd = 103;
-		msg.userid = a->user_id;
-		msg.logic_pool_id = a->logic_pool_id;
-		msg.seq = 100001;
-		msg.format = 0;
-		msg.user_context_len = a->user_context_len;
-		msg.user_context = a->user_context;
-		msg.body_len = 0;
-		msg.epid = a->epid;
-		msg.compress = 0;
-		agent_to_beans(NULL, &msg, 1);
-	}
-}
-*/
-
 
 //ok 1, not finish 0, error -1
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
@@ -126,28 +103,17 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	b->offset += msg->body_len;
 
 	//packet_len = 0;
-
-	if(agent->epid != NULL) {
-		//msg->epid = agent->epidr2; 
-		/* 
-		if(msg->cmd == 102)
-			msg->epid = agent->epidr2; 
-		else
-			msg->epid = agent->epid; 
- 		*/
-	}
-	else {
-		char* t = generate_client_epid(msg->client_type, msg->client_version);
-		msg->epid = agent->epid = t;
-		//agent->epidr2 = calloc(strlen(agent->epid)+strlen(LISTENERPORT)+2, 1);		
-		//E("%s-%zu",agent->epid, strlen(agent->epid));
-		//sprintf(agent->epidr2, "%s,%s", agent->epid, LISTENERPORT);
+	if(agent->epid == NULL) {
+		agent->epid = generate_client_epid(msg->client_type,
+						   msg->client_version);
 		agent->clienttype = msg->client_type;
-
-		worker_insert_agent(agent);
+		//TODO check failed
+		if(worker_insert_agent(agent) < 0) {
+			W("insert agent error");
+		}
 	}
-	//TODO: change this
-	//msg->epid = agent->epidr2; 
+	msg->epid = agent->epid;
+
 	D("msp->epid %s", msg->epid);
 	msg->logic_pool_id = agent->logic_pool_id;
 	return 1;

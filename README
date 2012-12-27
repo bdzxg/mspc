@@ -5,3 +5,6 @@ An IM connection proxy server
 
 RPC : All the client/server modules are implemented in single thread non-blocking mode
 
+
+
+TODO: mrpc_cli, when connection refuesed .... 
