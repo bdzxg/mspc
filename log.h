@@ -22,6 +22,7 @@ extern FILE *log_file;
 			"[%s] %03d.%06d %s L%d P%d " format "\n", l,	\
 			(int)__xxts.tv_sec % 1000, (int) __xxts.tv_usec, \
 			__FUNCTION__,__LINE__,getpid(),##__VA_ARGS__);	\
+                fflush(log_file);                                       \
 	}while(0)		
 
 #if LOG_LEVEL <= LOG_LEVEL_DEBUG

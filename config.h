@@ -1,21 +1,13 @@
-/*
- * =====================================================================================
- *
- *       Filename:  config.h
- *
- *    Description:  
- *
- *        Version:  1.0
- *        Created:  12/06/2011 05:59:27 AM
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
- *        Company:  
- *
- * =====================================================================================
- */
+#ifndef _CONFIG_H
+#define _CONFIG_H
 
-#define CLIENT_LISTEN_PORT 8888
-#define BACKEND_LISTEN_PORT 8889
-#define REG3_REMOVE_INTERVAL_MIN 2
+#define CONFIG_MAX 64
+
+typedef struct config_item {
+	char name[CONFIG_MAX];
+	char value[CONFIG_MAX];
+	struct config_item *next;
+} config_item;
+
+int load_config(FILE *,config_item*);
+#endif

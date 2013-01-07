@@ -22,7 +22,8 @@ PXY_OBJS = \
 	./proxy.o \
 	./agent.o \
 	./upstream.o \
-	./msp_pb.o
+	./msp_pb.o \
+	./config.o
 
 MRPC_OBJS = \
 	./mrpc.o \
