@@ -1,6 +1,6 @@
 #include "proxy.h"
 #include "agent.h"
-#include "include/zookeeper.h"
+//#include "include/zookeeper.h"
 #include <pthread.h>
 #include "route.h"
 #include "ClientHelper.c"
@@ -336,7 +336,7 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	char uid[15] = {0};
 	sprintf(uid, "%d", a->user_id);
 
-	int r = get_app_url(msg->cmd, 1, uid, NULL, NULL, NULL, url);
+	int r = route_get_app_url(msg->cmd, 1, uid, NULL, NULL, NULL, url);
 	if(r <= 0){
 		D("cmd %d url is null", msg->cmd);
 		return -1;

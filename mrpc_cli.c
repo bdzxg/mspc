@@ -396,7 +396,7 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	get_rpc_arg(&body, msg);
 
 	char name[128] = {0};
-	if(get_app_category_minus_name(msg->cmd, 1, name) > 0){
+	if(route_get_app_category_minus_name(msg->cmd, 1, name) > 0){
 		body.category_name.len = strlen(name);
 		body.category_name.buffer = name;
 		E("minus name %s", name);
