@@ -338,11 +338,11 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 
 	int r = get_app_url(msg->cmd, 1, uid, NULL, NULL, NULL, url);
 	if(r <= 0){
-		D("cmd %d url is null", msg->cmd);
+		I("uid %s cmd %d url is null", uid, msg->cmd);
 		return -1;
 	}
 	else {
-		E("cmd %d url=%s", msg->cmd, url);
+		I("uid %s, cmd %d url=%s", uid, msg->cmd, url);
 	}
 
 	msg->uri = url;
