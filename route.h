@@ -19,10 +19,17 @@
 #ifndef __ROUTE_H_
 #define __ROUTE_H_
 
+typedef enum {   
+        ROUTE_LOG_LEVEL_DEBUG = 0,
+        ROUTE_LOG_LEVEL_INFO = 1,
+        ROUTE_LOG_LEVEL_WARN = 2,
+        ROUTE_LOG_LEVEL_ERROR = 3
+} route_log_level_t;
+
 typedef struct route_user_context_s route_user_context_t;
 
-
 typedef void* route_ctx_clone(void*);
+
 typedef void* route_ctx_getfield(void*, char*);
 
 typedef struct route_ctx_func{
@@ -57,5 +64,8 @@ void route_close();
 
 char *route_get_ctx(route_user_context_t *ctx, const char *field_name);
 
+void route_set_loglevel(int level);
+
+void route_set_logfile(FILE *file);
 #endif
 

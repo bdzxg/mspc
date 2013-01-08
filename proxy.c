@@ -11,6 +11,7 @@ pxy_config_t* config;
 pxy_worker_t* worker;
 extern freeq_t *request_q;
 FILE* log_file;
+int log_level = 1;
 
 pxy_settings setting = {
         LOG_LEVEL_DEBUG,
@@ -38,8 +39,11 @@ pxy_setting_init()
 			continue;
 		}
 
-		if(strcmp(item->name,"log_level") == 0) 
+		if(strcmp(item->name,"log_level") == 0) { 
 			setting.log_level = atoi(item->value);
+                        log_level = setting.log_level;
+                        route_set_loglevel(log_level);
+                }
 
 		if(strcmp(item->name,"log_file") == 0) {
 			int len =  strlen(item->value) + 1;
@@ -50,11 +54,17 @@ pxy_setting_init()
                                 log_file = stdout;                        
                         } else {
                                 log_file = fopen(setting.log_file, "a");
-                                
+                                 
                                 if (NULL == log_file) {
                                         log_file = stdout;
                                         W("LOG FILE open failed!");
+//                                      fprintf(stderr, "*** logfile err*** \n");
                                 }
+                                else{
+//                                        fprintf(stderr, "init log file ok! %s", setting.log_file);
+                                }
+
+                                route_set_logfile(log_file);
                         }
 		}
 

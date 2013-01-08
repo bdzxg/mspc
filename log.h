@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 extern FILE *log_file;
+extern int log_level;
 
 #define LOG_LEVEL_DEBUG 0
 #define LOG_LEVEL_INFO  1
@@ -25,29 +26,18 @@ extern FILE *log_file;
                 fflush(log_file);                                       \
 	}while(0)		
 
-#if LOG_LEVEL <= LOG_LEVEL_DEBUG
-#define D(format,...) L("DEBUG",format,##__VA_ARGS__)			
-#else
-#define D(format,...) 
-#endif
 
-#if LOG_LEVEL <= LOG_LEVEL_INFO
-#define I(format,...) L("INFO",format,##__VA_ARGS__)			
-#else 
-#define I(format,...) 
-#endif
 
-#if LOG_LVEL <= LOG_LEVEL_WARN
-#define W(format,...) L("WARN",format,##__VA_ARGS__)			
-#else 
-#define W(format,...) 
-#endif
-
-#if LOG_LEVEL <= LOG_LEVEL_ERROR
-#define E(format,...) L("ERROR",format,##__VA_ARGS__)			
-#else 
-#define E(format,...) 
-#endif
-
+#define D(format, ...) if (log_level <= LOG_LEVEL_DEBUG) \
+        L("DEBUG",format,##__VA_ARGS__)
+                      
+#define I(format,...) if (log_level <= LOG_LEVEL_INFO) \
+        L("INFO",format,##__VA_ARGS__)
+                                   
+#define W(format,...) if (log_level <= LOG_LEVEL_WARN) \
+        L("WARN",format,##__VA_ARGS__)                 
+                                   
+#define E(format,...) if (log_level <= LOG_LEVEL_ERROR) \
+        L("ERROR",format,##__VA_ARGS__) 
 
 #endif
