@@ -14,7 +14,8 @@ extern int log_level;
 #define LOG_LEVEL_ERROR 3
 
 #define LOG_LEVEL LOG_LEVEL_INFO
-
+#define NOOP(x) do{} while(0)
+#define UNUSE(x) (void)(x)
 #define L(l,format,...)							\
 	do {								\
 		struct timeval __xxts;					\
@@ -29,7 +30,7 @@ extern int log_level;
 
 
 #define D(format, ...) if (log_level <= LOG_LEVEL_DEBUG) \
-        L("DEBUG",format,##__VA_ARGS__)
+        L("DEBUG",format,##__VA_ARGS__) 
                       
 #define I(format,...) if (log_level <= LOG_LEVEL_INFO) \
         L("INFO",format,##__VA_ARGS__)
