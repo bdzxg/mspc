@@ -3,7 +3,6 @@
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 extern pxy_config_t* config;
-static mrpc_upstreamer_t mrpc_up;
 static char* PROTOCOL = "MCP/3.0";
 
 

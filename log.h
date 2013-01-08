@@ -13,7 +13,7 @@ extern int log_level;
 #define LOG_LEVEL_WARN  2
 #define LOG_LEVEL_ERROR 3
 
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_ERROR
 #define NOOP(x) do{} while(0)
 #define UNUSE(x) (void)(x)
 #define L(l,format,...)							\

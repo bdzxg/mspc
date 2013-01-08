@@ -23,7 +23,7 @@
 #include "upstream.h"
 #include "freeq.h"
 #include "tool.h"
-
+#include "route.h"
 #include "msp_pb.h"
 #include "mrpc_pb.h"
 

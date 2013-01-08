@@ -79,7 +79,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	b->offset += msg->option_len;
 
 	msg->body_len = msg->len - msg->off;
-	D("body_len %d", msg->body_len);
+	D("body_len %zu", msg->body_len);
 
 	if(agent->user_ctx_len == 0){
 		msg->user_context_len = 0; 
@@ -266,7 +266,7 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 	mrpc_buf_t *b = a->send_buf;
 	size_t size_to_send = 21 + m->body_len;	//21 is the fixed header length
 
-	D("agent fd %d, b->len %zu b->size %zu size_to send %d", 
+	D("agent fd %d, b->len %zu b->size %zu size_to send %zu", 
 	  a->fd, b->len, b->size, size_to_send);
 
 	while(b->len - b->size < size_to_send) {

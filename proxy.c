@@ -57,7 +57,8 @@ pxy_setting_init()
                                  
                                 if (NULL == log_file) {
                                         log_file = stdout;
-                                        W("LOG FILE open failed!");
+                                        E("LOG FILE open failed!");
+					goto ERROR;
 //                                      fprintf(stderr, "*** logfile err*** \n");
                                 }
                                 else{
