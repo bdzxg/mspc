@@ -4,12 +4,97 @@
 
 #include "proxy.h"
 #include "agent.h"
+#include "settings.h"
 
 pxy_master_t* master;
 pxy_config_t* config;
 pxy_worker_t* worker;
 extern freeq_t *request_q;
 FILE* log_file;
+int log_level = 1;
+
+pxy_settings setting = {
+        LOG_LEVEL_DEBUG,
+        "mspc_log.txt",
+        9014,
+        9015
+};
+
+int
+pxy_setting_init()
+{ 
+	int r;
+	config_item *item = calloc(1, sizeof(*item));
+	if(!item) {
+		E("malloc config_item error");
+		return -1;
+	}
+	FILE *file = fopen("mspc.conf", "r");
+	if(file == NULL) {
+		file = stdin;
+	}
+
+	while((r = load_config(file,item)) != 0) {
+		if(r == -1) {
+			continue;
+		}
+
+		if(strcmp(item->name,"log_level") == 0) { 
+			setting.log_level = atoi(item->value);
+                        log_level = setting.log_level;
+                        route_set_loglevel(log_level);
+                }
+
+		if(strcmp(item->name,"log_file") == 0) {
+			int len =  strlen(item->value) + 1;
+			strncpy(setting.log_file, item->value, len);
+
+                        if (strcmp(setting.log_file, "stdout") == 0 ||
+                            strcmp(setting.log_file, "stderr") == 0) {
+                                log_file = stdout;                        
+                        } else {
+                                log_file = fopen(setting.log_file, "a");
+                                 
+                                if (NULL == log_file) {
+                                        log_file = stdout;
+                                        W("LOG FILE open failed!");
+//                                      fprintf(stderr, "*** logfile err*** \n");
+                                }
+                                else{
+//                                        fprintf(stderr, "init log file ok! %s", setting.log_file);
+                                }
+
+                                route_set_logfile(log_file);
+                        }
+		}
+
+		if(strcmp(item->name,"client_port") == 0) 
+			setting.client_port= atoi(item->value);
+		
+                if(strcmp(item->name,"backend_port") == 0) 
+			setting.backend_port = atoi(item->value);
+                       
+		memset(item, 0, sizeof(*item));
+	}
+	
+	D("setting.log_level %d, log_file %s, client_port %d, backend_port %d", 
+	  setting.log_level,
+	  setting.log_file,
+	  setting.client_port,
+	  setting.backend_port);
+	
+	return 0;
+ERROR:
+	if(file != stdin) {
+		fclose(file);
+	}
+	
+	if(item) {
+		free(item);
+	}
+
+	return -1;
+}
 
 int 
 pxy_init_config()
@@ -17,8 +102,8 @@ pxy_init_config()
 	config = (pxy_config_t*)pxy_calloc(sizeof(*config));
 
 	if(config){
-		config->client_port = 8014;
-		config->backend_port = 9001;
+		config->client_port = setting.client_port;
+		config->backend_port = setting.backend_port;;
 		config->worker_count = 1;
 
 		return 1;
@@ -116,7 +201,7 @@ pxy_start_listen()
 int 
 pxy_init_master()
 {
-	if(!pxy_init_config()){
+        if(!pxy_init_config()){
 		D("config initialize error");
 		return -1;
 	}
@@ -206,7 +291,14 @@ int main()
 	D("process start");
 	char ch[80];
 	pxy_worker_t *w;
+
 	log_file = stdout;
+
+        D("Start init settings!");
+        if (pxy_setting_init() != 0) {
+                D("settings initialize failed!\n");
+                return -1;
+        }
 
 	if(pxy_init_master() < 0){
 		E("master initialize failed");

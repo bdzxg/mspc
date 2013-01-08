@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 extern FILE *log_file;
+extern int log_level;
 
 #define LOG_LEVEL_DEBUG 0
 #define LOG_LEVEL_INFO  1
@@ -13,7 +14,8 @@ extern FILE *log_file;
 #define LOG_LEVEL_ERROR 3
 
 #define LOG_LEVEL LOG_LEVEL_INFO
-
+#define NOOP(x) do{} while(0)
+#define UNUSE(x) (void)(x)
 #define L(l,format,...)							\
 	do {								\
 		struct timeval __xxts;					\
@@ -22,31 +24,21 @@ extern FILE *log_file;
 			"[%s] %03d.%06d %s L%d P%d " format "\n", l,	\
 			(int)__xxts.tv_sec % 1000, (int) __xxts.tv_usec, \
 			__FUNCTION__,__LINE__,getpid(),##__VA_ARGS__);	\
+                fflush(log_file);                                       \
 	}while(0)		
 
-#if LOG_LEVEL <= LOG_LEVEL_DEBUG
-#define D(format,...) L("DEBUG",format,##__VA_ARGS__)			
-#else
-#define D(format,...) 
-#endif
 
-#if LOG_LEVEL <= LOG_LEVEL_INFO
-#define I(format,...) L("INFO",format,##__VA_ARGS__)			
-#else 
-#define I(format,...) 
-#endif
 
-#if LOG_LVEL <= LOG_LEVEL_WARN
-#define W(format,...) L("WARN",format,##__VA_ARGS__)			
-#else 
-#define W(format,...) 
-#endif
-
-#if LOG_LEVEL <= LOG_LEVEL_ERROR
-#define E(format,...) L("ERROR",format,##__VA_ARGS__)			
-#else 
-#define E(format,...) 
-#endif
-
+#define D(format, ...) if (log_level <= LOG_LEVEL_DEBUG) \
+        L("DEBUG",format,##__VA_ARGS__) 
+                      
+#define I(format,...) if (log_level <= LOG_LEVEL_INFO) \
+        L("INFO",format,##__VA_ARGS__)
+                                   
+#define W(format,...) if (log_level <= LOG_LEVEL_WARN) \
+        L("WARN",format,##__VA_ARGS__)                 
+                                   
+#define E(format,...) if (log_level <= LOG_LEVEL_ERROR) \
+        L("ERROR",format,##__VA_ARGS__) 
 
 #endif
