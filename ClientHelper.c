@@ -1,20 +1,3 @@
-/*
- * =====================================================================================
- *
- *       Filename:  ClientHelper.c
- *
- *    Description:  
- *
- *        Version:  1.0
- *        Created:  05/02/2012 05:37:58 PM
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
- *   Organization:  
- *
- * =====================================================================================
- */
 #include <stdlib.h>
 #include <time.h>
 #include "proxy.h"

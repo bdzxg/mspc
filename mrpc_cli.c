@@ -3,6 +3,7 @@
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 extern pxy_config_t* config;
+extern pxy_settings setting;
 static char* PROTOCOL = "MCP/3.0";
 
 int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
@@ -321,6 +322,7 @@ static char* get_compact_uri(rec_msg_t* msg)
 	return __compact_uri;
 }
 
+char __endpoint[64] = {0};
 static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 {
 	args->protocol.len = strlen(PROTOCOL);
@@ -355,8 +357,11 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->epid.len = strlen(msg->epid);
 	args->epid.buffer = msg->epid;
 	args->zip_flag = msg->compress;
-	args->ip.len = strlen(LISTENERPORT);
-	args->ip.buffer = LISTENERPORT;
+
+	sprintf(__endpoint, "%s:%d", setting.ip, setting.backend_port);
+
+	args->ip.len = strlen(__endpoint);
+	args->ip.buffer = __endpoint;
 }	
 
 

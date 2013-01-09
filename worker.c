@@ -6,6 +6,7 @@
 
 extern pxy_master_t *master;
 extern pxy_worker_t *worker;
+extern pxy_settings setting;
 freeq_t *request_q;
 upstream_map_t *upstream_root;
 
@@ -76,12 +77,7 @@ int worker_init()
 
 int worker_start()
 {
-	//TODO: Hard coding 
-	//char *zk_url= "192.168.110.231:8998"; //sitec
-	//char *zk_url = "192.168.199.8:2181";
-	
-	char *zk_url= "192.168.110.125:8998";// sitea
-	route_init(zk_url);
+	route_init(setting.zk_url);
 
 	ev_file_item_t* fi ;
 	int fd = master->listen_fd;

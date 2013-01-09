@@ -33,6 +33,9 @@ int load_config(FILE *file, config_item *item)
 		return -1;
 	}
 	//skip the middle space and the last '\n'
-	strncpy(item->value, c + 1, strlen(c) - 2); 
+	if(c[strlen(c)-1] == '\n')
+		strncpy(item->value, c + 1, strlen(c) - 2); 
+	else 
+		strncpy(item->value, c + 1, strlen(c) - 1); 
 	return 1;
 }
