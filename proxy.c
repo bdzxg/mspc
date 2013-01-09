@@ -10,7 +10,7 @@ pxy_master_t* master;
 pxy_config_t* config;
 pxy_worker_t* worker;
 FILE* log_file;
-int log_level = 1;
+int log_level = 0;
 
 pxy_settings setting = {
         LOG_LEVEL_DEBUG,
@@ -308,11 +308,10 @@ char* get_send_data(rec_msg_t* t, int* length)
 
 int main()
 {
+	log_file = stdout;
 	D("process start");
 	char ch[80];
 	pxy_worker_t *w;
-
-	log_file = stdout;
 
         D("Start init settings!");
         if (pxy_setting_init() != 0) {
