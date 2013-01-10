@@ -1,6 +1,5 @@
 #include "proxy.h"
 #include "agent.h"
-//#include "include/zookeeper.h"
 #include <pthread.h>
 #include "route.h"
 #include "ClientHelper.c"
@@ -17,8 +16,8 @@ static char SERVERERROR[3] = {8, 244, 3};// 500
 static char REQERROR[3] = {8, 144, 3};// 400
 static char NOTEXIST[3] = {8, 155, 3};// 411
 
-static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg);
-int agent_send_netstat(pxy_agent_t *agent);
+static int agent_to_beans(pxy_agent_t *, rec_msg_t*, int);
+static int agent_send_netstat(pxy_agent_t *);
 
 int worker_insert_agent(pxy_agent_t *agent)
 {
@@ -107,7 +106,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 		agent->epid = generate_client_epid(msg->client_type,
 						   msg->client_version);
 		agent->clienttype = msg->client_type;
-		//TODO check failed
+		//TODO check failed, send 500 error, and close the connection
 		if(worker_insert_agent(agent) < 0) {
 			W("insert agent error");
 		}
@@ -166,13 +165,8 @@ static int
 	}
 
 	free(a->epid);
-	//free(a->epidr2);
-
 	strncpy(t, slice->buffer, slice->len);
-	//sprintf(t2, "%s,%s", t, LISTENERPORT);	
-
 	a->epid = t;
-	//a->epidr2 = t2;
 	return 0;
 }
 
@@ -203,14 +197,17 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 		return 1;
 	case CMD_REFRESH_EPID:
 		if(pbc_pattern_unpack(rpc_pat_retval, &p->content, &r) < 0) {
-			E("unpack args error");
+			W("unpack args error");
 			return 1;
 		}
 		worker_remove_agent(a);
 		_refresh_agent_epid(a, &r.option);
 		worker_insert_agent(a);
 		return 1;
+	default:
+		W("cannot find corresponding handler");
 	}
+	
 	return 0;
 }
 
@@ -271,7 +268,7 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 
 	while(b->len - b->size < size_to_send) {
 		if(mrpc_buf_enlarge(b) < 0) {
-			E("buf enlarge error");
+			W("buf enlarge error");
 			return 0;
 		}
 	}
@@ -281,9 +278,12 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 
 	int r = mrpc_send2(a->send_buf, a->fd);
 	if(r < 0) {
-		I("send failed, prepare close!");
+		I("cmd %d send to uid %d failed, prepare close!",
+		  m->cmd, a->user_id);
 		return -1;
 	}
+	I("cmd %d succ sent to uid %d", m->cmd,
+	  a->user_id);
 	return 0;
 }
 
@@ -298,13 +298,13 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 		return;
 	}
 
-	I("receive the cmd %d, seq %d, opt %d",
+	I("receive backend cmd %d, seq %d, opt %d",
 	  proto->cmd, proto->sequence, proto->opt);
 
 	memcpy(ch, proto->epid.buffer, proto->epid.len);
 	pxy_agent_t *a = map_search(&worker->root, ch);
 	if(a == NULL) {
-		W("cannot find the epid %s agent, cmd is %d", ch, m.cmd);
+		I("cannot find the epid %s agent, cmd is %d", ch, m.cmd);
 		return;
 	}
 
@@ -319,8 +319,6 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 	return ;
 
 failed:
-	//Add to reg3 rbtree
-	//store_connection_context_reg3(agent);
 	worker_remove_agent(a);
 	pxy_agent_close(a);
 	return;
@@ -341,18 +339,17 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		I("uid %s cmd %d url is null", uid, msg->cmd);
 		return -1;
 	}
-	else {
-		I("uid %s, cmd %d url=%s", uid, msg->cmd, url);
-	}
 
 	msg->uri = url;
 //	msg->uri = __url;
 
 	if(mrpc_us_send(msg) < 0) {
-		E("mrpc send error");
+		W("uid %s, cmd %d url %s mrpc send error",
+		  uid, msg->cmd, url);
 		return -1;
 	}
 
+	I("uid %s, cmd %d url=%s sent to backend", uid, msg->cmd, url);
 	return 0;
 }
 
@@ -385,8 +382,13 @@ static int process_client_req(pxy_agent_t *agent)
 			msg.format = 128; //response
 			
 			if(_send_to_client(&msg, agent) < 0) {
+				I("send cmd %d BADGATEWAY to uid %d failed",
+				  msg.cmd, agent->user_id);
 				return -1;
 			}
+
+			I("sent cmd %d BADGATEWAY to uid %d",
+			  msg.cmd, agent->user_id);
 
 			continue;
 		}
@@ -498,7 +500,7 @@ int agent_send_netstat(pxy_agent_t *agent)
 				 &args, 
 				 &s);
 	if(r < 0) {
-		E("pack args error");
+		W("pack args error");
 		return -1;
 	}
 
@@ -537,6 +539,8 @@ int agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 
 	int n = mrpc_recv2(agent->recv_buf,agent->fd);
 	if(n == 0) {
+		I("recv uid %d, fd %d == 0",
+		  agent->user_id, agent->fd);
 		goto failed;
 	}
 	agent->upflow += n;
@@ -551,7 +555,6 @@ int agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	return 0;
 
 failed:
-	I("operation failed, prepare close!");
 	worker_remove_agent(agent);
 	pxy_agent_close(agent);
 	return -1;
