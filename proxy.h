@@ -5,7 +5,6 @@
 #define BUFFER_SIZE 500
 #define pxy_memzero(buf, n)       (void) memset(buf, 0, n)
 #define UNUSED(x) (void)(x)
-#define LISTENERPORT "tcp://192.168.199.8:9001" //TODO: config it
 
 #include "sysinc.h"
 #include "rbtree.h"
@@ -23,6 +22,7 @@
 #include "upstream.h"
 #include "freeq.h"
 #include "tool.h"
+#include "settings.h"
 #include "route.h"
 #include "msp_pb.h"
 #include "mrpc_pb.h"

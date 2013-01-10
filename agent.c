@@ -157,12 +157,6 @@ static int
 		E("cannnot malloc for new epid");
 		return -1;
 	}
-	char *t2 = calloc(slice->len + strlen(LISTENERPORT) + 2 , 1);
-	if(!t2) {
-		E("cannnot malloc for new epid2");
-		free(t);
-		return -1;
-	}
 
 	free(a->epid);
 	strncpy(t, slice->buffer, slice->len);

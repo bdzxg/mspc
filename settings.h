@@ -9,6 +9,10 @@ typedef struct pxy_settings{
 	char log_file[CONFIG_MAX];
 	int client_port;
 	int backend_port;
+	char ip[CONFIG_MAX];
+	int route_log_level;
+	char route_log_file[CONFIG_MAX];
+	char zk_url[CONFIG_MAX];
 } pxy_settings;
 
 #endif

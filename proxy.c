@@ -9,15 +9,18 @@
 pxy_master_t* master;
 pxy_config_t* config;
 pxy_worker_t* worker;
-extern freeq_t *request_q;
 FILE* log_file;
-int log_level = 1;
+int log_level = 0;
 
 pxy_settings setting = {
         LOG_LEVEL_DEBUG,
-        "mspc_log.txt",
+	"mspc.txt",
         9014,
-        9015
+        9015,
+	"",
+	LOG_LEVEL_DEBUG,
+	"route_log.txt",
+	"192.168.110.125:8998"
 };
 
 int
@@ -42,7 +45,6 @@ pxy_setting_init()
 		if(strcmp(item->name,"log_level") == 0) { 
 			setting.log_level = atoi(item->value);
                         log_level = setting.log_level;
-                        route_set_loglevel(log_level);
                 }
 
 		if(strcmp(item->name,"log_file") == 0) {
@@ -59,30 +61,47 @@ pxy_setting_init()
                                         log_file = stdout;
                                         E("LOG FILE open failed!");
 					goto ERROR;
-//                                      fprintf(stderr, "*** logfile err*** \n");
                                 }
-                                else{
-//                                        fprintf(stderr, "init log file ok! %s", setting.log_file);
-                                }
-
-                                route_set_logfile(log_file);
                         }
 		}
 
 		if(strcmp(item->name,"client_port") == 0) 
-			setting.client_port= atoi(item->value);
-		
+			setting.client_port= atoi(item->value);		
                 if(strcmp(item->name,"backend_port") == 0) 
 			setting.backend_port = atoi(item->value);
-                       
+		if(strcmp(item->name,"ip") == 0) 
+			strcpy(setting.ip, item->value);
+		if(strcmp(item->name,"route_log_level") == 0) {
+			setting.route_log_level = atoi(item->value);
+			route_set_loglevel(setting.route_log_level);
+		}
+		if(strcmp(item->name,"route_log_file") == 0) {
+			strcpy(setting.route_log_file, item->value);
+			if(strcmp(item->value, "stdout") == 0) {
+				route_set_logfile(stdout);
+			}
+			else if(strcmp(item->value, "stderr") == 0) {
+				route_set_logfile(stderr);
+			}
+			else {
+				FILE *f = fopen(item->value, "a");
+				route_set_logfile(f);
+			}
+		}
+		if(strcmp(item->name, "zk_url") == 0)
+			strcpy(setting.zk_url, item->value);
 		memset(item, 0, sizeof(*item));
 	}
 	
-	D("setting.log_level %d, log_file %s, client_port %d, backend_port %d", 
+	D("setting inited: setting.log_level %d, log_file %s, client_port %d, backend_port %d, ip %s, route_log_level %d, route_log_file %s,zk_url %s",
 	  setting.log_level,
 	  setting.log_file,
 	  setting.client_port,
-	  setting.backend_port);
+	  setting.backend_port,
+	  setting.ip,
+	  setting.route_log_level,
+	  setting.route_log_file,
+	  setting.zk_url);
 	
 	return 0;
 ERROR:
@@ -289,11 +308,10 @@ char* get_send_data(rec_msg_t* t, int* length)
 
 int main()
 {
+	log_file = stdout;
 	D("process start");
 	char ch[80];
 	pxy_worker_t *w;
-
-	log_file = stdout;
 
         D("Start init settings!");
         if (pxy_setting_init() != 0) {
