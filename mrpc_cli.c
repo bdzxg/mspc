@@ -358,7 +358,7 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->epid.buffer = msg->epid;
 	args->zip_flag = msg->compress;
 
-	sprintf(__endpoint, "%s:%d", setting.ip, setting.backend_port);
+	sprintf(__endpoint, "tcp://%s:%d", setting.ip, setting.backend_port);
 
 	args->ip.len = strlen(__endpoint);
 	args->ip.buffer = __endpoint;
