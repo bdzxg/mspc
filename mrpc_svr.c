@@ -21,7 +21,6 @@ void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 	resp->h.resp_head.body_length = 0;
 }
 
-//TODO can we remove the malloc(proto) ?
 static int mrpc_process_client_req(mrpc_connection_t *c)
 {
 	mrpc_message_t msg;
@@ -159,7 +158,7 @@ int mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 	if(f>0){
 		err = setnonblocking(f);
 		if(err < 0){
-			E("set nonblocking error"); return 0;
+			W("set nonblocking error"); return 0;
 		}
 		c = mrpc_conn_new(NULL);
 		c->fd = f;

@@ -32,7 +32,6 @@ static int _connect(mrpc_connection_t *c)
 	char r3[16] = {0};
 	int addr_len = r1 - r2 -1;
 	struct in_addr inp;
-	D("str 2");
 
 	if(addr_len > 0 && addr_len <= 15) {
 		strncpy(r3, r2 + 1, addr_len);
