@@ -7,7 +7,6 @@ LIB_OBJS = \
 	./map.o \
 	./ev.o \
 	./mempool.o \
-	./hashtable.o \
 	./tool.o
 
 MAP_OBJS = \
@@ -44,10 +43,6 @@ MAP_TEST = \
 FUNC_TEST = \
 	./func_test.o
 
-FREEQ_OBJS = \
-	./freeq.o \
-	./freeq_test.o
-
 TEST = \
 	$(PXY_TEST) \
 	$(HT_TEST)  \
@@ -66,11 +61,6 @@ clean:
 	rm -f $(FUNC_TEST)
 	rm -f $(MRPC_OBJS)
 
-ht_test: $(LIB_OBJS) $(HT_TEST)
-	$(LINK) $(LIB_OBJS) $(TEST) -o $@
-
 map_test: $(MAP_OBJS) $(MAP_TEST)
 	$(LINK) $(MAP_OBJS) $(MAP_TEST) -o $@
 
-freeq_test: $(FREEQ_OBJS) 
-	$(LINK) $(FREEQ_OBJS) -o $@
