@@ -161,7 +161,7 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 		fi = ev_file_item_new(f,
 				      agent,
 				      agent_recv_client,
-				      NULL, //TODO add send event and writable
+				      agent_send_client,
 				      EV_READABLE | EPOLLET);
 		if(!fi){
 			E("create file item error");
@@ -177,7 +177,7 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 		/*TODO: check the result*/
 	}	
 	else {
-		E("accept %s", strerror(errno));
+		W("accept %s", strerror(errno));
 	}
 
 	return 0;

@@ -554,3 +554,21 @@ failed:
 	pxy_agent_close(agent);
 	return -1;
 }
+
+
+int agent_send_client(ev_t *ev, ev_file_item_t *fi)
+{
+	UNUSED(ev);
+	pxy_agent_t *a = fi->data;
+	int r = mrpc_send2(a->send_buf, a->fd);
+
+	if(r < 0) {
+		I("send to uid %d failed, prepare close!", a->user_id);
+		worker_remove_agent(a);
+		pxy_agent_close(a);
+		return -1;
+	}
+
+	I("succ send %d bytes to uid %d", r , a->user_id);
+	return 0;
+}
