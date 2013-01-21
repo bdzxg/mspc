@@ -14,11 +14,13 @@ static char OVERTIME[3] = {8, 248, 3};// 504
 static char BADGATEWAY[3] = {8, 246, 3};// 502
 static char SERVERERROR[3] = {8, 244, 3};// 500
 static char REQERROR[3] = {8, 144, 3};// 400
+static char AUTHERROR[3] = {8, 145, 3};// 400
 static char NOTEXIST[3] = {8, 155, 3};// 411
 
 static int agent_to_beans(pxy_agent_t *, rec_msg_t*, int);
 static int agent_send_netstat(pxy_agent_t *);
 static int agent_send_offstate(pxy_agent_t *agent);
+static int _send_to_client(rec_msg_t *m, pxy_agent_t *a);
 
 int worker_insert_agent(pxy_agent_t *agent)
 {
@@ -102,14 +104,17 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	}
 	b->offset += msg->body_len;
 
-	//packet_len = 0;
 	if(agent->epid == NULL) {
 		agent->epid = generate_client_epid(msg->client_type,
 						   msg->client_version);
+		if(!agent->epid) {
+			E("gen epid error");
+			goto ERROR_RESPONSE;
+		}
 		agent->clienttype = msg->client_type;
-		//TODO check failed, send 500 error, and close the connection
 		if(worker_insert_agent(agent) < 0) {
-			W("insert agent error");
+			E("insert agent error, epid %s",agent->epid);
+			goto ERROR_RESPONSE;
 		}
 	}
 	msg->epid = agent->epid;
@@ -123,6 +128,13 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	D("msp->epid %s", msg->epid);
 	msg->logic_pool_id = agent->logic_pool_id;
 	return 1;
+
+ERROR_RESPONSE:
+	msg->body = SERVERERROR;
+	msg->body_len = sizeof(SERVERERROR);
+	msg->format = 128;
+	_send_to_client(msg, agent);
+	return -1;
 }
 
 
@@ -151,7 +163,7 @@ _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 
 
 static int
- _refresh_agent_epid(pxy_agent_t *a, struct pbc_slice *slice)
+_refresh_agent_epid(pxy_agent_t *a, struct pbc_slice *slice)
 {
 	char* t = calloc(slice->len + 1, 1);
 	if(!t) {
@@ -355,6 +367,10 @@ static int process_client_req(pxy_agent_t *agent)
 	while ((r = parse_client_data(agent, &msg)) > 0) {
 		if(agent->user_id > 0) {
 			if(msg.userid != agent->user_id) {
+				msg.body = AUTHERROR;
+				msg.body_len = sizeof(AUTHERROR);
+				msg.format = 128;
+				_send_to_client(&msg, agent);
 				W("user id %d not match with %d", 
 				  msg.userid, agent->user_id);
 				return -1;

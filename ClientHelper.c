@@ -159,31 +159,17 @@ static char* generate_client_epid(int type, int version)
 	time(&timesec);
 	p = gmtime(&timesec);
 	gettimeofday(&tv, NULL);
-	//char* tep = calloc(7, 1);
-	//sprintf(tep, "%lu", tv.tv_usec);
-	//char* tep_t = calloc(5, 1);
-	//strncpy(tep_t, tep, 4);
 	char* t = calloc(20, 1);	
+	if(!t) {
+		return NULL;
+	}
 	sprintf(t, "%02d%02d%lu", p->tm_min, p->tm_sec, tv.tv_usec);
 	char* cltype = get_inner_cltype(cl_type);
 	char* epid = calloc(strlen(t)+ strlen(cltype) + strlen(cl_version) + 1, 1);
+	if(!epid) {
+		return NULL;
+	}
 	sprintf(epid, "%s%s%s", cltype,  cl_version, t);
-	//free(tep);
-	//free(tep_t);
 	free(t);
 	return epid;
 }
-
-/*
-static char* get_now_time()
-{
-	time_t tmp_time;
-	struct tm *ptime;
-	tmp_time = time(NULL);//获取当前时间
-	ptime = localtime(&tmp_time);
-	char* t = calloc(50, 1);	
-	sprintf(t, "%d-%d-%d %d:%d:%d\n",(1900+ptime->tm_year),(1+ptime->tm_mon),ptime->tm_mday,	ptime->tm_hour,ptime->tm_min,ptime->tm_sec);
-	W("%d-%d-%d %d:%d:%d\n",(1900+ptime->tm_year),(1+ptime->tm_mon),ptime->tm_mday,	ptime->tm_hour,ptime->tm_min,ptime->tm_sec);
-	return t;
-}
-*/
