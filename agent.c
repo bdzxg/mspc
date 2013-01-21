@@ -2,7 +2,6 @@
 #include "agent.h"
 #include <pthread.h>
 #include "route.h"
-#include "ClientHelper.c"
 
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
