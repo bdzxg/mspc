@@ -32,12 +32,6 @@ typedef struct {
 	size_t len;
 }slice;
 
-typedef struct pxy_config_s{
-    short client_port;
-    short backend_port;
-    int worker_count;
-}pxy_config_t;
-
 typedef struct pxy_worker_s{
     int bfd;
     ev_t* ev;
@@ -58,9 +52,7 @@ typedef struct pxy_worker_s{
 typedef struct pxy_master_s{
     int listen_fd;
     mp_pool_t* pool;
-    pxy_config_t* config;
     struct sockaddr addr;
-    pxy_worker_t **workers;
 }pxy_master_t;
 
 typedef struct pxy_command_s{

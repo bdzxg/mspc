@@ -3,7 +3,7 @@
 
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
-extern pxy_config_t* config;
+extern pxy_settings setting;
 static mrpc_upstreamer_t mrpc_up;
 static char* PROTOCOL = "MCP/3.0";
 
@@ -54,13 +54,13 @@ int mrpc_init()
 	}
 
 	addr1.sin_family = AF_INET;
-	addr1.sin_port = htons(config->backend_port);
+	addr1.sin_port = htons(setting.backend_port);
 	addr1.sin_addr.s_addr = 0;
 	
 	if(bind(mrpc_up.listen_fd, (struct sockaddr*)&addr1, sizeof(addr1)) < 0){
 		E("bind error");
 		return -1;
 	}
-	D("mrpc init finish, port %d", config->backend_port);
+	D("mrpc init finish, port %d", setting.backend_port);
 	return 0;
 }

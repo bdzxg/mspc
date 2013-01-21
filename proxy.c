@@ -7,7 +7,6 @@
 #include "settings.h"
 
 pxy_master_t* master;
-pxy_config_t* config;
 pxy_worker_t* worker;
 FILE* log_file;
 int log_level = 0;
@@ -17,7 +16,7 @@ pxy_settings setting = {
 	"mspc.txt",
         9014,
         9015,
-	"",
+	"0.0.0.0",
 	LOG_LEVEL_DEBUG,
 	"route_log.txt",
 	"192.168.110.125:8998"
@@ -93,7 +92,7 @@ pxy_setting_init()
 		memset(item, 0, sizeof(*item));
 	}
 	
-	D("setting inited: setting.log_level %d, log_file %s, client_port %d, backend_port %d, ip %s, route_log_level %d, route_log_file %s,zk_url %s",
+	E("setting inited: setting.log_level %d, log_file %s, client_port %d, backend_port %d, ip %s, route_log_level %d, route_log_file %s,zk_url %s",
 	  setting.log_level,
 	  setting.log_file,
 	  setting.client_port,
@@ -111,22 +110,6 @@ ERROR:
 	
 	if(item) {
 		free(item);
-	}
-
-	return -1;
-}
-
-int 
-pxy_init_config()
-{
-	config = (pxy_config_t*)pxy_calloc(sizeof(*config));
-
-	if(config){
-		config->client_port = setting.client_port;
-		config->backend_port = setting.backend_port;;
-		config->worker_count = 1;
-
-		return 1;
 	}
 
 	return -1;
@@ -194,7 +177,11 @@ pxy_start_listen()
 	}
 
 	int reuse = 1;
-	setsockopt(master->listen_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+	setsockopt(master->listen_fd,
+		   SOL_SOCKET,
+		   SO_REUSEADDR,
+		   &reuse,
+		   sizeof(int));
 	
 	if(setnonblocking(master->listen_fd) < 0){
 		D("set nonblocling error");
@@ -202,16 +189,18 @@ pxy_start_listen()
 	}
 
 	addr1.sin_family = AF_INET;
-	addr1.sin_port = htons(config->client_port);
-	addr1.sin_addr.s_addr = 0;
+	addr1.sin_port = htons(setting.client_port);
+	inet_aton(setting.ip, &addr1.sin_addr);
 	
-	if(bind(master->listen_fd, (struct sockaddr*)&addr1, sizeof(addr1)) < 0){
-		D("bind error");
+	if(bind(master->listen_fd, (struct sockaddr*)&addr1,
+		sizeof(addr1)) < 0){
+		E("bind address %s:%d error", setting.ip,
+		  setting.client_port);
 		return -1;
 	}
 
 	if(listen(master->listen_fd,1000) < 0){
-		D("listen error");
+		E("listen error");
 		return -1;
 	}
     
@@ -221,24 +210,12 @@ pxy_start_listen()
 int 
 pxy_init_master()
 {
-        if(!pxy_init_config()){
-		D("config initialize error");
-		return -1;
-	}
- 
 	master = (pxy_master_t*)malloc(sizeof(*master));
 	if(!master){
-		D("no memory for master");
+		E("no memory for master");
 		return -1;
 	}
-	master->config = config;
-	master->workers = 
-		(pxy_worker_t**)malloc(config->worker_count * sizeof(pxy_worker_t));
 
-	if(!master->workers) {
-		D("no memory for workers");
-		return -1;
-	}
 
 	return pxy_start_listen();
 }
@@ -345,9 +322,6 @@ int main()
 
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0){ 
 	}
-
-	w = (pxy_worker_t*)master->workers;
-	pxy_send_command(w,PXY_CMD_QUIT,-1);
 
 	sleep(5);
 	D("pxy_master_close");
