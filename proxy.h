@@ -13,7 +13,6 @@
 #include "list.h"
 #include "config.h"
 #include "mempool.h"
-#include "hashtable.h"
 #include "proto.h"
 #include "mrpc.h"
 #include "agent.h"

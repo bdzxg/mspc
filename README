@@ -7,4 +7,7 @@ RPC : All the client/server modules are implemented in single thread non-blockin
 
 
 
-TODO: mrpc_cli, when connection refuesed .... 
+TODO:
+
+1. mrpc_cli, when connection refuesed .... 
+2. no timer in msp-c.. and corresponding function..
