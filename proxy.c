@@ -288,7 +288,6 @@ int main()
 	log_file = stdout;
 	D("process start");
 	char ch[80];
-	pxy_worker_t *w;
 
         D("Start init settings!");
         if (pxy_setting_init() != 0) {

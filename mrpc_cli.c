@@ -343,7 +343,7 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 		args->user_context.buffer = NULL;
 	}
 
-	D("request user_context.len %zu, body_len %zu", args->user_context.len, msg->body_len);
+	D("request user_context.len %d, body_len %zu", args->user_context.len, msg->body_len);
 	if(msg->body_len > 0){	
 		args->content.len = msg->body_len;
 		args->content.buffer = msg->body;

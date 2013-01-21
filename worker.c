@@ -7,7 +7,6 @@
 extern pxy_master_t *master;
 extern pxy_worker_t *worker;
 extern pxy_settings setting;
-freeq_t *request_q;
 upstream_map_t *upstream_root;
 
 int worker_init();
@@ -57,8 +56,6 @@ int worker_init()
 		upstream_root->root = RB_ROOT;
 
 		worker->root = RB_ROOT;
-		pthread_mutex_init(&worker->mutex, NULL);
-
 		if(mrpc_init() < 0) {
 			E("mrpc init error");
 			return -1;

@@ -20,7 +20,6 @@
 #include "map.h"
 #include "log.h"
 #include "upstream.h"
-#include "freeq.h"
 #include "tool.h"
 #include "settings.h"
 #include "route.h"
@@ -44,8 +43,6 @@ typedef struct pxy_worker_s{
     int socket_pair[2];
 	struct rb_root root;
 	FILE* fid;
-	pthread_mutex_t mutex;
-	pthread_mutex_t r3_mutex;
 	struct rb_root r3_root;
 }pxy_worker_t;
 

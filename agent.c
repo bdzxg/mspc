@@ -18,6 +18,7 @@ static char NOTEXIST[3] = {8, 155, 3};// 411
 
 static int agent_to_beans(pxy_agent_t *, rec_msg_t*, int);
 static int agent_send_netstat(pxy_agent_t *);
+static int agent_send_offstate(pxy_agent_t *agent);
 
 int worker_insert_agent(pxy_agent_t *agent)
 {
