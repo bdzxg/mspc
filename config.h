@@ -1,7 +1,7 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
-#define CONFIG_MAX 64
+#define CONFIG_MAX 256
 
 typedef struct config_item {
 	char name[CONFIG_MAX];
