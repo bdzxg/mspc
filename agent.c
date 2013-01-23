@@ -210,8 +210,6 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 		_refresh_agent_epid(a, &r.option);
 		worker_insert_agent(a);
 		return 1;
-	default:
-		W("cannot find corresponding handler");
 	}
 	
 	return 0;

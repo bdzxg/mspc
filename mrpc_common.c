@@ -107,7 +107,6 @@ void mrpc_conn_free(mrpc_connection_t *c)
 	mrpc_buf_free(c->recv_buf);
 	list_del(&c->list_us);
 	list_del(&c->list_to);
-	if(c->us)  c->us->conn_count--;
 	free(c);
 }
 

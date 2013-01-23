@@ -27,10 +27,8 @@ typedef struct mrpc_upstreamer_s {
 typedef struct mrpc_us_item_s {
 	char *uri;
 	struct rb_node rbnode;
-	list_head_t conn_list; //connection list 
-	list_head_t frozen_list; //frozen connection list
-	int current_conn;
-        size_t conn_count;
+	struct mrpc_connection_s* conns[UP_CONN_COUNT];
+	uint64_t current_conn;
 	list_head_t pending_list; // pending request list 
 	size_t pend_count;
 }mrpc_us_item_t;

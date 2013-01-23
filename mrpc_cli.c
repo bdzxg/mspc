@@ -96,57 +96,36 @@ static int _connect(mrpc_connection_t *c)
 
 static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 {
-	mrpc_connection_t *c = NULL, *tc, *n;
-	time_t now = time(NULL);
 	int i = 0;
-	
-	list_for_each_entry_safe(tc, n, &us->conn_list, list_us) {
-		switch(tc->conn_status)  {
-		case MRPC_CONN_DISCONNECTED:
-		        D("disconnected");
-			_connect(tc);
-			break;
-		case MRPC_CONN_CONNECTED:
-			if(now - tc->connected > MRPC_CONN_DURATION) {
-				tc->conn_status = MRPC_CONN_FROZEN;
-				list_del(&tc->list_us);
-				list_append(&tc->list_us, &us->frozen_list);
+	mrpc_connection_t *c = NULL, *r = NULL;
 
-				mrpc_connection_t *nc = mrpc_conn_new(us);
-				if(!nc) {
-					E(" cannot new mrpc_conn");
-				}
-				else {
-					list_append(&nc->list_us, &us->conn_list);
-					W("connect new connection for frozen");
-					_connect(nc);
-				}
+	
+	for(; i < UP_CONN_COUNT; i++) {
+		int index = us->current_conn++ % UP_CONN_COUNT;
+		c = us->conns[index];
+
+		if(c == NULL) {
+			c = mrpc_conn_new(us);
+			if(!c) {
+				W("cannot malloc mrpc_conn");
 			}
 			else {
-				c = tc;
+				us->conns[index] = c;
+				_connect(c);
 			}
+			continue;
+		}
+
+		if(c->conn_status == MRPC_CONN_CONNECTED) {
+			r = c;
 			break;
 		}
-
-		if(c != NULL && i != us->current_conn) {
-			i++;
-			break;
-		}
-		i++;
-	}
-
-	if(c != NULL) {
-		us->current_conn = i - 1 > 0 ? i - 1 : -1;
-	}
-
-	list_for_each_entry_safe(tc, n, &us->frozen_list, list_us) {
-		if(now - tc->connected > MRPC_CONN_DURATION + MRPC_TX_TO * 1.5) {
-			//list_del(&tc->list_us);
-			mrpc_conn_close(tc);
-			mrpc_conn_free(tc);
+		else if(c->conn_status == MRPC_CONN_DISCONNECTED) {
+			_connect(c);
 		}
 	}
-	return c;
+
+	return r;
 }
 
 static mrpc_us_item_t* _get_us(char *uri)
@@ -170,24 +149,23 @@ static mrpc_us_item_t* _us_new(char *uri)
 	
 	mrpc_us_item_t *us = calloc(1, sizeof(*us));
 	if(!us) {
-		E("cannot malloc for mrpc_us_item");
+		W("cannot malloc for mrpc_us_item");
 		free(up);
 		return NULL;
 	}
 
 	us->uri = strdup(uri);
-	INIT_LIST_HEAD(&us->conn_list);
-	INIT_LIST_HEAD(&us->frozen_list);
 	INIT_LIST_HEAD(&us->pending_list);
 	
 	int i = 0;
-	for(; i < 3 ; i++) {
+	for(; i < UP_CONN_COUNT ; i++) {
 		mrpc_connection_t *c = mrpc_conn_new(us);
 		if(!c) {
 			E("create connection error");
 			break;
 		}
-		list_append(&c->list_us, &us->conn_list);
+		us->conns[i] = c;
+		_connect(c);
 	}
 
 	if(us_add_upstream(upstream_root, up) < 0){
@@ -402,7 +380,7 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	if(route_get_app_category_minus_name(msg->cmd, 1, name) > 0){
 		body.category_name.len = strlen(name);
 		body.category_name.buffer = name;
-		E("minus name %s", name);
+		D("minus name %s", name);
 	}
 	else{
 		//TODO, we should handle this error
@@ -585,31 +563,31 @@ int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	mrpc_connection_t *c = fi->data;
-	int err;
+	int err = -1;
 	socklen_t err_len;
 
 	if(c->conn_status == MRPC_CONN_CONNECTING) {
 		if(getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len) < 0) {
-			E("getsockopt error");
+			W("fd %d getsockopt error, reason %s",c->fd,
+			  strerror(errno));
 			return 0;
-				
 		}
-		
+
 		if(err == 0 || err_len == 0) {
-			E("connected!");
+			W("connected!");
 			c->conn_status = MRPC_CONN_CONNECTED;
 			c->connected = time(NULL);
 			_send_pending(c);
 		}
 		else {
-			E("err is %d", err);
+			W("err is %d", err);
 			c->conn_status = MRPC_CONN_DISCONNECTED;
 			goto failed;
 		}
 	}
 
 	if(mrpc_send(c) < 0) {
-		E("send error, close connection");
+		W("send error, close connection");
 		goto failed;
 	}
 
@@ -653,15 +631,16 @@ int mrpc_us_send(rec_msg_t *msg)
 	else {
 		//save to the pending list
 		if(us->pend_count >= MRPC_MAX_PENDING) {
-			E("max pending");
+			W("max pending");
 			return -4;
 		}
 		rec_msg_t *m = _clone_msg(msg);
 		if(!m) {
-			E("clone msg error");
+			W("clone msg error");
 			return -1;
 		}
 		list_append(&m->head, &us->pending_list);
+		I("added to the pending list");
 		us->pend_count++;
 	}
 	return 0;
