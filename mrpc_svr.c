@@ -85,8 +85,6 @@ static int mrpc_process_client_req(mrpc_connection_t *c)
 	return 1;
 
 failed:
-	mrpc_conn_close(c);
-	mrpc_conn_free(c);
 	return -1;
 }
 
@@ -171,11 +169,12 @@ int mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 			E("create file item error");
 			goto failed;
 		}
+		c->event = fi;
+
 		if(ev_add_file_item(worker->ev,fi) < 0) {
 			E("add file item failed");
 			goto failed;
 		}
-		c->event = fi;
 	}	
 	else {
 		E("accept error %s", strerror(errno));
