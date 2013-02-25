@@ -159,6 +159,11 @@ int mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 			W("set nonblocking error"); return 0;
 		}
 		c = mrpc_conn_new(NULL);
+		if(!c) {
+			W("cannot malloc new mrpc_connetion");
+			goto failed;
+		}
+
 		c->fd = f;
 		fi = ev_file_item_new(f,
 				      c,

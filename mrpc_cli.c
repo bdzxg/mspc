@@ -115,7 +115,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 			}
 			continue;
 		}
-
+		
 		if(c->conn_status == MRPC_CONN_CONNECTED) {
 			r = c;
 			break;

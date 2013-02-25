@@ -73,12 +73,14 @@ mrpc_connection_t* mrpc_conn_new(mrpc_us_item_t* us)
 	if(!c->send_buf) {
 		E("cannot malloc send_buf!");
 		free(c);
+		return NULL;
 	}
 	c->recv_buf = mrpc_buf_new(MRPC_BUF_SIZE);
 	if(!c->recv_buf) {
 		E("cannot malloc recv_buf");
-		free(c->send_buf);
+		mrpc_buf_free(c->send_buf);
 		free(c);
+		return NULL;
 	}
 	c->fd = -1;
 	c->us = us;
