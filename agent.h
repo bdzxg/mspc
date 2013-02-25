@@ -46,7 +46,7 @@ typedef struct rpc_async_req_s{
 }rpc_async_req_t;
 
 
-pxy_agent_t* pxy_agent_new(mp_pool_t *,int,int);
+pxy_agent_t* pxy_agent_new(int,int);
 void pxy_agent_close(pxy_agent_t *);
 int pxy_agent_data_received(pxy_agent_t *);
 int pxy_agent_upstream(int ,pxy_agent_t *);

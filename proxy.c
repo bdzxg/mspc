@@ -122,8 +122,6 @@ pxy_master_close()
 		D("close the listen fd");
 		close(master->listen_fd);
 	}
-  
-	/* TODO: Destroy the mempool */
 }
 
 int

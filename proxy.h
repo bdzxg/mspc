@@ -12,7 +12,6 @@
 #include "include/pbc.h"
 #include "list.h"
 #include "config.h"
-#include "mempool.h"
 #include "proto.h"
 #include "mrpc.h"
 #include "agent.h"
@@ -35,9 +34,6 @@ typedef struct pxy_worker_s{
     ev_t* ev;
     int connection_n;
     pid_t pid;
-    mp_pool_t *buf_pool;
-    mp_pool_t *buf_data_pool;
-    mp_pool_t *agent_pool;
     struct sockaddr_in *baddr;
     int socket_pair[2];
 	struct rb_root root;
@@ -47,7 +43,6 @@ typedef struct pxy_worker_s{
 
 typedef struct pxy_master_s{
     int listen_fd;
-    mp_pool_t* pool;
     struct sockaddr addr;
 }pxy_master_t;
 

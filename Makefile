@@ -6,7 +6,6 @@ LIB_OBJS = \
 	./rbtree.o \
 	./map.o \
 	./ev.o \
-	./mempool.o \
 	./tool.o
 
 MAP_OBJS = \
