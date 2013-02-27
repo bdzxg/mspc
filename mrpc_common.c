@@ -173,6 +173,7 @@ int mrpc_recv2(mrpc_buf_t *b, int fd)
 
 		if(n < 0) {
 			if(errno == EAGAIN || errno == EWOULDBLOCK ) {
+				if(r > 0) return r;
 				return -1;
 			}
 			else {
@@ -189,7 +190,7 @@ int mrpc_recv2(mrpc_buf_t *b, int fd)
 		b->size += n;
 		r += n;
 
-		if((size_t)n <= buf_avail) {	
+		if((size_t)n < buf_avail) {	
 			D("break from receive loop, recv enough");	
 			break;
 		}
