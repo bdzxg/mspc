@@ -170,55 +170,104 @@ static inline char* get_client_type(int num)
 	}
 	return "ANDROID";
 }
+//static inline char* get_client_version(int version)
+//{
+//	switch(version) {
+//	case 1: return "0100";
+//	case 2: return "0101";
+//	case 3: return "0102";
+//	case 4: return "0103";
+//	case 5: return "0104";
+//	case 6: return "0105";																	         
+//	case 7: return "0106";
+//	case 8: return "0107";
+//	case 9: return "0108";
+//	case 10: return "0109";
+//				 
+//	case 11: return "0200";
+//	case 12: return "0201";
+//	case 13: return "0202";
+//	case 14: return "0203";
+//	case 15: return "0204";
+//	case 16: return "0205";
+//	case 17: return "0206";
+//	case 18: return "0207";
+//	case 19: return "0208";
+//	case 20: return "0209";
+//				 
+//	case 21: return "0300";
+//	case 22: return "0301";
+//	case 23: return "0302";
+//	case 24: return "0303";
+//	case 25: return "0304";
+//	case 26: return "0305";
+//	case 27: return "0306";
+//	case 28: return "0307";
+//	case 29: return "0308";
+//	case 30: return "0309";
+//				 
+//	case 31: return "0400";
+//	case 32: return "0401";
+//	case 33: return "0402";
+//	case 34: return "0403";
+//	case 35: return "0404";
+//	case 36: return "0405";
+//	case 37: return "0406";
+//	case 38: return "0407";
+//	case 39: return "0408";
+//	case 40: return "0409";
+//	}
+//	return "0100";
+//}
 
 static inline char* get_client_version(int version)
 {
 	switch(version) {
-	case 1: return "0100";
-	case 2: return "0101";
-	case 3: return "0102";
-	case 4: return "0103";
-	case 5: return "0104";
-	case 6: return "0105";																	         
-	case 7: return "0106";
-	case 8: return "0107";
-	case 9: return "0108";
-	case 10: return "0109";
+	case 1: return "0500";
+	case 2: return "0501";
+	case 3: return "0502";
+	case 4: return "0503";
+	case 5: return "0504";
+	case 6: return "0505";
+	case 7: return "0506";
+	case 8: return "0507";
+	case 9: return "0508";
+	case 10: return "0509";
 				 
-	case 11: return "0200";
-	case 12: return "0201";
-	case 13: return "0202";
-	case 14: return "0203";
-	case 15: return "0204";
-	case 16: return "0205";
-	case 17: return "0206";
-	case 18: return "0207";
-	case 19: return "0208";
-	case 20: return "0209";
-				 
-	case 21: return "0300";
-	case 22: return "0301";
-	case 23: return "0302";
-	case 24: return "0303";
-	case 25: return "0304";
-	case 26: return "0305";
-	case 27: return "0306";
-	case 28: return "0307";
-	case 29: return "0308";
-	case 30: return "0309";
-				 
-	case 31: return "0400";
-	case 32: return "0401";
-	case 33: return "0402";
-	case 34: return "0403";
-	case 35: return "0404";
-	case 36: return "0405";
-	case 37: return "0406";
-	case 38: return "0407";
-	case 39: return "0408";
-	case 40: return "0409";
+//	case 11: return "0600";
+//	case 12: return "0601";
+//	case 13: return "0602";
+//	case 14: return "0603";
+//	case 15: return "0604";
+//	case 16: return "0605";
+//	case 17: return "0606";
+//	case 18: return "0607";
+//	case 19: return "0608";
+//	case 20: return "0609";
+//				 
+//	case 21: return "0700";
+//	case 22: return "0701";
+//	case 23: return "0702";
+//	case 24: return "0703";
+//	case 25: return "0704";
+//	case 26: return "0705";
+//	case 27: return "0706";
+//	case 28: return "0707";
+//	case 29: return "0708";
+//	case 30: return "0709";
+//				 
+//	case 31: return "0800";
+//	case 32: return "0801";
+//	case 33: return "0802";
+//	case 34: return "0803";
+//	case 35: return "0804";
+//	case 36: return "0805";
+//	case 37: return "0806";
+//	case 38: return "0807";
+//	case 39: return "0808";
+//	case 40: return "0809";
 	}
-	return "0100";
+	return "0500";
 }
 
 static inline char* generate_client_epid(int type, int version)
