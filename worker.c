@@ -132,7 +132,7 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 			D("set nonblocking error"); return 0;
 		}
 
-		agent = calloc(1, sizeof(*agent));
+		agent = pxy_agent_new(f, 0);
 		if(!agent){
 			D("create new agent error"); return 0;
 		}
