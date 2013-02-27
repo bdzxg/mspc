@@ -63,18 +63,24 @@ typedef struct ev_s{
 		*__m = __tv.tv_usec/1000;	\
 	})					\
 
-#define ev_file_item_new(__fd,__d,__rf,__wf,__e)			\
-	({								\
-		ev_file_item_t* __fi;					\
-		__fi = (ev_file_item_t*)malloc(sizeof(ev_file_item_t));	\
-		__fi->fd = __fd;					\
-		__fi->wfunc = __wf;					\
-		__fi->rfunc = __rf;					\
-		__fi->data = __d;					\
-		__fi->valid = 1;					\
-		__fi->events = __e;					\
-		__fi;							\
-	})								\
+static inline ev_file_item_t*
+ev_file_item_new(int fd, void* data, ev_file_func* rf,
+		 ev_file_func* wf, int evts)
+{
+	ev_file_item_t *fi = malloc(sizeof(*fi));
+	if(!fi) {
+		return NULL;
+	}
+	
+	fi->fd = fd;
+	fi->data = data;
+	fi->wfunc = wf;
+	fi->rfunc = rf;
+	fi->valid = 1;
+	fi->events = evts;
+
+	return fi;
+}
 
 #define ev_time_item_new(__ev,__ms,__func,__data)	\
 	({						\

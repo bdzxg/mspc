@@ -12,7 +12,7 @@ mrpc_buf_t* mrpc_buf_new(size_t size)
 		E("no mem for mrpc_buf_t");
 		return NULL;
 	}
-
+	
 	b->buf = malloc(size);
 	if(!b->buf) {
 		E("no mem for buf");

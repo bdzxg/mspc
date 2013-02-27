@@ -17,7 +17,7 @@ void worker_ev_after(ev_t *);
 
 int worker_init()
 {
-	worker = (pxy_worker_t*)pxy_calloc(sizeof(*worker));
+	worker = calloc(1, sizeof(*worker));
 
 	if(worker) {
 		worker->ev = ev_create();
@@ -27,19 +27,7 @@ int worker_init()
 		}
 		worker->ev->after = worker_ev_after;
 
-		worker->agent_pool = mp_create(sizeof(pxy_agent_t),0,"AgentPool");
-		if(!worker->agent_pool){
-			D("create agent_pool error");
-			return -1;
-		}
-
-		worker->buf_data_pool = mp_create(BUFFER_SIZE,0,"BufDataPool");
-		if(!worker->buf_data_pool){
-			D("create buf_data_pool error");
-			return -1;
-		}
-
-		upstream_root = (upstream_map_t*) pxy_calloc(sizeof(*upstream_root));
+		upstream_root = (upstream_map_t*) calloc(1, sizeof(*upstream_root));
 		if(!upstream_root) {
 			E("cannnot malloc for upstream_root");
 			return -1;
@@ -144,7 +132,7 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 			D("set nonblocking error"); return 0;
 		}
 
-		agent = pxy_agent_new(worker->agent_pool,f,0);
+		agent = calloc(1, sizeof(*agent));
 		if(!agent){
 			D("create new agent error"); return 0;
 		}

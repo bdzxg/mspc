@@ -15,7 +15,6 @@ static char SERVERERROR[3] = {8, 244, 3};// 500
 static char REQERROR[3] = {8, 144, 3};// 400
 static char AUTHERROR[3] = {8, 145, 3};// 400
 static char NOTEXIST[3] = {8, 155, 3};// 411
-
 static int agent_to_beans(pxy_agent_t *, rec_msg_t*, int);
 static int agent_send_netstat(pxy_agent_t *);
 static int agent_send_offstate(pxy_agent_t *agent);
@@ -442,13 +441,13 @@ void pxy_agent_close(pxy_agent_t *a)
 		close(a->fd);
 	}
 
-	mp_free(worker->agent_pool,a);
+	free(a);
 }
 
 
-pxy_agent_t * pxy_agent_new(mp_pool_t *pool,int fd,int userid)
+pxy_agent_t * pxy_agent_new(int fd,int userid)
 {
-	pxy_agent_t *agent = mp_alloc(pool);
+	pxy_agent_t *agent = calloc(1, sizeof(*agent));
 	if(!agent){
 		E("no mempry for agent"); 
 		goto failed;
