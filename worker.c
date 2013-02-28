@@ -113,17 +113,14 @@ worker_accept(ev_t *ev, ev_file_item_t *ffi)
 	pxy_agent_t *agent;
 	ev_file_item_t *fi;
 
-	//for(i=0;i<100;i++){
-	/*try to accept 100 times*/
 	socklen_t sin_size = sizeof(master->addr);
 	f = accept(ffi->fd,&(master->addr),&sin_size);
-	int k = 1;
-	if(setsockopt(f, SOL_SOCKET, SO_KEEPALIVE, (void *)&k, sizeof(k)) < 0) {
-		E("set keel alive failed");
-	}
-	D("fd#%d accepted",f);
-
 	if(f>0){
+		int k = 1;
+		if(setsockopt(f, SOL_SOCKET, SO_KEEPALIVE, (void *)&k, sizeof(k)) < 0) {
+			E("set keel alive failed");
+		}
+		D("fd#%d accepted",f);
 
 		/* FIXME:maybe we should try best to accept and 
 		 * delay add events */
