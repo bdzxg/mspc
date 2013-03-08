@@ -15,19 +15,24 @@
 
 #define EV_COUNT 10000
 
+#include "proxy.h"
+
 struct ev_s;
+struct ev_time_item_s;
 struct ev_file_item_s;
 
-typedef void ev_time_func(struct ev_s* ev,void* data);
+typedef void ev_time_func(struct ev_s* ev, struct ev_time_item_s* ti);
 typedef int ev_file_func(struct ev_s* ev,struct ev_file_item_s* fi);
 typedef void ev_after_event_handle(struct ev_s *ev);
 
 typedef struct ev_time_item_s{
-	int id;
-	long ms; /*for the time event we only handle msec*/
+	uint64_t id;
+	time_t time;
 	void* data;
-	struct ev_time_item_s* next;
+	int deleted;
+	struct ev_time_item_s* _next;
 	ev_time_func* func;
+	struct rb_node rbnode;
 }ev_time_item_t;
 
 typedef struct ev_file_item_s{
@@ -45,10 +50,16 @@ typedef struct ev_fired_s{
 	int mask;
 }ev_fired_t;
 
+
+#define EV_TIMER_SIZE 3600
+
 typedef struct ev_s{
 	int fd;
 	void *data;
-	int next_time_id;
+	uint64_t next_time_id;
+	void *timer_task_list[EV_TIMER_SIZE];
+	uint32_t timer_current_task;
+	struct rb_root root;
 	ev_time_item_t* ti;
 	void* api_data;
 	int stop;
@@ -82,16 +93,20 @@ ev_file_item_new(int fd, void* data, ev_file_func* rf,
 	return fi;
 }
 
-#define ev_time_item_new(__ev,__ms,__func,__data)	\
-	({						\
-		ev_time_item_t* __ti;			\
-		__ti->id=__ev->next_time_id;		\
-		__ti->ms = __ms;			\
-		__ti->func = __func;			\
-		__ti->data = __data;			\
-		__ti;					\
-	})
-
+static inline ev_time_item_t*
+ev_time_item_new(ev_t* ev, void* d, ev_time_func* f, time_t t)
+{
+	ev_time_item_t* ti = calloc(1, sizeof(*ti));
+	if(!ti) {
+		return NULL;
+	}
+	ti->id = ++ ev->next_time_id;
+	ti->time = t;
+	ti->data = d;
+	ti->func = f;
+	ti->deleted = 0;
+	return ti;
+}
 
 ev_t* ev_create();
 int ev_time_item_ctl(ev_t* ev,int op,ev_time_item_t* item);

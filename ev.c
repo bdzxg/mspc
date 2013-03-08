@@ -10,13 +10,17 @@ ev_create(void* data)
 	int fd = epoll_create(1024/*kernel hint*/);
 
 	if(fd > 0){
-		ev = (ev_t*)malloc(sizeof(ev_t));
+		ev = (ev_t*)calloc(1, sizeof(ev_t));
+		if(!ev) {
+			return NULL;
+		}
 		ev->fd = fd;
 		ev->data = data;
 		ev->next_time_id = 0;
 		ev->ti = NULL;
 		ev->api_data=malloc(sizeof(struct epoll_event)*EV_COUNT);
 		ev->after = NULL;
+		ev->root = RB_ROOT;
 		return ev;
 	}
 
@@ -46,16 +50,29 @@ ev_del_file_item(ev_t *ev, ev_file_item_t* item)
 }
 
 int 
-ev_time_item_ctl(ev_t* ev,int op,ev_time_item_t* item)
+ev_time_item_ctl(ev_t* ev, int op, ev_time_item_t* item)
 {
-	if(op == EV_CTL_ADD){
-		item->id = ev->next_time_id++;
-		item->next = ev->ti;
-		ev->ti = item;
+	int idx;
+	time_t t = time(NULL);
+	time_t p = item->time - t;
+
+	if(op == EV_CTL_ADD) {
+		if(p > 3600 || p < 0) {
+			//only support 1 hour
+			return -1;
+		}
+		idx = (p + ev->timer_current_task) % EV_TIMER_SIZE;
+		ev_time_item_t* tmp = ev->timer_task_list[idx];
+		item->_next = tmp;
+		ev->timer_task_list[idx] = item;
+		//TODO: add to the tree
 		return 1;
 	}
-
-	return -1;
+	else if (op == EV_CTL_DEL) {
+		//TODO: delete item from the tree
+		item->deleted = 1;
+	}
+	return 0;
 }
 
 void
@@ -63,22 +80,32 @@ ev_main(ev_t* ev)
 {
 	D("ev_main started");
 	while(ev->stop <= 0) {
-
-		if(ev->ti) {
-			// i think this part will never run
-			D("ev_ti in not null");
-			long now;
-			ev_time_item_t* iter;
-			ev_get_current_ms((&now));
-			for(iter=(ev->ti); iter!=NULL; iter=iter->next){
-				if((iter->ms) < now){
-					iter->func(ev,iter);}
+		//try to process the timer first 
+		int idx = ev->timer_current_task % EV_TIMER_SIZE;
+		ev_time_item_t *ti = ev->timer_task_list[idx];
+		time_t now = time(NULL);
+		while(ti) {
+			if(ti->deleted == 1) {
+				ev_time_item_t* tmp = ti;
+				ev->timer_task_list[idx] = ti->_next;
+				ti = ti->_next;
+				free(tmp);
+			}
+			else if (ti->time > now) {
+				break;
+			}
+			else {
+				ti->func(ev, ti);
+				free(ti);
 			}
 		}
+		if(!ti) {
+			ev->timer_current_task++;
+		}
+		
 
 		int i,j;
 		struct epoll_event* e = ev->api_data;
-
 		j = epoll_wait(ev->fd,e,EV_COUNT,100);
 		for(i=0; i<j ;i++){
 			ev_file_item_t* fi = (ev_file_item_t*)e[i].data.ptr; 
