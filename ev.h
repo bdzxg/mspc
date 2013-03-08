@@ -15,7 +15,8 @@
 
 #define EV_COUNT 10000
 
-#include "proxy.h"
+#include <stdint.h>
+#include "rbtree.h"
 
 struct ev_s;
 struct ev_time_item_s;

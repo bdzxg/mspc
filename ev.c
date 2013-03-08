@@ -85,8 +85,8 @@ ev_main(ev_t* ev)
 		ev_time_item_t *ti = ev->timer_task_list[idx];
 		time_t now = time(NULL);
 		while(ti) {
+			ev_time_item_t* tmp = ti;
 			if(ti->deleted == 1) {
-				ev_time_item_t* tmp = ti;
 				ev->timer_task_list[idx] = ti->_next;
 				ti = ti->_next;
 				free(tmp);
@@ -95,8 +95,10 @@ ev_main(ev_t* ev)
 				break;
 			}
 			else {
+				ev->timer_task_list[idx] = ti->_next;
 				ti->func(ev, ti);
-				free(ti);
+				ti = ti->_next;
+				free(tmp);
 			}
 		}
 		if(!ti) {
