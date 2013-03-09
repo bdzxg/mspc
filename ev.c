@@ -49,6 +49,48 @@ ev_del_file_item(ev_t *ev, ev_file_item_t* item)
 	return epoll_ctl(ev->fd,EV_CTL_DEL,item->fd, &epev);
 }
 
+static int _ev_insert_timer_tree(ev_t *ev, ev_time_item_t* ti)
+{
+	struct rb_root *root = &ev->root;
+	struct rb_node **new = &(root->rb_node), *parent = NULL;
+
+	while(*new) {
+		ev_time_item_t *data = rb_entry(*new, struct ev_time_item_s, rbnode);
+		int result = data->id - ti->id;
+		parent = *new;
+		if(result < 0)
+			new = &((*new)->rb_left);
+		else if(result > 0)
+			new = &((*new)->rb_right);
+		else 
+			return -1;
+	}
+
+	rb_link_node(&ti->rbnode,parent,new);
+	rb_insert_color(&ti->rbnode,root);
+	return 1;
+}
+
+static void  _ev_delete_from_timer_tree(ev_t* ev, ev_time_item_t* ti)
+{
+	struct rb_root *root = &ev->root;
+	struct rb_node *node = root->rb_node;
+
+	while(node) {
+		ev_time_item_t *data = rb_entry(node,struct ev_time_item_s,rbnode);
+		int result = data->id - ti->id;
+
+		if (result < 0)
+			node = node->rb_left;
+		else if (result > 0)
+			node = node->rb_right;
+		else {
+			rb_erase(node, &ev->root);
+			return;
+		}
+	}
+}
+
 int 
 ev_time_item_ctl(ev_t* ev, int op, ev_time_item_t* item)
 {
@@ -61,15 +103,16 @@ ev_time_item_ctl(ev_t* ev, int op, ev_time_item_t* item)
 			//only support 1 hour
 			return -1;
 		}
+		if(_ev_insert_timer_tree(ev, item) < 0) {
+			return -1;
+		}
 		idx = (p + ev->timer_current_task) % EV_TIMER_SIZE;
 		ev_time_item_t* tmp = ev->timer_task_list[idx];
 		item->_next = tmp;
 		ev->timer_task_list[idx] = item;
-		//TODO: add to the tree
-		return 1;
 	}
 	else if (op == EV_CTL_DEL) {
-		//TODO: delete item from the tree
+		_ev_delete_from_timer_tree(ev, item);
 		item->deleted = 1;
 	}
 	return 0;
@@ -87,16 +130,19 @@ ev_main(ev_t* ev)
 		while(ti) {
 			ev_time_item_t* tmp = ti;
 			if(ti->deleted == 1) {
+				D("got delete item %llu", ti->id);
 				ev->timer_task_list[idx] = ti->_next;
 				ti = ti->_next;
 				free(tmp);
 			}
 			else if (ti->time > now) {
+				D("the timer should be called later");
 				break;
 			}
 			else {
-				ev->timer_task_list[idx] = ti->_next;
+				D("got timer #%llu to run", ti->id);
 				ti->func(ev, ti);
+				ev->timer_task_list[idx] = ti->_next;
 				ti = ti->_next;
 				free(tmp);
 			}
@@ -105,7 +151,7 @@ ev_main(ev_t* ev)
 			ev->timer_current_task++;
 		}
 		
-
+		//process file events
 		int i,j;
 		struct epoll_event* e = ev->api_data;
 		j = epoll_wait(ev->fd,e,EV_COUNT,100);

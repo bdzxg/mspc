@@ -27,7 +27,7 @@ typedef int ev_file_func(struct ev_s* ev,struct ev_file_item_s* fi);
 typedef void ev_after_event_handle(struct ev_s *ev);
 
 typedef struct ev_time_item_s{
-	uint64_t id;
+	unsigned long long id;
 	time_t time;
 	void* data;
 	int deleted;
