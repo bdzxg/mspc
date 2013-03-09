@@ -2,7 +2,7 @@
 #define _EV_H_
 
 #define EV_READABLE EPOLLIN
-#define EV_WRITABLE EPOLLOUT
+#define EV_WRITABLE (EPOLLOUT | EPOLLERR | EPOLLHUP)
 #define EV_ALL 3
 
 #define EV_TIME 1
@@ -23,7 +23,7 @@ struct ev_time_item_s;
 struct ev_file_item_s;
 
 typedef void ev_time_func(struct ev_s* ev, struct ev_time_item_s* ti);
-typedef int ev_file_func(struct ev_s* ev,struct ev_file_item_s* fi);
+typedef void ev_file_func(struct ev_s* ev,struct ev_file_item_s* fi);
 typedef void ev_after_event_handle(struct ev_s *ev);
 
 typedef struct ev_time_item_s{
@@ -59,6 +59,8 @@ typedef struct ev_s{
 	void *data;
 	uint64_t next_time_id;
 	void *timer_task_list[EV_TIMER_SIZE];
+	ev_file_item_t *events;
+	size_t events_size;
 	uint32_t timer_current_task;
 	struct rb_root root;
 	ev_time_item_t* ti;
@@ -111,8 +113,9 @@ ev_time_item_new(ev_t* ev, void* d, ev_time_func* f, time_t t)
 
 ev_t* ev_create();
 int ev_time_item_ctl(ev_t* ev,int op,ev_time_item_t* item);
-int ev_add_file_item(ev_t*,ev_file_item_t*);
-int ev_del_file_item(ev_t*,ev_file_item_t*);
+int ev_add_file_item(ev_t* ev, int fd, int mask, void* d,
+		     ev_file_func* rf, ev_file_func* wf);
+int ev_del_file_item(ev_t *ev, int fd);
 void ev_main(ev_t* ev);
 
 #endif

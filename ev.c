@@ -3,8 +3,7 @@
 
 #include "proxy.h"
 
-ev_t*
-ev_create(void* data)
+ev_t* ev_create2(void* data, size_t size)
 {
 	ev_t* ev;
 	int fd = epoll_create(1024/*kernel hint*/);
@@ -19,34 +18,72 @@ ev_create(void* data)
 		ev->next_time_id = 0;
 		ev->ti = NULL;
 		ev->api_data=malloc(sizeof(struct epoll_event)*EV_COUNT);
+		if(!ev->api_data) {
+			free(ev);
+			return NULL;
+		}
+		ev->events_size = size;
+		ev->events = calloc(size, sizeof(ev_file_item_t));
+		if(!ev->events) {
+			free(ev->api_data);
+			free(ev);
+			return NULL;
+		}
 		ev->after = NULL;
 		ev->root = RB_ROOT;
 		return ev;
 	}
 
 	return NULL;
+
 }
 
-int 
-ev_add_file_item(ev_t* ev,ev_file_item_t* item)
+ev_t* ev_create(void* data)
 {
-	struct epoll_event epev;
+	return ev_create2(data, 1024);
+}
+	
+int ev_add_file_item(ev_t* ev, int fd, int mask, void* d,
+		     ev_file_func* rf, ev_file_func* wf)
+{
+	if(fd >= ev->events_size) {
+		W("fd %d is large than size : %zu", 
+		  fd, ev->events_size);
+		return -1;
+	}
+	ev_file_item_t *item = ev->events + fd;
+	if(item->mask > 0) {		
+		return -1;
+	}
 
-	epev.events = item->events;
-	//epev.data.fd = item->fd;
-	epev.data.ptr = item;
-  
-	int i = epoll_ctl(ev->fd,EV_CTL_ADD,item->fd, &epev);
-	return i;
+	struct epoll_event epev;
+	epev.events = mask;
+	epev.data.fd = fd;
+	
+	if(epoll_ctl(ev->fd, EV_CTL_ADD, fd, &epev) == 0) {
+		item->mask = mask;
+		item->data = d;
+		item->wfunc = wf;
+		item->rfunc = rf;
+		item->fd = fd;
+		return 0;
+	}
+	return -1;
 }
 
-int 
-ev_del_file_item(ev_t *ev, ev_file_item_t* item)
+int ev_del_file_item(ev_t *ev, int fd)
 {
+	if(fd >= ev->events_size) return -1;
+	ev_file_item_t* fi = ev->events + fd;
+	if(fi->mask == 0) return 0;
+	
+	fi->mask = 0;
+	int op = EV_CTL_DEL;
+
 	struct epoll_event epev;
-	epev.events = item->events;
-	epev.data.ptr = item;
-	return epoll_ctl(ev->fd,EV_CTL_DEL,item->fd, &epev);
+	epev.events = fi->events;
+	epev.data.fd = fd;
+	return epoll_ctl(ev->fd, op ,fd, &epev);
 }
 
 static int _ev_insert_timer_tree(ev_t *ev, ev_time_item_t* ti)
@@ -156,19 +193,19 @@ ev_main(ev_t* ev)
 		struct epoll_event* e = ev->api_data;
 		j = epoll_wait(ev->fd,e,EV_COUNT,100);
 		for(i=0; i<j ;i++){
-			ev_file_item_t* fi = (ev_file_item_t*)e[i].data.ptr; 
+			int fd = e[i].data.fd;
+			ev_file_item_t* fi = ev->events + fd;
 			int evts = e[i].events;
 			
 			D("events %d", evts);
-			if(evts & EPOLLIN) {
+			if(evts & EV_READABLE & fi->mask) {
 				if(fi->rfunc){
 					D("RFUNC");
-					if(fi->rfunc(ev,fi) < 0)
-						continue;
+					fi->rfunc(ev,fi);
 				}
 			}
 			
-			if(evts & EPOLLOUT || evts & EPOLLHUP || evts & EPOLLERR) {
+			if(evts & EV_WRITABLE & fi->mask) {
 				if(fi->wfunc) {
 					D("WFUNC");
 					fi->wfunc(ev,fi);

@@ -19,7 +19,7 @@ typedef struct pxy_agent_s{
 	long downflow;
 	char* logintime;
 	char* logouttime;
-	ev_file_item_t *ev;
+	ev_time_item_t* timer;
 }pxy_agent_t;
 
 typedef struct reg3_s{
@@ -53,8 +53,8 @@ int pxy_agent_upstream(int ,pxy_agent_t *);
 int pxy_agent_echo_test(pxy_agent_t *);
 int pxy_agent_buffer_recycle(pxy_agent_t *);
 int process_received_msg(size_t buf_size, uint8_t* buf_ptr, rec_msg_t* msg);
-int agent_recv_client(ev_t *,ev_file_item_t*);
-int agent_send_client(ev_t *,ev_file_item_t*);
+void agent_recv_client(ev_t *,ev_file_item_t*);
+void agent_send_client(ev_t *,ev_file_item_t*);
 void free_string_ptr(char* str);
 void send_response_client(rec_msg_t* req,  pxy_agent_t* a, int code); 
 void agent_mrpc_handler(mcp_appbean_proto *proto);

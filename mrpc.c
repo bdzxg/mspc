@@ -10,20 +10,18 @@ static char* PROTOCOL = "MCP/3.0";
 
 int mrpc_start()
 {
-	ev_file_item_t* fi ;
 	int fd = mrpc_up.listen_fd;
-
 	if(listen(fd, 1024) < 0){
 		E("rpc listen error");
 		return -1;
 	}
-
-	fi = ev_file_item_new(fd, worker, mrpc_svr_accept, NULL, EV_READABLE);
-	if(!fi){
+	
+	int r = ev_add_file_item(worker->ev, fd, EV_READABLE, 
+				 NULL, mrpc_svr_accept, NULL);
+	if(r < 0){
 		E("create ev for listen fd error");
 		goto start_failed;
 	}
-	ev_add_file_item(worker->ev,fi);
 	return 0;
 
 start_failed:
