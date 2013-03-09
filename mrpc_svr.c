@@ -88,7 +88,7 @@ failed:
 	return -1;
 }
 
-static int mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
+static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	int n;
@@ -100,7 +100,7 @@ static int mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 	}
 	if( n == -1) {
 		E("recv return -1");
-		return 0;
+		return;
 	}
 
 	int r;
@@ -115,37 +115,36 @@ static int mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 		}
 		else {}
 	}
-	return 0;
+	return;
 
 failed:
 	W("failed, prepare close!");
 	mrpc_conn_close(c);
 	mrpc_conn_free(c);
-	return -1;
+	return;
 }
 
-static int mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
+static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
 	D("mrpc_svr_send begins");
 	mrpc_connection_t *c = ffi->data;
 	if(mrpc_send(c) < 0) 
 		goto failed;
-	return 0;
+	return;
 
 failed:
 	mrpc_conn_close(c);
 	mrpc_conn_free(c);
-	return -1;
+	return;
 }
 
 
-int mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
+void mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
 
 	int f,err;
-	ev_file_item_t *fi;
 	mrpc_connection_t *c = NULL;
 
 	//socklen_t sin_size = sizeof(master->addr);
@@ -156,27 +155,26 @@ int mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 	if(f>0){
 		err = setnonblocking(f);
 		if(err < 0){
-			W("set nonblocking error"); return 0;
+			W("set nonblocking error");
+			close(f);
+			return;
 		}
 		c = mrpc_conn_new(NULL);
 		if(!c) {
 			W("cannot malloc new mrpc_connetion");
-			goto failed;
+			close(f);
+			return;
 		}
 
 		c->fd = f;
-		fi = ev_file_item_new(f,
-				      c,
-				      mrpc_svr_recv,
-				      mrpc_svr_send,
-				      EV_WRITABLE | EV_READABLE | EPOLLET);
-		if(!fi){
-			E("create file item error");
-			goto failed;
-		}
-		c->event = fi;
+		int r = ev_add_file_item(worker->ev,
+					 f,
+					 EV_WRITABLE | EV_READABLE | EPOLLET,
+					 c,
+					 mrpc_svr_recv,
+					 mrpc_svr_send);
 
-		if(ev_add_file_item(worker->ev,fi) < 0) {
+		if(r < 0) {
 			E("add file item failed");
 			goto failed;
 		}
@@ -184,13 +182,12 @@ int mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 	else {
 		E("accept error %s", strerror(errno));
 	}
-	return 0;
+	return;
 
 failed:
 	if(c) {
 		mrpc_conn_close(c);
 		mrpc_conn_free(c);
 	}
-	return 0;
+	return;
 }
-

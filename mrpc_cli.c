@@ -5,8 +5,8 @@ extern upstream_map_t *upstream_root;
 extern pxy_settings setting;
 static char* PROTOCOL = "MCP/3.0";
 
-int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
-int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi);
+void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
+void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi);
 
 
 //TODO handle the error when we cannot connect the backend
@@ -62,24 +62,18 @@ static int _connect(mrpc_connection_t *c)
 		}
 	}
 	
-	ev_file_item_t *fi = ev_file_item_new(fd,
-					      c,
-					      mrpc_cli_ev_in,
-					      mrpc_cli_ev_out,
-					      EV_WRITABLE | EV_READABLE | EPOLLET);
-	if(!fi) {
-		E("create fi error");
+	r = ev_add_file_item(worker->ev, fd, 
+			     EV_READABLE | EV_WRITABLE | EPOLLET,
+			     c,
+			     mrpc_cli_ev_in,
+			     mrpc_cli_ev_out);
+	
+	if(r < 0) {
+		W("add ev error");
 		close(fd);
 		return -1;
 	}
-
-	if(ev_add_file_item(worker->ev, fi) < 0){
-		E("add ev error");
-		ev_file_free(fi);
-		return -1;
-	}
 	D("ev item added");
-	c->event = fi;
 
 	if(r == 0) {
 		E("connect succ immediately");
@@ -503,7 +497,7 @@ static void _send_pending(mrpc_connection_t *c)
 	}
 }
 
-int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
+void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	mrpc_connection_t *c = fi->data;
@@ -516,7 +510,7 @@ int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 	}
 	if(n == -1) {
 		E("recv return -1, wired");
-		return 0;
+		return;
 	}
 
 	mrpc_message_t msg;
@@ -551,15 +545,14 @@ int mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 		mrpc_buf_reset(c->recv_buf);
 	}
 
-	return 0;
+	return;
 failed:
 	I("cli recv failed, address %s, fd %d, %p",c->us->uri, c->fd, c);
 	mrpc_conn_close(c);
-	return -1;
 }
 
 
-int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi) 
+void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi) 
 {
 	UNUSED(ev);
 	mrpc_connection_t *c = fi->data;
@@ -570,7 +563,7 @@ int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 		if(getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len) < 0) {
 			W("fd %d getsockopt error, reason %s",c->fd,
 			  strerror(errno));
-			return 0;
+			return;
 		}
 
 		if(err == 0 || err_len == 0) {
@@ -590,11 +583,9 @@ int mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 		W("send error, close connection");
 		goto failed;
 	}
-
-	return 0;
+	return;
 failed :
 	mrpc_conn_close(c);
-	return -1;
 }
 
 
