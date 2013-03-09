@@ -123,10 +123,6 @@ ev_main(ev_t* ev)
 {
 	D("ev_main started");
 	while(ev->stop <= 0) {
-		int i,j;
-		struct epoll_event* e = ev->api_data;
-		j = epoll_wait(ev->fd,e,EV_COUNT,100);
-
 		//try to process the timer first 
 		int idx = ev->timer_current_task % EV_TIMER_SIZE;
 		ev_time_item_t *ti = ev->timer_task_list[idx];
@@ -154,11 +150,15 @@ ev_main(ev_t* ev)
 		if(!ti) {
 			ev->timer_current_task++;
 		}
-
+		
 		//process file events
+		int i,j;
+		struct epoll_event* e = ev->api_data;
+		j = epoll_wait(ev->fd,e,EV_COUNT,100);
 		for(i=0; i<j ;i++){
 			ev_file_item_t* fi = (ev_file_item_t*)e[i].data.ptr; 
-			int evts = e[i].events;			
+			int evts = e[i].events;
+			
 			D("events %d", evts);
 			if(evts & EPOLLIN) {
 				if(fi->rfunc){
