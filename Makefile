@@ -39,6 +39,9 @@ HT_TEST = \
 MAP_TEST = \
 	./map_test.o
 
+EV_TEST = \
+	./ev_test.o
+
 FUNC_TEST = \
 	./func_test.o
 
@@ -47,15 +50,19 @@ TEST = \
 	$(HT_TEST)  \
 
 OUTPUT = mspc
-
 apl:  $(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS)
 	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) -Llib -lzookeeper_mt -lprotobuf-c -lm -lroute -lev -lpthread -lpbc
 
+ev_test : $(LIB_OBJS) $(EV_TEST)
+	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test
+
 clean:
+	rm -f *.o
 	rm -f $(PXY_OBJS)
 	rm -f $(LIB_OBJS)
 	rm -f $(OUTPUT)
 	rm -f $(TEST)
+	rm -f ev_test
 	rm -f $(MAP_TEST) 
 	rm -f $(FUNC_TEST)
 	rm -f $(MRPC_OBJS)
