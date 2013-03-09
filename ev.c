@@ -86,13 +86,15 @@ int ev_del_file_item(ev_t *ev, int fd)
 	return epoll_ctl(ev->fd, op ,fd, &epev);
 }
 
-static int _ev_insert_timer_tree(ev_t *ev, ev_time_item_t* ti)
+static int _ev_insert_timer_tree(ev_t *ev, _ev_time_item_inner_t* ti)
 {
 	struct rb_root *root = &ev->root;
 	struct rb_node **new = &(root->rb_node), *parent = NULL;
 
 	while(*new) {
-		ev_time_item_t *data = rb_entry(*new, struct ev_time_item_s, rbnode);
+		_ev_time_item_inner_t *data = rb_entry(*new, 
+						       struct _ev_time_item_inner_s, 
+						       rbnode);
 		int result = data->id - ti->id;
 		parent = *new;
 		if(result < 0)
@@ -108,24 +110,9 @@ static int _ev_insert_timer_tree(ev_t *ev, ev_time_item_t* ti)
 	return 1;
 }
 
-static void  _ev_delete_from_timer_tree(ev_t* ev, ev_time_item_t* ti)
+static void  _ev_delete_from_timer_tree(ev_t* ev, _ev_time_item_inner_t* ti)
 {
-	struct rb_root *root = &ev->root;
-	struct rb_node *node = root->rb_node;
-
-	while(node) {
-		ev_time_item_t *data = rb_entry(node,struct ev_time_item_s,rbnode);
-		int result = data->id - ti->id;
-
-		if (result < 0)
-			node = node->rb_left;
-		else if (result > 0)
-			node = node->rb_right;
-		else {
-			rb_erase(node, &ev->root);
-			return;
-		}
-	}
+	rb_erase(&ti->rbnode, &ev->root);
 }
 
 int 
@@ -140,17 +127,33 @@ ev_time_item_ctl(ev_t* ev, int op, ev_time_item_t* item)
 			//only support 1 hour
 			return -1;
 		}
-		if(_ev_insert_timer_tree(ev, item) < 0) {
+		_ev_time_item_inner_t* tii = calloc(1, sizeof(*tii));
+		if(!tii) {
+			W("no mem for tii");
 			return -1;
 		}
+		rb_init_node(&tii->rbnode);
+		if(_ev_insert_timer_tree(ev, tii) < 0) {
+			free(tii);
+			return -1;
+		}
+		item->__inner = tii;
+		tii->id = ++ ev->next_time_id;
+		tii->item = item;
+
+		
 		idx = (p + ev->timer_current_task) % EV_TIMER_SIZE;
-		ev_time_item_t* tmp = ev->timer_task_list[idx];
-		item->_next = tmp;
-		ev->timer_task_list[idx] = item;
+		_ev_time_item_inner_t* tmp = ev->timer_task_list[idx];
+		tii->next = tmp;
+		ev->timer_task_list[idx] = tii;
 	}
 	else if (op == EV_CTL_DEL) {
-		_ev_delete_from_timer_tree(ev, item);
-		item->deleted = 1;
+		if(item->__executed) {
+			return 0;
+		}
+		_ev_time_item_inner_t* tii = item->__inner;
+		_ev_delete_from_timer_tree(ev, tii);
+		tii->deleted = 1;
 	}
 	return 0;
 }
@@ -162,14 +165,15 @@ ev_main(ev_t* ev)
 	while(ev->stop <= 0) {
 		//try to process the timer first 
 		int idx = ev->timer_current_task % EV_TIMER_SIZE;
-		ev_time_item_t *ti = ev->timer_task_list[idx];
-		time_t now = time(NULL);
-		while(ti) {
-			ev_time_item_t* tmp = ti;
-			if(ti->deleted == 1) {
-				D("got delete item %llu", ti->id);
-				ev->timer_task_list[idx] = ti->_next;
-				ti = ti->_next;
+		_ev_time_item_inner_t* tii =  ev->timer_task_list[idx];
+		while(tii) {
+			ev_time_item_t *ti = tii->item;
+			time_t now = time(NULL);
+			_ev_time_item_inner_t* tmp = tii;
+			if(tii->deleted == 1) {
+				D("got delete item %llu", tii->id);
+				ev->timer_task_list[idx] = tii->next;
+				tii = tii->next;
 				free(tmp);
 			}
 			else if (ti->time > now) {
@@ -177,14 +181,15 @@ ev_main(ev_t* ev)
 				break;
 			}
 			else {
-				D("got timer #%llu to run", ti->id);
+				D("got timer #%llu to run", tii->id);
 				ti->func(ev, ti);
-				ev->timer_task_list[idx] = ti->_next;
-				ti = ti->_next;
+				ti->__executed = 1;
+				ev->timer_task_list[idx] = tii->next;
+				tii = tii->next;
 				free(tmp);
 			}
 		}
-		if(!ti) {
+		if(!tii) {
 			ev->timer_current_task++;
 		}
 		

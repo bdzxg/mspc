@@ -428,6 +428,7 @@ void pxy_agent_close(pxy_agent_t *a)
 	mrpc_buf_free(a->send_buf);
 	
 	ev_time_item_ctl(worker->ev, EV_CTL_DEL, a->timer);
+free(a->timer);
 
 	if(a->fd > 0){
 		if(ev_del_file_item(worker->ev, a->fd) < 0){

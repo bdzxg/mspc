@@ -27,14 +27,20 @@ typedef void ev_file_func(struct ev_s* ev,struct ev_file_item_s* fi);
 typedef void ev_after_event_handle(struct ev_s *ev);
 
 typedef struct ev_time_item_s{
-	unsigned long long id;
 	time_t time;
 	void* data;
-	int deleted;
-	struct ev_time_item_s* _next;
 	ev_time_func* func;
-	struct rb_node rbnode;
+	void* __inner;
+	int __executed;
 }ev_time_item_t;
+
+typedef struct _ev_time_item_inner_s {
+	unsigned long long id;
+	int deleted;
+	struct _ev_time_item_inner_s* next;
+	struct rb_node rbnode;
+	ev_time_item_t* item;
+}_ev_time_item_inner_t;
 
 typedef struct ev_file_item_s{
 	int fd;
@@ -103,11 +109,9 @@ ev_time_item_new(ev_t* ev, void* d, ev_time_func* f, time_t t)
 	if(!ti) {
 		return NULL;
 	}
-	ti->id = ++ ev->next_time_id;
 	ti->time = t;
 	ti->data = d;
 	ti->func = f;
-	ti->deleted = 0;
 	return ti;
 }
 
