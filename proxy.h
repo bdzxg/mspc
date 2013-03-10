@@ -8,6 +8,7 @@
 
 #include "sysinc.h"
 #include "rbtree.h"
+#include "murmur_hash.h"
 #include "ev.h"
 #include "include/pbc.h"
 #include "list.h"
@@ -23,6 +24,8 @@
 #include "route.h"
 #include "msp_pb.h"
 #include "mrpc_pb.h"
+#include "hashtable.h"
+
 
 typedef struct {
 	char *data;

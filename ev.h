@@ -35,10 +35,9 @@ typedef struct ev_time_item_s{
 }ev_time_item_t;
 
 typedef struct _ev_time_item_inner_s {
-	unsigned long long id;
+	unsigned int id;
 	int deleted;
 	struct _ev_time_item_inner_s* next;
-	struct rb_node rbnode;
 	ev_time_item_t* item;
 }_ev_time_item_inner_t;
 
@@ -73,6 +72,7 @@ typedef struct ev_s{
 	void* api_data;
 	int stop;
 	ev_after_event_handle *after;
+	struct hashtable* table;
 }ev_t;
 
 

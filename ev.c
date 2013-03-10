@@ -3,6 +3,16 @@
 
 #include "proxy.h"
 
+unsigned int ev_hash(void* id) 
+{
+	return murmur_hash2(id, sizeof(unsigned int));
+}
+
+int ev_comp_func(void* d1, void*d2) 
+{
+	return *((int*)d1) - *((int*)d2);
+}
+
 ev_t* ev_create2(void* data, size_t size)
 {
 	ev_t* ev;
@@ -29,6 +39,7 @@ ev_t* ev_create2(void* data, size_t size)
 			free(ev);
 			return NULL;
 		}
+		ev->table = create_hashtable(16, ev_hash, ev_comp_func);
 		ev->after = NULL;
 		ev->root = RB_ROOT;
 		return ev;
@@ -86,33 +97,22 @@ int ev_del_file_item(ev_t *ev, int fd)
 	return epoll_ctl(ev->fd, op ,fd, &epev);
 }
 
-static int _ev_insert_timer_tree(ev_t *ev, _ev_time_item_inner_t* ti)
+static int _ev_insert_timer(ev_t *ev, _ev_time_item_inner_t* ti)
 {
-	struct rb_root *root = &ev->root;
-	struct rb_node **new = &(root->rb_node), *parent = NULL;
-
-	while(*new) {
-		_ev_time_item_inner_t *data = rb_entry(*new, 
-						       struct _ev_time_item_inner_s, 
-						       rbnode);
-		int result = data->id - ti->id;
-		parent = *new;
-		if(result < 0)
-			new = &((*new)->rb_left);
-		else if(result > 0)
-			new = &((*new)->rb_right);
-		else 
-			return -1;
+	struct hashtable *table = ev->table;
+	int r = hashtable_insert(table, &ti->id, ti);
+	
+	//this hashtable_insert return 0 faile, -1 sucess.....
+	if(r == -1) {
+		return 0;
 	}
-
-	rb_link_node(&ti->rbnode,parent,new);
-	rb_insert_color(&ti->rbnode,root);
-	return 1;
+	return -1;
 }
 
-static void  _ev_delete_from_timer_tree(ev_t* ev, _ev_time_item_inner_t* ti)
+static void  _ev_delete_from_timer(ev_t* ev, _ev_time_item_inner_t* ti)
 {
-	rb_erase(&ti->rbnode, &ev->root);
+	struct hashtable *table = ev->table;
+	hashtable_remove(table, &ti->id);
 }
 
 int 
@@ -132,8 +132,7 @@ ev_time_item_ctl(ev_t* ev, int op, ev_time_item_t* item)
 			W("no mem for tii");
 			return -1;
 		}
-		rb_init_node(&tii->rbnode);
-		if(_ev_insert_timer_tree(ev, tii) < 0) {
+		if(_ev_insert_timer(ev, tii) < 0) {
 			free(tii);
 			return -1;
 		}
@@ -152,7 +151,7 @@ ev_time_item_ctl(ev_t* ev, int op, ev_time_item_t* item)
 			return 0;
 		}
 		_ev_time_item_inner_t* tii = item->__inner;
-		_ev_delete_from_timer_tree(ev, tii);
+		_ev_delete_from_timer(ev, tii);
 		tii->deleted = 1;
 	}
 	return 0;
@@ -171,7 +170,7 @@ ev_main(ev_t* ev)
 			time_t now = time(NULL);
 			_ev_time_item_inner_t* tmp = tii;
 			if(tii->deleted == 1) {
-				D("got delete item %llu", tii->id);
+				D("got delete item %u", tii->id);
 				ev->timer_task_list[idx] = tii->next;
 				tii = tii->next;
 				free(tmp);
@@ -181,7 +180,7 @@ ev_main(ev_t* ev)
 				break;
 			}
 			else {
-				D("got timer #%llu to run", tii->id);
+				D("got timer #%u to run", tii->id);
 				ti->func(ev, ti);
 				ti->__executed = 1;
 				ev->timer_task_list[idx] = tii->next;

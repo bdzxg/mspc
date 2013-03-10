@@ -1,10 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
-
-#include "ev.h"
+#include <math.h>
 #include "proxy.h"
 
 int log_level=0;
@@ -43,8 +40,8 @@ int main()
 
 	D("2");
 	int i = 0;
-	for(; i < 100 ; i++) {
-		ti = ev_time_item_new(ev, NULL, ev_callback, t + i % 10);
+	for(; i < 10000 ; i++) {
+		ti = ev_time_item_new(ev, NULL, ev_callback, t + 100);
 		if(ev_time_item_ctl(ev, EV_CTL_ADD, ti) < 0) {
 			E("cannnot add ti");
 		}

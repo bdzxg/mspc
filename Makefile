@@ -3,6 +3,7 @@ CFLAGS = -pipe -Wall -I -g -O0 -ggdb
 LINK =	$(CC)
 
 LIB_OBJS = \
+	./hashtable.o \
 	./rbtree.o \
 	./map.o \
 	./ev.o \
@@ -54,7 +55,7 @@ apl:  $(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS)
 	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) -Llib -lzookeeper_mt -lprotobuf-c -lm -lroute -lev -lpthread -lpbc
 
 ev_test : $(LIB_OBJS) $(EV_TEST)
-	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test
+	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test -lm
 
 clean:
 	rm -f *.o
