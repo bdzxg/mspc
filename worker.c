@@ -20,7 +20,7 @@ int worker_init()
 	worker = calloc(1, sizeof(*worker));
 
 	if(worker) {
-		worker->ev = ev_create();
+		worker->ev = ev_create2(NULL, 1024 * 100);
 		if(!worker->ev){
 			D("create ev error"); 
 			return -1;

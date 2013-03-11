@@ -115,7 +115,8 @@ ev_time_item_new(ev_t* ev, void* d, ev_time_func* f, time_t t)
 	return ti;
 }
 
-ev_t* ev_create();
+ev_t* ev_create2(void*, size_t);
+ev_t* ev_create(void*);
 int ev_time_item_ctl(ev_t* ev,int op,ev_time_item_t* item);
 int ev_add_file_item(ev_t* ev, int fd, int mask, void* d,
 		     ev_file_func* rf, ev_file_func* wf);
