@@ -423,27 +423,31 @@ void pxy_agent_close(pxy_agent_t *a)
 		free(a->user_ctx);
 	}
 	a->user_ctx = NULL;
-	free(a->logintime);
-	a->logintime = NULL;
-	free(a->logouttime);
-	a->logouttime = NULL;
 
 	mrpc_buf_free(a->recv_buf);
 	mrpc_buf_free(a->send_buf);
+	
+	ev_time_item_ctl(worker->ev, EV_CTL_DEL, a->timer);
+free(a->timer);
 
 	if(a->fd > 0){
-		/* close(agent->fd); */
-		if(ev_del_file_item(worker->ev,a->ev) < 0){
-			D("del file item err, errno is %d",errno);
+		if(ev_del_file_item(worker->ev, a->fd) < 0){
+			I("del file item err, errno is %d",errno);
 		}
 
 		D("close the socket");
 		close(a->fd);
 	}
-
 	free(a);
 }
 
+void agent_timer_handler(ev_t* ev, ev_time_item_t* ti)
+{
+	//TODO: add check logic
+	//pxy_agent_t* agent = ti->data;
+	//worker_remove_agent(agent);
+	//pxy_agent_close(agent);
+}
 
 pxy_agent_t * pxy_agent_new(int fd,int userid)
 {
@@ -462,6 +466,25 @@ pxy_agent_t * pxy_agent_new(int fd,int userid)
 	if(!agent->recv_buf) {
 		mrpc_buf_free(agent->send_buf);
 		E("no mem for agent recv_buf");
+		free(agent);
+		goto failed;
+	}
+	agent->timer = ev_time_item_new(worker->ev, agent,
+					agent_timer_handler, 
+					time(NULL) + 10);
+	if(!agent->timer) {
+		W("no mem for agent timer");
+		mrpc_buf_free(agent->send_buf);
+		mrpc_buf_free(agent->recv_buf);
+		free(agent);
+		goto failed;
+	}	
+	if(ev_time_item_ctl(worker->ev, EV_CTL_ADD, agent->timer) < 0) {
+		W("add timer error");
+		mrpc_buf_free(agent->send_buf);
+		mrpc_buf_free(agent->recv_buf);
+		free(agent->timer);
+		free(agent);
 		goto failed;
 	}
 
@@ -474,7 +497,6 @@ pxy_agent_t * pxy_agent_new(int fd,int userid)
 	agent->upflow = 0;
 	agent->downflow = 0;
 	return agent;
-
 failed:
 	return NULL;
 }
@@ -539,7 +561,7 @@ int agent_send_offstate(pxy_agent_t *agent)
 
 
 // client data
-int agent_recv_client(ev_t *ev,ev_file_item_t *fi)
+void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	pxy_agent_t *agent = fi->data;
@@ -559,16 +581,16 @@ int agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	if(agent->recv_buf->offset == agent->recv_buf->size) {
 		mrpc_buf_reset(agent->recv_buf);
 	}
-	return 0;
+	return;
 
 failed:
 	worker_remove_agent(agent);
 	pxy_agent_close(agent);
-	return -1;
+	return;
 }
 
 
-int agent_send_client(ev_t *ev, ev_file_item_t *fi)
+void agent_send_client(ev_t *ev, ev_file_item_t *fi)
 {
 	UNUSED(ev);
 	pxy_agent_t *a = fi->data;
@@ -578,9 +600,9 @@ int agent_send_client(ev_t *ev, ev_file_item_t *fi)
 		I("send to uid %d failed, prepare close!", a->user_id);
 		worker_remove_agent(a);
 		pxy_agent_close(a);
-		return -1;
+		return;
 	}
 
 	I("succ send %d bytes to uid %d", r , a->user_id);
-	return 0;
+	return;
 }

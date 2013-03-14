@@ -20,7 +20,7 @@ int worker_init()
 	worker = calloc(1, sizeof(*worker));
 
 	if(worker) {
-		worker->ev = ev_create();
+		worker->ev = ev_create2(NULL, 1024 * 100);
 		if(!worker->ev){
 			D("create ev error"); 
 			return -1;
@@ -54,16 +54,16 @@ int worker_init()
 int worker_start()
 {
 	route_init(setting.zk_url);
-
-	ev_file_item_t* fi ;
 	int fd = master->listen_fd;
-
-	fi = ev_file_item_new(fd, worker, worker_accept, NULL, EV_READABLE);
-	if(!fi){
-		D("create ev for listen fd error");
+	int r = ev_add_file_item(worker->ev, 
+				 fd, 
+				 EV_READABLE, 
+				 NULL, 
+				 worker_accept, NULL);
+	if(r < 0) {
+		E("add listen fd ev error %s", strerror(errno));
 		goto start_failed;
 	}
-	ev_add_file_item(worker->ev,fi);
 
 	if(mrpc_start() < 0) {
 		E("mrpc start error");
@@ -71,9 +71,7 @@ int worker_start()
 	}
 
 	ev_main(worker->ev);
-	free(fi);
 	return 1;
-
  start_failed:
 	return -1;
 } 
@@ -104,56 +102,53 @@ worker_close()
 } 
  
 
-int
-worker_accept(ev_t *ev, ev_file_item_t *ffi)
+void worker_accept(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);
 
 	int f,err;
 	pxy_agent_t *agent;
-	ev_file_item_t *fi;
 
 	socklen_t sin_size = sizeof(master->addr);
 	f = accept(ffi->fd,&(master->addr),&sin_size);
-	if(f>0){
-		int k = 1;
-		if(setsockopt(f, SOL_SOCKET, SO_KEEPALIVE, (void *)&k, sizeof(k)) < 0) {
-			E("set keel alive failed");
-		}
-		D("fd#%d accepted",f);
+	
+        if(f>0){
+        	int k = 1;
+        	if(setsockopt(f, SOL_SOCKET, SO_KEEPALIVE, (void *)&k, sizeof(k)) < 0) {
+        		E("set keep alive failed, reason %s ",
+        		  strerror(errno));
+        		close(f);
+        		return;
+        	}
+        	D("fd#%d accepted",f);
 
 		/* FIXME:maybe we should try best to accept and 
 		 * delay add events */
 		err = setnonblocking(f);
 		if(err < 0){
-			D("set nonblocking error"); return 0;
+			W("set nonblocking error"); return;
 		}
 
 		agent = pxy_agent_new(f, 0);
 		if(!agent){
-			D("create new agent error"); return 0;
+			W("create new agent error"); return;
 		}
-
-		fi = ev_file_item_new(f,
-				      agent,
-				      agent_recv_client,
-				      agent_send_client,
-				      EV_READABLE | EPOLLET);
-		if(!fi){
-			E("create file item error");
-			return 0;
+		
+		int r = ev_add_file_item(worker->ev, 
+					 f, 
+					 EV_READABLE | EV_WRITABLE | EPOLLET,
+					 agent, 
+					 agent_recv_client, 
+					 agent_send_client);
+		
+		if(r < 0) {
+			W("add file item failed");
+			return;
 		}
-		if(ev_add_file_item(worker->ev,fi) < 0) {
-			E("add file item failed");
-			return 0;
-		}
-		agent->ev = fi;
-	}	
+	}
 	else {
 		W("accept %s", strerror(errno));
 	}
-
-	return 0;
 }
 
 void 

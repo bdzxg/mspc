@@ -23,7 +23,7 @@ pxy_settings setting = {
 };
 
 int
-pxy_setting_init()
+pxy_setting_init(char *conf_file)
 { 
 	int r;
 	config_item *item = calloc(1, sizeof(*item));
@@ -31,7 +31,7 @@ pxy_setting_init()
 		E("malloc config_item error");
 		return -1;
 	}
-	FILE *file = fopen("mspc.conf", "r");
+	FILE *file = fopen(conf_file, "r");
 	if(file == NULL) {
 		file = stdin;
 	}
@@ -281,14 +281,23 @@ char* get_send_data(rec_msg_t* t, int* length)
 	return ret;
 }
 
-int main()
+int main(int argc, char** argv)
 {
 	log_file = stdout;
 	D("process start");
 	char ch[80];
 
         D("Start init settings!");
-        if (pxy_setting_init() != 0) {
+        char conf_file[256];
+
+        if (argc > 1) {
+                strcpy(conf_file, argv[1]);
+        }
+        else {
+                strcpy (conf_file, "mspc.conf");
+        }
+
+        if (pxy_setting_init(conf_file) != 0) {
                 D("settings initialize failed!\n");
                 return -1;
         }

@@ -94,13 +94,10 @@ mrpc_connection_t* mrpc_conn_new(mrpc_us_item_t* us)
 
 void mrpc_conn_close(mrpc_connection_t *c)
 {
-	if(c->event) {
-		if(ev_del_file_item(worker->ev, c->event) < 0){
-			E("remove event file item error %p, reason %s, %d %d",
-			  c,strerror(errno), worker->ev->fd, c->event->fd);
-		}	
-		ev_file_free(c->event);
-	}
+	if(ev_del_file_item(worker->ev, c->fd) < 0){
+		E("remove event file item error fd %d, reason %s", 
+		  c->fd, strerror(errno));
+	}	
 	close(c->fd);
 	c->conn_status = MRPC_CONN_DISCONNECTED;
 }
