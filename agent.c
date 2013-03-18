@@ -158,6 +158,7 @@ _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 #define CMD_CONNECTION_CLOSED 103
 #define CMD_NET_STAT 104
 #define CMD_REFRESH_EPID 105
+#define CMD_USER_UNREG 10105
 
 
 static int
@@ -400,6 +401,10 @@ static int process_client_req(pxy_agent_t *agent)
 			continue;
 		}
 
+                if (msg.cmd == CMD_USER_UNREG) {
+                        agent->isunreg = 1;
+                }
+
 		if(msg.body_len > 0) {
 			free(msg.body);
 		}
@@ -428,7 +433,7 @@ void pxy_agent_close(pxy_agent_t *a)
 	mrpc_buf_free(a->send_buf);
 	
 	ev_time_item_ctl(worker->ev, EV_CTL_DEL, a->timer);
-free(a->timer);
+        free(a->timer);
 
 	if(a->fd > 0){
 		if(ev_del_file_item(worker->ev, a->fd) < 0){
@@ -496,6 +501,7 @@ pxy_agent_t * pxy_agent_new(int fd,int userid)
 	agent->isreg = 0;
 	agent->upflow = 0;
 	agent->downflow = 0;
+        agent->isunreg = 0;
 	return agent;
 failed:
 	return NULL;
@@ -541,7 +547,7 @@ int agent_send_netstat(pxy_agent_t *agent)
 
 int agent_send_offstate(pxy_agent_t *agent)
 {
-	if(agent->user_id <= 0) {
+	if(agent->user_id <= 0 || agent->isunreg == 1 ) {
 		return 0;
 	}
 

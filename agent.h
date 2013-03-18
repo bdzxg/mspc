@@ -20,6 +20,7 @@ typedef struct pxy_agent_s{
 	char* logintime;
 	char* logouttime;
 	ev_time_item_t* timer;
+        int isunreg;
 }pxy_agent_t;
 
 typedef struct reg3_s{
