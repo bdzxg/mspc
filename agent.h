@@ -21,6 +21,7 @@ typedef struct pxy_agent_s{
 	char* logouttime;
 	ev_time_item_t* timer;
         int isunreg;
+        long last_active;
 }pxy_agent_t;
 
 typedef struct reg3_s{

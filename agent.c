@@ -446,12 +446,18 @@ void pxy_agent_close(pxy_agent_t *a)
 	free(a);
 }
 
+void close_idle_agent(ev_t* ev, ev_time_item_t* ti) {
+        pxy_agent_t* agent = ti->data;
+        time_t now = time(NULL);
+        if (now - agent->last_active > 10 * 60) {
+                worker_remove_agent(agent);
+                pxy_agent_close(agent);
+        }
+}
+
 void agent_timer_handler(ev_t* ev, ev_time_item_t* ti)
 {
-	//TODO: add check logic
-	//pxy_agent_t* agent = ti->data;
-	//worker_remove_agent(agent);
-	//pxy_agent_close(agent);
+        close_idle_agent(ev, ti);
 }
 
 pxy_agent_t * pxy_agent_new(int fd,int userid)
@@ -587,6 +593,8 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	if(agent->recv_buf->offset == agent->recv_buf->size) {
 		mrpc_buf_reset(agent->recv_buf);
 	}
+        time_t now = time(NULL); 
+        agent->last_active = now;
 	return;
 
 failed:
