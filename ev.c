@@ -181,11 +181,14 @@ ev_main(ev_t* ev)
 			}
 			else {
 				D("got timer #%u to run", tii->id);
-				ti->func(ev, ti);
 				ti->__executed = 1;
+				ti->func(ev, ti);
+
+                                _ev_delete_from_timer(ev,tmp);
 				ev->timer_task_list[idx] = tii->next;
-				tii = tii->next;
 				free(tmp);
+
+				tii = tii->next;
 			}
 		}
 		if(!tii) {

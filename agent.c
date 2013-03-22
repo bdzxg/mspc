@@ -18,6 +18,7 @@ static char NOTEXIST[3] = {8, 155, 3};// 411
 static int agent_to_beans(pxy_agent_t *, rec_msg_t*, int);
 static int agent_send_netstat(pxy_agent_t *);
 static int agent_send_offstate(pxy_agent_t *agent);
+void agent_timer_handler(ev_t* ev, ev_time_item_t* ti);
 static int _send_to_client(rec_msg_t *m, pxy_agent_t *a);
 
 int worker_insert_agent(pxy_agent_t *agent)
@@ -446,13 +447,35 @@ void pxy_agent_close(pxy_agent_t *a)
 	free(a);
 }
 
+#define AGENT_TIMER_INTERVAL 30
 void close_idle_agent(ev_t* ev, ev_time_item_t* ti) {
         pxy_agent_t* agent = ti->data;
         time_t now = time(NULL);
         if (now - agent->last_active > 10 * 60) {
-                worker_remove_agent(agent);
-                pxy_agent_close(agent);
+                goto failed;
         }
+        else {
+                ev_time_item_t *item = ev_time_item_new(worker->ev, agent,
+                                agent_timer_handler, 
+                                time(NULL) + AGENT_TIMER_INTERVAL);
+                if(!item) {
+                        W("cannot malloc timer item");
+                        goto failed;
+                }
+
+                free(ti);
+                agent->timer = item;
+                if(ev_time_item_ctl(worker->ev, EV_CTL_ADD, item) < 0) {
+                        W("cannot add timer");
+                        goto failed;
+                }
+        }
+        return;
+
+failed:
+        worker_remove_agent(agent);
+        pxy_agent_close(agent);
+        
 }
 
 void agent_timer_handler(ev_t* ev, ev_time_item_t* ti)
