@@ -141,7 +141,8 @@ int
 hashtable_insert(struct hashtable *h, void *k, void *v)
 {
 	/* This method allows duplicate keys - but they shouldn't be used */
-	unsigned int index;
+        fprintf(stderr, "k=%u\n", k );
+        unsigned int index;
 	struct entry *e;
 	if (++(h->entrycount) > h->loadlimit) {
 		/* Ignore the return value. If expand fails, we should
@@ -203,8 +204,10 @@ hashtable_remove(struct hashtable *h, void *k)
 	index = indexFor(h->tablelength,hash(h,k));
 	pE = &(h->table[index]);
 	e = *pE;
+        fprintf(stderr, "NULL != e : %d", NULL != e);
 	while (NULL != e) {
-		/* Check hash value to short circuit heavier comparison */
+                fprintf(stderr, "hashvalu=%u, e->h=%u\n", hashvalue, e->h);
+                /* Check hash value to short circuit heavier comparison */
 		if ((hashvalue == e->h) && (h->eqfn(k, e->k))) {
 			*pE = e->next;
 			h->entrycount--;

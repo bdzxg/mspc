@@ -5,7 +5,11 @@
 
 unsigned int ev_hash(void* id) 
 {
-	return murmur_hash2(id, sizeof(unsigned int));
+//	return murmur_hash2(id, sizeof(unsigned int));
+
+	unsigned int ret =  murmur_hash2(id, sizeof(unsigned int));
+        D("ret = %u, id=%u", ret, id);
+        return ret;
 }
 
 int ev_comp_func(void* d1, void*d2) 
@@ -103,10 +107,11 @@ static int _ev_insert_timer(ev_t *ev, _ev_time_item_inner_t* ti)
 {
 	struct hashtable *table = ev->table;
 	int r = hashtable_insert(table, &ti->id, ti);
-	
+        E("insert &ti->id = %u\n", &ti->id);	
 	//this hashtable_insert return 0 faile, -1 sucess.....
 	if(r == -1) {
-		return 0;
+                E("insert ok!");
+                return 0;
 	}
 	return -1;
 }
@@ -115,7 +120,7 @@ static void  _ev_delete_from_timer(ev_t* ev, _ev_time_item_inner_t* ti)
 {
 	struct hashtable *table = ev->table;
 	if (NULL == hashtable_remove(table, &ti->id) ) {
-                E("remove hashtable error");
+                E("remove hashtable error %u" , &ti->id);
         }
 }
 
