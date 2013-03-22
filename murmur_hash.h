@@ -13,8 +13,6 @@ murmur_hash2(u_char *data, size_t len)
 	h = 0 ^ len;
 
 	while (len >= 4) {
-                fprintf(stderr, "len >=4, data=%d,%d, %d, %d\n", data[0], data[1], data[2], data[3]);
-
 		k  = data[0];
 		k |= data[1] << 8;
 		k |= data[2] << 16;
