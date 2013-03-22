@@ -10,7 +10,9 @@ unsigned int ev_hash(void* id)
 
 int ev_comp_func(void* d1, void*d2) 
 {
-	return *((int*)d1) - *((int*)d2);
+	int tmp =  *((int*)d1) - *((int*)d2) == 0 ? 1 : 0;
+        E("tmp = %d", tmp);
+        return tmp;
 }
 
 ev_t* ev_create2(void* data, size_t size)
@@ -112,7 +114,9 @@ static int _ev_insert_timer(ev_t *ev, _ev_time_item_inner_t* ti)
 static void  _ev_delete_from_timer(ev_t* ev, _ev_time_item_inner_t* ti)
 {
 	struct hashtable *table = ev->table;
-	hashtable_remove(table, &ti->id);
+	if (NULL == hashtable_remove(table, &ti->id) ) {
+                E("remove hashtable error");
+        }
 }
 
 int 
