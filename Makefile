@@ -51,6 +51,7 @@ TEST = \
 	$(HT_TEST)  \
 
 OUTPUT = mspc
+all : apl ev_test
 apl:  $(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS)
 	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) -Llib -lzookeeper_mt -lprotobuf-c -lm -lroute -lev -lpthread -lpbc
 

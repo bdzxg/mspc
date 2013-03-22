@@ -164,6 +164,8 @@ hashtable_insert(struct hashtable *h, void *k, void *v)
 	e->v = v;
 	e->next = h->table[index];
 	h->table[index] = e;
+        fprintf(stderr, "hash_insert: index=%u, k=%u, hvalue=%u\n", index, *((unsigned int*)k), 
+                        e->h);
 	return -1;
 }
 
@@ -204,15 +206,14 @@ hashtable_remove(struct hashtable *h, void *k)
 	index = indexFor(h->tablelength,hash(h,k));
 	pE = &(h->table[index]);
 	e = *pE;
-        fprintf(stderr, "NULL != e : %d", NULL != e);
-	while (NULL != e) {
-                fprintf(stderr, "hashvalu=%u, e->h=%u\n", hashvalue, e->h);
+	
+        while (NULL != e) {
                 /* Check hash value to short circuit heavier comparison */
 		if ((hashvalue == e->h) && (h->eqfn(k, e->k))) {
 			*pE = e->next;
 			h->entrycount--;
 			v = e->v;
-			freekey(e->k);
+	//		freekey(e->k);
 			free(e);
 			return v;
 		}

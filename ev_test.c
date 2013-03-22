@@ -11,7 +11,7 @@ void ev_callback(ev_t* ev, ev_time_item_t* ti)
 {
 	time_t now = time(NULL);
 	D("RUN ! current time is %d , expect time %lld \n", now, (long long) ti->time);
-	free(ti);
+	//free(ti);
 }
 void test1() {
 

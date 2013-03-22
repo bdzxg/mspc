@@ -5,18 +5,12 @@
 
 unsigned int ev_hash(void* id) 
 {
-//	return murmur_hash2(id, sizeof(unsigned int));
-
-	unsigned int ret =  murmur_hash2(id, sizeof(unsigned int));
-        D("ret = %u, id=%u", ret, id);
-        return ret;
+	return murmur_hash2(id, sizeof(unsigned int));
 }
 
 int ev_comp_func(void* d1, void*d2) 
 {
-	int tmp =  *((int*)d1) - *((int*)d2) == 0 ? 1 : 0;
-        E("tmp = %d", tmp);
-        return tmp;
+        return *((int*)d1) - *((int*)d2) == 0 ? 1 : 0;
 }
 
 ev_t* ev_create2(void* data, size_t size)
@@ -106,11 +100,11 @@ int ev_del_file_item(ev_t *ev, int fd)
 static int _ev_insert_timer(ev_t *ev, _ev_time_item_inner_t* ti)
 {
 	struct hashtable *table = ev->table;
-	int r = hashtable_insert(table, &ti->id, ti);
-        E("insert &ti->id = %u\n", &ti->id);	
-	//this hashtable_insert return 0 faile, -1 sucess.....
+	int r = hashtable_insert(table, &(ti->id), ti);
+
+        //this hashtable_insert return 0 faile, -1 sucess.....
 	if(r == -1) {
-                E("insert ok!");
+                D("insert ok! ti->id: %u", ti->id);
                 return 0;
 	}
 	return -1;
@@ -119,8 +113,9 @@ static int _ev_insert_timer(ev_t *ev, _ev_time_item_inner_t* ti)
 static void  _ev_delete_from_timer(ev_t* ev, _ev_time_item_inner_t* ti)
 {
 	struct hashtable *table = ev->table;
-	if (NULL == hashtable_remove(table, &ti->id) ) {
-                E("remove hashtable error %u" , &ti->id);
+	
+        if (NULL == hashtable_remove(table, &(ti->id)) ) {
+                E("remove hashtable error %u" , ti->id);
         }
 }
 
@@ -141,15 +136,18 @@ ev_time_item_ctl(ev_t* ev, int op, ev_time_item_t* item)
 			W("no mem for tii");
 			return -1;
 		}
-		if(_ev_insert_timer(ev, tii) < 0) {
+	
+                tii->id = ++ ev->next_time_id;
+		
+                if(_ev_insert_timer(ev, tii) < 0) {
 			free(tii);
-			return -1;
+                        W("_ev_insert_timmer failed!");
+                        return -1;
 		}
 		item->__inner = tii;
-		tii->id = ++ ev->next_time_id;
+//		tii->id = ++ ev->next_time_id;
 		tii->item = item;
 
-		
 		idx = (p + ev->timer_current_task) % EV_TIMER_SIZE;
 		_ev_time_item_inner_t* tmp = ev->timer_task_list[idx];
 		tii->next = tmp;
