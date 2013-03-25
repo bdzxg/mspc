@@ -193,9 +193,9 @@ ev_main(ev_t* ev)
 
                                 _ev_delete_from_timer(ev,tmp);
 				ev->timer_task_list[idx] = tii->next;
+                                tii = tii->next;
 				free(tmp);
 
-				tii = tii->next;
 			}
 		}
 		if(!tii) {

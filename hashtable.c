@@ -141,7 +141,7 @@ int
 hashtable_insert(struct hashtable *h, void *k, void *v)
 {
 	/* This method allows duplicate keys - but they shouldn't be used */
-        fprintf(stderr, "k=%u\n", k );
+        //fprintf(stderr, "k=%u\n", k );
         unsigned int index;
 	struct entry *e;
 	if (++(h->entrycount) > h->loadlimit) {
@@ -164,8 +164,8 @@ hashtable_insert(struct hashtable *h, void *k, void *v)
 	e->v = v;
 	e->next = h->table[index];
 	h->table[index] = e;
-        fprintf(stderr, "hash_insert: index=%u, k=%u, hvalue=%u\n", index, *((unsigned int*)k), 
-                        e->h);
+        //fprintf(stderr, "hash_insert: index=%u, k=%u, hvalue=%u\n", index, *((unsigned int*)k), 
+        //                e->h);
 	return -1;
 }
 
