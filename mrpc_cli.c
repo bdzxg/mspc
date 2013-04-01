@@ -7,7 +7,7 @@ static char* PROTOCOL = "MCP/3.0";
 
 void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi);
 void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi);
-
+static void _send_pending(mrpc_connection_t *c);
 
 //TODO handle the error when we cannot connect the backend
 static int _connect(mrpc_connection_t *c) 
@@ -22,8 +22,7 @@ static int _connect(mrpc_connection_t *c)
 
 	if(setnonblocking(fd) < 0) {
 		E("set nonblocking error");
-		close(fd);
-		return -1;
+                goto failed;
 	}
 
 	char *s = c->us->uri;
@@ -37,12 +36,12 @@ static int _connect(mrpc_connection_t *c)
 		strncpy(r3, r2 + 1, addr_len);
 		if(inet_aton(r3, &inp) == 0) {
 			E("address for aton error");
-			return -1;
+                        goto failed;
 		}
 	}
 	else {
 		E("address format error");
-		return -1;
+                goto failed;
 	}
 
 	D("begin connect, %s", c->us->uri);
@@ -54,38 +53,38 @@ static int _connect(mrpc_connection_t *c)
 	int r = connect(fd,(struct sockaddr*)&addr, sizeof(addr));
 	if(r < 0) {
 		if(errno == EINPROGRESS) {
+                        c->conn_status = MRPC_CONN_CONNECTING;
 		}
 		else {
 			E("connect error, %s", strerror(errno));
-			close(fd);
-			return -1;
+                        goto failed;
 		}
 	}
+        else if (r == 0) {
+ 		E("connect succ immediately");
+		c->conn_status = MRPC_CONN_CONNECTED;
+		c->connected = time(NULL);
+                _send_pending(c);
+	       
+        }
 	
-	r = ev_add_file_item(worker->ev, fd, 
+	int re = ev_add_file_item(worker->ev, fd, 
 			     EV_READABLE | EV_WRITABLE | EPOLLET,
 			     c,
 			     mrpc_cli_ev_in,
 			     mrpc_cli_ev_out);
-	
-	if(r < 0) {
+	if(re < 0) {
 		W("add ev error");
-		close(fd);
-		return -1;
+                goto failed;
 	}
-	D("ev item added");
-
-	if(r == 0) {
-		E("connect succ immediately");
-		c->conn_status = MRPC_CONN_CONNECTED;
-		c->connected = time(NULL);
-	}
-	else {
-		c->conn_status = MRPC_CONN_CONNECTING;
-	}
-	D("connect finish");
+        
 	c->fd = fd;
 	return 0;
+
+failed:
+        close(fd);
+        c->conn_status = MRPC_CONN_DISCONNECTED;
+        return -1;
 }
 
 static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
@@ -614,6 +613,8 @@ int mrpc_us_send(rec_msg_t *msg)
 	//2. get the connection from the us_item
 	c = _get_conn(us);
 	if(c != NULL)  {
+                //try send pending first
+                _send_pending(c);
 		if(_send_inner(msg, c) < 0) {
 			E("send inner return -1");
 			return -1;
