@@ -278,7 +278,7 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 		}
 	}
 
-	get_send_data2(m, b->buf + b->offset, a);
+	get_send_data2(m, b->buf + b->size, a);
 	b->size += size_to_send;
 
 	int r = mrpc_send2(a->send_buf, a->fd);
