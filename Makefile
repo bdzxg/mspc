@@ -7,6 +7,8 @@ LIB_OBJS = \
 	./rbtree.o \
 	./map.o \
 	./ev.o \
+	./settings.o \
+	./log.o \
 	./tool.o
 
 MAP_OBJS = \

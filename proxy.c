@@ -10,17 +10,17 @@ pxy_master_t* master;
 pxy_worker_t* worker;
 FILE* log_file;
 int log_level = 0;
-
-pxy_settings setting = {
-        LOG_LEVEL_DEBUG,
-	"mspc.txt",
-        9014,
-        9015,
-	"0.0.0.0",
-	LOG_LEVEL_DEBUG,
-	"route_log.txt",
-	"192.168.110.125:8998"
-};
+extern pxy_settings setting;
+//pxy_settings setting = {
+//        LOG_LEVEL_DEBUG,
+//	"mspc.txt",
+//        9014,
+//        9015,
+//	"0.0.0.0",
+//	LOG_LEVEL_DEBUG,
+//	"route_log.txt",
+//	"192.168.110.125:8998"
+//};
 
 int
 pxy_setting_init(char *conf_file)
@@ -49,7 +49,6 @@ pxy_setting_init(char *conf_file)
 		if(strcmp(item->name,"log_file") == 0) {
 			int len =  strlen(item->value) + 1;
 			strncpy(setting.log_file, item->value, len);
-
                         if (strcmp(setting.log_file, "stdout") == 0 ||
                             strcmp(setting.log_file, "stderr") == 0) {
                                 log_file = stdout;                        
@@ -61,6 +60,8 @@ pxy_setting_init(char *conf_file)
                                         E("LOG FILE open failed!");
 					goto ERROR;
                                 }
+
+                                fclose(log_file);
                         }
 		}
 
@@ -284,6 +285,7 @@ char* get_send_data(rec_msg_t* t, int* length)
 int main(int argc, char** argv)
 {
 	log_file = stdout;
+        init_log();
 	D("process start");
 	char ch[80];
 
@@ -294,7 +296,7 @@ int main(int argc, char** argv)
                 strcpy(conf_file, argv[1]);
         }
         else {
-                strcpy (conf_file, "mspc.conf");
+                strcpy(conf_file, "mspc.conf");
         }
 
         if (pxy_setting_init(conf_file) != 0) {
