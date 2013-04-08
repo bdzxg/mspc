@@ -556,7 +556,7 @@ void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 	UNUSED(ev);
 	mrpc_connection_t *c = fi->data;
 	int err = -1;
-	socklen_t err_len;
+	socklen_t err_len = sizeof(err);
 
 	if(c->conn_status == MRPC_CONN_CONNECTING) {
 		if(getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len) < 0) {
