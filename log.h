@@ -38,17 +38,6 @@ extern int log_level;
                 fflush(log_file);                                 \
 	}while(0)		
 
-//	do {								\
-//		struct timeval __xxts;					\
-//		gettimeofday(&__xxts,NULL);				\
-//		fprintf(log_file,					\
-//			"[%s] %03d.%06d %s L%d P%d " format "\n", l,	\
-//			(int)__xxts.tv_sec % 1000, (int) __xxts.tv_usec, \
-//			__FUNCTION__,__LINE__,getpid(),##__VA_ARGS__);	\
-//                fflush(log_file);                                       \
-//	}while(0)		
-
-
 
 #define D(format, ...) if (log_level <= LOG_LEVEL_DEBUG) \
         L("DEBUG",format,##__VA_ARGS__) 

@@ -9,12 +9,12 @@ extern upstream_map_t *upstream_root;
 size_t packet_len;
 #define MSP_BUF_LEN 1024
 
-static char OVERTIME[3] = {8, 248, 3};// 504
+//static char OVERTIME[3] = {8, 248, 3};// 504
 static char BADGATEWAY[3] = {8, 246, 3};// 502
 static char SERVERERROR[3] = {8, 244, 3};// 500
-static char REQERROR[3] = {8, 144, 3};// 400
+//static char REQERROR[3] = {8, 144, 3};// 400
 static char AUTHERROR[3] = {8, 145, 3};// 400
-static char NOTEXIST[3] = {8, 155, 3};// 411
+//static char NOTEXIST[3] = {8, 155, 3};// 411
 static int agent_to_beans(pxy_agent_t *, rec_msg_t*, int);
 static int agent_send_netstat(pxy_agent_t *);
 static int agent_send_offstate(pxy_agent_t *agent);
