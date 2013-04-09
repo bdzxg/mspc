@@ -58,4 +58,7 @@ typedef struct log_buffer_s {
 #define E(format,...) if (log_level <= LOG_LEVEL_ERROR) \
         L("ERROR",format,##__VA_ARGS__) 
 
+void init_log();
+void write_log(char *log_info);
+
 #endif

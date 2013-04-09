@@ -40,12 +40,12 @@ void write_log(char *log_info) {
                         }
                 }
 
-                fprintf(log_file, log_buf->buf);                    
+                fprintf(log_file, "%s",  log_buf->buf);                    
                 fclose(log_file);
                 log_buf->size = 0;                                  
         }                                        
 
-        sprintf(log_buf->buf + log_buf->size, log_info);             
+        sprintf(log_buf->buf + log_buf->size, "%s", log_info);             
         log_buf->size += strlen(log_info);     
 failed:
        return; 
