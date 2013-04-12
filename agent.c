@@ -354,6 +354,10 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 		return -1;
 	}
 
+        if (msg->user_context == NULL || msg->user_context_len == 0) {
+                W("uid %s, cmd %d userctx is null", uid, msg->cmd);
+        }
+
 	I("uid %s, cmd %d url=%s sent to backend", uid, msg->cmd, url);
 	return 0;
 }
