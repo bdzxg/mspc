@@ -204,22 +204,25 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 	}
 	memcpy(r->body, msg->body, r->body_len);
 
-	r->user_context = malloc(r->user_context_len);
-	if(!r->user_context) {
-		E("no mem for r->user_content");
-		free(r->body);
-		free(r->option);
-		free(r);
-		return NULL;
-	}
-	memcpy(r->user_context, msg->user_context, r->user_context_len);
+        if(r->user_context_len > 0) {
+                r->user_context = malloc(r->user_context_len);
+                if(!r->user_context) {
+                        E("no mem for r->user_content");
+                        free(r->body);
+                        free(r->option);
+                        free(r);
+                        return NULL;
+                }
+                memcpy(r->user_context, msg->user_context, r->user_context_len);
+        }
 
 	r->epid = malloc(strlen(msg->epid) + 1);
 	if(!r->epid) {
 		E("no mem for r->epid");
 		free(r->body);
 		free(r->option);
-		free(r->user_context);
+                if (r->user_context_len > 0) 
+        		free(r->user_context);
 		free(r);
 		return NULL;
 	}

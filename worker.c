@@ -145,6 +145,7 @@ void worker_accept(ev_t *ev, ev_file_item_t *ffi)
 			W("add file item failed");
 			return;
 		}
+                I("comming new agent: fd: %d", f);
 	}
 	else {
 		W("accept %s", strerror(errno));

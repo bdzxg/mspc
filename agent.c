@@ -110,6 +110,8 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 			E("gen epid error");
 			goto ERROR_RESPONSE;
 		}
+                I("fill epid fid:%d, cmd:%d, uid:%d, epid:%s", agent->fd, msg->cmd,
+                                msg->userid, agent->epid);
 		agent->clienttype = msg->client_type;
 		if(worker_insert_agent(agent) < 0) {
 			E("insert agent error, epid %s",agent->epid);
@@ -287,8 +289,8 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 		  m->cmd, a->user_id);
 		return -1;
 	}
-	I("cmd %d succ sent to uid %d", m->cmd,
-	  a->user_id);
+	I("cmd %d succ sent to uid %d, epid:%s, fd:%d", m->cmd, a->user_id, 
+                        a->epid, a->fd);
 	return 0;
 }
 
@@ -303,8 +305,8 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 		return;
 	}
 
-	I("receive backend cmd %d, seq %d, opt %d",
-	  proto->cmd, proto->sequence, proto->opt);
+	I("receive backend cmd %d, seq %d, opt %d, userid %d",
+	  proto->cmd, proto->sequence, proto->opt, proto->user_id);
 
 	memcpy(ch, proto->epid.buffer, proto->epid.len);
 	pxy_agent_t *a = map_search(&worker->root, ch);
@@ -320,7 +322,7 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 	if(_send_to_client(&m, a) < 0) {
 		goto failed;
 	}
-
+        
 	return ;
 
 failed:
@@ -349,12 +351,17 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 //	msg->uri = __url;
 
 	if(mrpc_us_send(msg) < 0) {
-		W("uid %s, cmd %d url %s mrpc send error",
-		  uid, msg->cmd, url);
+		W("uid %s, cmd %d url %s mrpc send error", uid, msg->cmd, url);
 		return -1;
 	}
 
-	I("uid %s, cmd %d url=%s sent to backend", uid, msg->cmd, url);
+        if (msg->user_context == NULL || msg->user_context_len == 0) {
+                W("fd %d,epid=%s,  uid %s, cmd %d userctx is null", a->fd, 
+                                a->epid, uid, msg->cmd);
+        }
+
+	I("fd:%d, uid %s, cmd %d epid:%s, url=%s sent to backend",a->fd, uid,
+                        msg->cmd, a->epid, url);
 	return 0;
 }
 
@@ -422,6 +429,7 @@ void pxy_agent_close(pxy_agent_t *a)
 	agent_send_netstat(a);
 	agent_send_offstate(a);
 
+        I("agent close fd:%d uid:%d, epid:%s", a->fd, a->user_id, a->epid);
 	free(a->epid);
 	a->epid = NULL;
 	if(a->user_ctx_len > 0) {
@@ -452,6 +460,7 @@ void close_idle_agent(ev_t* ev, ev_time_item_t* ti) {
         pxy_agent_t* agent = ti->data;
         time_t now = time(NULL);
         if (now - agent->last_active > 10 * 60) {
+                W("close expired idle client!");
                 goto failed;
         }
         else {
@@ -543,7 +552,8 @@ int agent_send_netstat(pxy_agent_t *agent)
 		return 0;
 	}
 
-	I("user %d send netstat", agent->user_id);
+	I("fd: %d, epid:%s, user %d send netstat",agent->fd, agent->epid,
+                        agent->user_id);
 	rec_msg_t msg = {0};
 	msg.cmd = CMD_NET_STAT;
 	msg.userid = agent->user_id;
@@ -582,7 +592,8 @@ int agent_send_offstate(pxy_agent_t *agent)
 
 	rec_msg_t msg = {0};
 
-	I("userid %d send offstate", agent->user_id);
+	I("fd:%d, epid:%s, userid %d send offstate", agent->fd, agent->epid, 
+                        agent->user_id);
 	msg.cmd = CMD_CONNECTION_CLOSED;
 	msg.userid = agent->user_id;
 	msg.logic_pool_id = agent->logic_pool_id;
