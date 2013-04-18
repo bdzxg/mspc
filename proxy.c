@@ -77,23 +77,18 @@ pxy_setting_init(char *conf_file)
 		}
 		if(strcmp(item->name,"route_log_file") == 0) {
 			strcpy(setting.route_log_file, item->value);
-			if(strcmp(item->value, "stdout") == 0) {
-				route_set_logfile(stdout);
-			}
-			else if(strcmp(item->value, "stderr") == 0) {
-				route_set_logfile(stderr);
-			}
-			else {
-				FILE *f = fopen(item->value, "a");
-				route_set_logfile(f);
-			}
 		}
+                if(strcmp(item->name, "route_server_port") == 0) {
+                        setting.route_server_port = atoi(item->value);
+                }
 		if(strcmp(item->name, "zk_url") == 0)
 			strcpy(setting.zk_url, item->value);
 		memset(item, 0, sizeof(*item));
 	}
 	
-	E("setting inited: setting.log_level %d, log_file %s, client_port %d, backend_port %d, ip %s, route_log_level %d, route_log_file %s,zk_url %s",
+	E("setting inited: setting.log_level %d, log_file %s, client_port %d,"
+                        "backend_port %d, ip %s, route_log_level %d, "
+                        "route_log_file %s, route_server_port %d, zk_url %s",
 	  setting.log_level,
 	  setting.log_file,
 	  setting.client_port,
@@ -101,6 +96,7 @@ pxy_setting_init(char *conf_file)
 	  setting.ip,
 	  setting.route_log_level,
 	  setting.route_log_file,
+          setting.route_server_port,
 	  setting.zk_url);
 	
 	return 0;

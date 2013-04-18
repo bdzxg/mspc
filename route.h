@@ -58,7 +58,7 @@ int route_get_app_category_minus_name(const unsigned int cmd,
 
 int route_get_app_count();
 
-int route_init(char *zookeeper_url);
+int route_init(char *zookeeper_url, unsigned int rsport, char *route_log_filename);
 
 void route_close();
 

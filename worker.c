@@ -53,7 +53,8 @@ int worker_init()
 
 int worker_start()
 {
-	route_init(setting.zk_url);
+	route_init(setting.zk_url, setting.route_server_port, 
+                        setting.route_log_file);
 	int fd = master->listen_fd;
 	int r = ev_add_file_item(worker->ev, 
 				 fd, 
