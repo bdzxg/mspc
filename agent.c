@@ -360,8 +360,8 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
                                 a->epid, uid, msg->cmd);
         }
 
-	I("fd:%d, uid %s, cmd %d epid:%s, url=%s sent to backend",a->fd, uid,
-                        msg->cmd, a->epid, url);
+	I("fd:%d, uid %s(%d), cmd %d epid:%s, url=%s sent to backend",a->fd, uid,
+                        msg->userid, msg->cmd, a->epid, url);
 	return 0;
 }
 
