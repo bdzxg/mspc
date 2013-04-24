@@ -67,7 +67,7 @@ int ev_add_file_item(ev_t* ev, int fd, int mask, void* d,
 		return -1;
 	}
 
-	struct epoll_event epev;
+	struct epoll_event epev = {0};
 	epev.events = mask;
 	epev.data.fd = fd;
 	

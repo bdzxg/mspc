@@ -189,6 +189,7 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 		a->user_id = p->user_id;
 		size_t l = p->user_context.len;
 		if(l > 0) {
+                        free(a->user_ctx);
 			a->user_ctx = malloc(l);
 			if(!a->user_ctx) {
 				W("cannot malloc for usercontext");
@@ -339,7 +340,8 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	UNUSED(a);
 	char url[32] = {0};
 	char uid[15] = {0};
-	sprintf(uid, "%d", a->user_id);
+	//sprintf(uid, "%d", a->user_id);
+	sprintf(uid, "%d", msg->userid);
 
 	int r = route_get_app_url(msg->cmd, 1, uid, NULL, NULL, NULL, url);
 	if(r <= 0){
@@ -492,7 +494,7 @@ void agent_timer_handler(ev_t* ev, ev_time_item_t* ti)
         close_idle_agent(ev, ti);
 }
 
-pxy_agent_t * pxy_agent_new(int fd,int userid)
+pxy_agent_t * pxy_agent_new(int fd, int userid, char *client_ip)
 {
 	pxy_agent_t *agent = calloc(1, sizeof(*agent));
 	if(!agent){
@@ -534,8 +536,23 @@ pxy_agent_t * pxy_agent_new(int fd,int userid)
 	agent->fd = fd;
 	agent->user_id = userid;
 	agent->epid = NULL;
-	agent->user_ctx = NULL;
-	agent->user_ctx_len = 0;
+        
+	char t_userctx[1024] = {0};
+	struct pbc_slice s_userctx = {t_userctx, sizeof(t_userctx)};
+        
+        user_context userctx;
+        memset(&userctx, 0, sizeof(userctx));
+        userctx.client_ip.len  = strlen(client_ip);
+        userctx.client_ip.buffer = strdup(client_ip);
+
+        int r1 = pbc_pattern_pack(rpc_pat_user_context, &userctx, &s_userctx);
+        if (r1 < 0) {
+                E("pack client_ip args error!");
+                goto failed;
+        }
+       
+	agent->user_ctx = strdup(t_userctx);
+	agent->user_ctx_len = sizeof(t_userctx) - r1;
 	agent->isreg = 0;
 	agent->upflow = 0;
 	agent->downflow = 0;

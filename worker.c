@@ -130,7 +130,13 @@ void worker_accept(ev_t *ev, ev_file_item_t *ffi)
 			W("set nonblocking error"); return;
 		}
 
-		agent = pxy_agent_new(f, 0);
+                struct sockaddr_in sin;
+                memcpy(&sin, &(master->addr), sizeof(sin));
+                char client_ip[16];
+                memset(client_ip, 0, sizeof(client_ip));
+                sprintf(client_ip, inet_ntoa(sin.sin_addr));
+		agent = pxy_agent_new(f, 0, client_ip);
+
 		if(!agent){
 			W("create new agent error"); return;
 		}
@@ -146,7 +152,7 @@ void worker_accept(ev_t *ev, ev_file_item_t *ffi)
 			W("add file item failed");
 			return;
 		}
-                I("comming new agent: fd: %d", f);
+                I("comming new agent fd %d, ip:%s", f, client_ip);
 	}
 	else {
 		W("accept %s", strerror(errno));

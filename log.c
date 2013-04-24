@@ -4,7 +4,7 @@ log_buffer_t *log_buf;
 extern FILE* log_file;
 extern pxy_settings setting;
 
-#define LOG_BUF_SIZE 8192 
+#define LOG_BUF_SIZE 392 
 
 void init_log() {
         log_buf = calloc(1, sizeof(log_buffer_t));
