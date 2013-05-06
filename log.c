@@ -4,7 +4,7 @@ log_buffer_t *log_buf;
 extern FILE* log_file;
 extern pxy_settings setting;
 
-#define LOG_BUF_SIZE 392 
+#define LOG_BUF_SIZE 8192 
 
 void init_log() {
         log_buf = calloc(1, sizeof(log_buffer_t));
@@ -18,6 +18,7 @@ void write_log(char *log_info) {
                 if (strcmp(setting.log_file, "stdout") == 0 ||
                            strcmp(setting.log_file, "stderr") == 0) {
                         log_file = stdout;                        
+                        fprintf(log_file, "%s",  log_buf->buf);                    
                 } else {
                         char log_file_name[200];
                         char now_str[200];
@@ -38,11 +39,12 @@ void write_log(char *log_info) {
                                 E("LOG FILE open failed!");
                                 goto failed;
                         }
+
+                        fprintf(log_file, "%s",  log_buf->buf);                    
+                        fclose(log_file);
                 }
 
-                fprintf(log_file, "%s",  log_buf->buf);                    
-                fclose(log_file);
-                log_buf->size = 0;                                  
+               log_buf->size = 0;                                  
         }                                        
 
         sprintf(log_buf->buf + log_buf->size, "%s", log_info);             
