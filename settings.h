@@ -12,6 +12,7 @@ typedef struct pxy_settings{
 	char ip[CONFIG_MAX];
 	int route_log_level;
 	char route_log_file[CONFIG_MAX];
+        int route_server_port;
 	char zk_url[CONFIG_MAX];
 } pxy_settings;
 

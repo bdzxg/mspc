@@ -10,10 +10,10 @@ FILE* log_file;
 void ev_callback(ev_t* ev, ev_time_item_t* ti) 
 {
 	time_t now = time(NULL);
-	D("RUN ! current time is %d , expect time %lld \n", now, (long long) ti->time);
+	D("RUN ! current time is %zu , expect time %lld \n", now, (long long) ti->time);
 	//free(ti);
 }
-void test1() {
+int test1() {
 
        	log_file = stdout;
         ev_t *ev = ev_create(NULL);
@@ -23,7 +23,7 @@ void test1() {
 	}
 
 	time_t t = time(NULL);
-	D("time %d add \n", t);
+	D("time %zu add \n", t);
 
 	ev_time_item_t* ti  = ev_time_item_new(ev, NULL, ev_callback, t+5);
 	int r = ev_time_item_ctl(ev, EV_CTL_ADD, ti);
@@ -44,7 +44,7 @@ void test1() {
 int main()
 {
         test1();
-        return;
+        return 0;
 	log_file = stdout;
         ev_t *ev = ev_create(NULL);
 	if(!ev) {
@@ -53,7 +53,7 @@ int main()
 	}
 
 	time_t t = time(NULL);
-	D("time %d add \n", t);
+	D("time %zu add \n", t);
 
 	ev_time_item_t* ti  = ev_time_item_new(ev, NULL, ev_callback, t+5);
 	int r = ev_time_item_ctl(ev, EV_CTL_ADD, ti);

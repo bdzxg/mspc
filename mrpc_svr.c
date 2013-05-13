@@ -2,7 +2,7 @@
 
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
-static char* PROTOCOL = "MCP/3.0";
+//static char* PROTOCOL = "MCP/3.0";
 
 
 //mcp_appbean_proto.protocol = "mcp3.0"

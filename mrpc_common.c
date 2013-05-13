@@ -2,7 +2,7 @@
 
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
-static char* PROTOCOL = "MCP/3.0";
+//static char* PROTOCOL = "MCP/3.0";
 
 
 mrpc_buf_t* mrpc_buf_new(size_t size)
