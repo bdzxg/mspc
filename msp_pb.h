@@ -33,14 +33,16 @@ typedef struct {
   struct pbc_slice language;
   struct pbc_slice nick_name;
   struct pbc_slice region;
-  struct pbc_slice last_logoff_time;
+  uint64_t last_logoff_time;
   int32_t user_id;
   int32_t logical_pool;
   struct pbc_slice epid;
   struct pbc_slice client_ip;
   struct pbc_slice client_version;
+  struct pbc_slice client_caps;
   struct pbc_slice client_platform;
   struct pbc_slice machine_code;
+  struct pbc_slice oemtag;
   int32_t apn_type;
 }user_context;
 

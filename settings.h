@@ -14,6 +14,7 @@ typedef struct pxy_settings{
 	char route_log_file[CONFIG_MAX];
         int route_server_port;
 	char zk_url[CONFIG_MAX];
+        int is_flush_log;
 } pxy_settings;
 
 #endif

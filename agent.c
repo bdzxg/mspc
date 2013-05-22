@@ -183,23 +183,50 @@ _refresh_agent_epid(pxy_agent_t *a, struct pbc_slice *slice)
 static int 
 _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 {
-	retval r;
-	switch(p->cmd) {
+        retval r; 
+        switch(p->cmd) {
 	case CMD_USER_VALID:
 		a->user_id = p->user_id;
 		size_t l = p->user_context.len;
-		if(l > 0) {
-                        free(a->user_ctx);
-			a->user_ctx = malloc(l);
-			if(!a->user_ctx) {
-				W("cannot malloc for usercontext");
-				return 1;
-			}
+                if (l <= 0) return 1;
 
-			a->user_ctx_len = l;
-			memcpy(a->user_ctx, p->user_context.buffer, l);
-			I("save %zu length ctx", l);
-		}
+                free(a->user_ctx);
+                a->user_ctx = malloc(l);
+                if(!a->user_ctx) {
+                        W("cannot malloc for usercontext");
+                        return 1;
+                }
+
+                a->user_ctx_len = l;
+                memcpy(a->user_ctx, p->user_context.buffer, l);
+                I("save %zu length ctx", l);
+
+                struct pbc_slice slice = {a->user_ctx, a->user_ctx_len}; 
+                user_context user_ctx; 
+                int r1 = pbc_pattern_unpack(rpc_pat_user_context, 
+                                &slice, &user_ctx);
+                if (r1 < 0) {
+                        E("unpack user context failed!");
+//                        flush_log();
+                        return 1;
+                } 
+
+                int ct_len = user_ctx.client_platform.len;
+                if (ct_len > 0) {
+                        a->ct = calloc(1, ct_len + 1);
+                        strncpy(a->ct, user_ctx.client_platform.buffer, 
+                                        ct_len);
+                }
+                
+                int cv_len = user_ctx.client_version.len;
+                if (cv_len > 0) {
+                        a->cv = calloc(1, cv_len + 1);
+                        strncpy(a->cv, user_ctx.client_version.buffer, cv_len);
+                }
+
+                I("unpack ctx sid:%d, user_id:%d, cv:%s, cp:%s", user_ctx.sid, 
+                                user_ctx.user_id, a->cv, a->ct); 
+
 		return 1;
 	case CMD_CLOSE_CONNECTION:
 		worker_remove_agent(a);
@@ -340,12 +367,15 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	UNUSED(a);
 	char url[32] = {0};
 	char uid[15] = {0};
+        char sid[15] = {0};
 	//sprintf(uid, "%d", a->user_id);
 	sprintf(uid, "%d", msg->userid);
+        sprintf(sid, "%d", a->sid);
 
-	int r = route_get_app_url(msg->cmd, 1, uid, NULL, NULL, NULL, url);
+	int r = route_get_app_url(msg->cmd, 1, uid, sid, a->ct, a->cv, url);
 	if(r <= 0){
-		I("uid %s cmd %d url is null", uid, msg->cmd);
+		I("uid %s cmd %d ct %s cv %s url is null", uid, msg->cmd, 
+                                a->ct, a->cv);
 		return -1;
 	}
 
@@ -358,12 +388,14 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	}
 
         if (msg->user_context == NULL || msg->user_context_len == 0) {
-                W("fd %d,epid=%s,  uid %s, cmd %d userctx is null", a->fd, 
+                W("fd %d,epid=%s, uid %s, cmd %d userctx is null", a->fd, 
                                 a->epid, uid, msg->cmd);
         }
 
-	I("fd:%d, uid %s(%d), cmd %d epid:%s, url=%s sent to backend",a->fd, uid,
-                        msg->userid, msg->cmd, a->epid, url);
+	I("fd:%d uid %s(%d) sid:%s cmd:%d epid:%s ct:%s cv:%s url=%s sent to"
+                " backend", a->fd, uid, msg->userid, sid, msg->cmd, a->epid, 
+                a->ct, a->cv, url);
+//        flush_log();
         
 	return 0;
 }
@@ -440,6 +472,9 @@ void pxy_agent_close(pxy_agent_t *a)
 		free(a->user_ctx);
 	}
 	a->user_ctx = NULL;
+
+        if (a->ct != NULL) free(a->ct);
+        if (a->cv != NULL) free(a->cv);
 
 	mrpc_buf_free(a->recv_buf);
 	mrpc_buf_free(a->send_buf);
@@ -537,6 +572,8 @@ pxy_agent_t * pxy_agent_new(int fd, int userid, char *client_ip)
 	agent->fd = fd;
 	agent->user_id = userid;
 	agent->epid = NULL;
+        agent->ct = NULL;
+        agent->cv = NULL;
         
 	char t_userctx[1024] = {0};
 	struct pbc_slice s_userctx = {t_userctx, sizeof(t_userctx)};
@@ -551,7 +588,7 @@ pxy_agent_t * pxy_agent_new(int fd, int userid, char *client_ip)
                 E("pack client_ip args error!");
                 goto failed;
         }
-       
+
 	agent->user_ctx = strdup(t_userctx);
 	agent->user_ctx_len = sizeof(t_userctx) - r1;
 	agent->isreg = 0;

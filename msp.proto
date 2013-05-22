@@ -24,15 +24,17 @@ message user_context
 	optional string language = 5;
 	optional string nick_name = 6;
 	optional string region = 7;
-	optional string last_logoff_time = 8;
+	optional fixed64 last_logoff_time = 8;
 	optional int32 user_id = 9;
 	optional int32 logical_pool = 10;
 	optional string epid = 11;
 	optional string client_ip = 12;
 	optional string client_version = 13;
-	optional string client_platform = 14;
-	optional string machine_code = 15;
-	optional int32 apn_type = 16;
+        optional string client_caps = 14;
+	optional string client_platform = 15;
+	optional string machine_code = 16;
+        optional string oemtag = 17;
+	optional int32 apn_type = 18;
 }
 
 message retval 

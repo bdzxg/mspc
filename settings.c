@@ -9,5 +9,6 @@ pxy_settings setting = {
 	LOG_LEVEL_DEBUG,
 	"route_log.txt",
         10000,
-	"192.168.110.125:8998"
+	"192.168.110.125:8998",
+        0
 };

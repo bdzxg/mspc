@@ -22,6 +22,9 @@ typedef struct pxy_agent_s{
 	ev_time_item_t* timer;
         int isunreg;
         long last_active;
+        int sid;
+        char *ct;
+        char *cv;
 }pxy_agent_t;
 
 typedef struct reg3_s{

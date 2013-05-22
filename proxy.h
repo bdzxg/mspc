@@ -25,6 +25,7 @@
 #include "msp_pb.h"
 #include "mrpc_pb.h"
 #include "hashtable.h"
+#include "include/pbc.h"
 
 
 typedef struct {

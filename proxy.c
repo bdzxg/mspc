@@ -81,6 +81,9 @@ pxy_setting_init(char *conf_file)
                 if(strcmp(item->name, "route_server_port") == 0) {
                         setting.route_server_port = atoi(item->value);
                 }
+                if(strcmp(item->name, "flush_log") == 0) {
+                        setting.is_flush_log = atoi(item->value);
+                }
 		if(strcmp(item->name, "zk_url") == 0)
 			strcpy(setting.zk_url, item->value);
 		memset(item, 0, sizeof(*item));
