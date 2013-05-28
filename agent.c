@@ -224,6 +224,7 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
                         strncpy(a->cv, user_ctx.client_version.buffer, cv_len);
                 }
 
+                a->sid = user_ctx.sid;
                 I("unpack ctx sid:%d, user_id:%d, cv:%s, cp:%s", user_ctx.sid, 
                                 user_ctx.user_id, a->cv, a->ct); 
 
@@ -392,10 +393,9 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
                                 a->epid, uid, msg->cmd);
         }
 
-	I("fd:%d uid %s(%d) sid:%s cmd:%d epid:%s ct:%s cv:%s url=%s sent to"
-                " backend", a->fd, uid, msg->userid, sid, msg->cmd, a->epid, 
-                a->ct, a->cv, url);
-//        flush_log();
+	I("fd:%d uid %s(%d) sid:%s cmd:%d seq:%u epid:%s ct:%s cv:%s url=%s sent to"
+                " backend", a->fd, uid, msg->userid, sid, msg->cmd, msg->seq, 
+                a->epid, a->ct, a->cv, url);
         
 	return 0;
 }
