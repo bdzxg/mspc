@@ -25,6 +25,7 @@ typedef struct pxy_agent_s{
         int sid;
         char *ct;
         char *cv;
+        struct hashtable *svr_req_buf; 
 }pxy_agent_t;
 
 typedef struct reg3_s{

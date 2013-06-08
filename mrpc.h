@@ -38,6 +38,7 @@ typedef struct mrpc_message_s {
 	uint32_t package_length;
 	short header_length;
 	short packet_options;
+        char method_name[32];
 	union {
 		mrpc_request_header req_head;
 		mrpc_response_header resp_head;

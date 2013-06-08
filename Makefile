@@ -31,7 +31,8 @@ MRPC_OBJS = \
 	./mrpc_cli.o \
 	./mrpc_svr.o \
 	./mrpc_common.o \
-	./mrpc_pb.o
+	./mrpc_pb.o \
+	./mrpc_msp.o
 
 PXY_TEST = \
 	./pxy_test.o \
