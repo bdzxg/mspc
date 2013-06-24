@@ -183,7 +183,7 @@ ev_main(ev_t* ev)
 				free(tmp);
 			}
 			else if (ti->time > now) {
-				D("the timer should be called later");
+				//D("the timer should be called later");
 				break;
 			}
 			else {

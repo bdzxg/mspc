@@ -229,7 +229,7 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 	strcpy(r->epid, msg->epid);
 
         if (r->user_context_len == 0 || r->user_context == NULL) {
-                W("uid %s, cmd %d userctx is null", r->userid, r->cmd);
+                W("uid %d, cmd %d userctx is null", r->userid, r->cmd);
         }
 	return r;
 }

@@ -2,6 +2,10 @@
 #include "agent.h"
 #include <pthread.h>
 #include "route.h"
+#include "mrpc_msp.h"
+
+
+#include "hashtable_itr.h"
 
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
@@ -269,7 +273,7 @@ static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
 	__SB(rval, &t->cmd, 4, idx);
 	if(t->format < 128) {
 		__SB(rval, &a->bn_seq, 2, idx);
-		a->bn_seq ++;
+		//++a->bn_seq;
 	}
 	else {
 		__SB(rval, &t->seq, 2, idx);
@@ -288,9 +292,9 @@ static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
 		memcpy(rval + idx, t->body, t->body_len);
 	}
 
-	char tmp[102400] = {0};
-	to_hex(t->body, t->body_len, tmp);
-	D("body is %s", tmp);
+//	char tmp[102400] = {0};
+//	to_hex(t->body, t->body_len, tmp);
+//	D("body is %s", tmp);
 }
 
 static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
@@ -322,6 +326,15 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 	return 0;
 }
 
+uint16_t seq_increment(uint16_t seq)
+{
+        D("seq = %u", seq);
+        if (seq == 32767) 
+                return 1;
+        else 
+                return ++seq;
+}
+
 void agent_mrpc_handler(mcp_appbean_proto *proto)
 {
 	rec_msg_t m;	
@@ -347,6 +360,9 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 		return;
 	}
 
+        if (m.format < 128) 
+                a->bn_seq = seq_increment(a->bn_seq);
+
 	if(_send_to_client(&m, a) < 0) {
 		goto failed;
 	}
@@ -359,7 +375,8 @@ failed:
 	return;
 }
 
-void agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c)
+int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
+                mrpc_message_t msg)
 {
  	rec_msg_t m;	
 	_msg_from_proto(proto, &m);
@@ -367,7 +384,7 @@ void agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c)
 
 	if(proto->epid.len > sizeof(ch)) {
 		W("bad epid");
-		return;
+		return -1;
 	}
 
 	I("receive server request %d, seq %d, opt %d, userid %d",
@@ -377,7 +394,7 @@ void agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c)
 	pxy_agent_t *a = map_search(&worker->root, ch);
 	if(a == NULL) {
 		I("cannot find the epid %s agent, cmd is %d", ch, m.cmd);
-		return;
+		return -1;
 	}
 
 	if(_try_process_internal_cmd(a, proto) > 0) {
@@ -385,39 +402,50 @@ void agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c)
 	}
 
         struct hashtable *table = a->svr_req_buf;
-        int r = hashtable_insert(table, &(proto->sequence), c);
+        mrpc_req_buf_t *svr_req_data = calloc(1, sizeof(*svr_req_data));
+        svr_req_data->c = c;
+        svr_req_data->msg = msg;
+        svr_req_data->time = time(NULL) + 5;
+        a->bn_seq = seq_increment(a->bn_seq);
+        proto->sequence = a->bn_seq; 
+        svr_req_data->sequence = a->bn_seq;
+
+        int r = hashtable_insert(table, &svr_req_data->sequence, svr_req_data);
+        W("proto->sequence=%d, cmd:%d, req:%p", proto->sequence, proto->cmd, 
+                        svr_req_data);
+
         if (r != -1) {
              E("server request table insert error!");
-             return;  
+             return -1;  
         }
 
 	if(_send_to_client(&m, a) < 0) {
 		goto failed;
 	}
         
-	return;
-
+	return 1;
 failed:
 	worker_remove_agent(a);
 	pxy_agent_close(a);
 	return -1;
-       
-
 }
 
 static int agent_svr_response(pxy_agent_t *a, rec_msg_t *msg, struct hashtable *table,
-                mrpc_connection_t *c)
+                mrpc_req_buf_t *svr_req_data)
 {
         if (NULL == hashtable_remove(table, &(msg->seq))) {
                 E("remove server request table item error!");                
+                return -1;
         }
 
         // be attention to connection lost
-        if (send_svr_response(c) > 0 ) {
+        if (send_svr_response(svr_req_data, msg) > 0 ) {
                 I("agent send server request OK! cmd, userid, epid "); 
         } else {
                 E("agent send server request ERROR! cmd userid, epid");
         }
+
+        free(svr_req_data);
 }
 
 char __url[32] = "tcp://10.10.41.9:7700";
@@ -477,15 +505,18 @@ static int process_client_req(pxy_agent_t *agent)
 		}
 
 		//we need to refresh the seq to make sure seq conflict
-		if(msg.format < 128) {
-			agent->bn_seq = msg.seq + 1;
-		}
+//		if(msg.format < 128 && agent->bn_seq <= msg.seq) {
+//			agent->bn_seq = msg.seq + 1;
+//		}
 
                 struct hashtable *table = agent->svr_req_buf;
-                mrpc_connection_t *c = hashtable_search(table, &(msg.seq));
+                mrpc_req_buf_t *svr_req_data = NULL;
+                if (msg.format == 128) {
+                       svr_req_data = hashtable_search(table, &(msg.seq));
+                }
  
-                if (c != NULL) {
-                        agent_svr_response(agent, &msg, table, c);
+                if (svr_req_data != NULL) {
+                        agent_svr_response(agent, &msg, table, svr_req_data);
                 } else if(agent_to_beans(agent, &msg, 0) < 0) {
 			if(msg.body_len > 0) {
 				free(msg.body);
@@ -553,6 +584,8 @@ void pxy_agent_close(pxy_agent_t *a)
 		D("close the socket");
 		close(a->fd);
 	}
+
+        hashtable_destroy(a->svr_req_buf, -1);
 	free(a);
 }
 
@@ -587,9 +620,47 @@ failed:
         pxy_agent_close(agent);
         
 }
+void check_svr_req_buf(ev_t *ev, ev_time_item_t* ti) {
+        pxy_agent_t *agent = ti->data;
+        time_t now = time(NULL);
+        
+        // TODO iterator hashtable check if need to remove timeout request buf
+        // item 
+        int keycount = hashtable_count(agent->svr_req_buf); 
+        if (keycount <= 0) return;
+
+        struct hashtable_itr *itr = hashtable_iterator(agent->svr_req_buf);
+        if (itr == NULL) return;
+
+        int *keys = calloc(keycount + 1, sizeof(*keys));
+        int *p = keys;
+        do {
+                mrpc_req_buf_t *req = hashtable_iterator_value(itr);
+                
+                if (req != NULL && now - req->time > 0) {
+                        *p = req->sequence; p++;
+                        D("req:%p, key=%d", req, req->sequence);
+               }
+        } while (hashtable_iterator_advance(itr));
+        if (itr != NULL) free(itr);
+
+        p = keys;
+        while (*p != 0) {
+                mrpc_req_buf_t *req = hashtable_remove(agent->svr_req_buf, p);
+                if (NULL == req) {
+                        E("remove svr req buf failed! key=%d", *p);
+                        p++; 
+                        continue;
+                }
+
+                free(req);
+                p++;
+        }
+}
 
 void agent_timer_handler(ev_t* ev, ev_time_item_t* ti)
 {
+        check_svr_req_buf(ev, ti);
         close_idle_agent(ev, ti);
 }
 
@@ -600,9 +671,9 @@ static unsigned int svr_req_hash(void* id)
 
 static int svr_req_cmp_f(void* d1, void*d2) 
 {
+        D("k1=%d, k2=%d", *((int*)d1), *((int*)d2));
         return *((int*)d1) - *((int*)d2) == 0 ? 1 : 0;
 }
-
 
 pxy_agent_t * pxy_agent_new(int fd, int userid, char *client_ip)
 {
@@ -677,7 +748,6 @@ pxy_agent_t * pxy_agent_new(int fd, int userid, char *client_ip)
 failed:
 	return NULL;
 }
-
 
 int agent_send_netstat(pxy_agent_t *agent)
 {

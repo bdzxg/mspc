@@ -26,6 +26,7 @@ typedef struct pxy_agent_s{
         char *ct;
         char *cv;
         struct hashtable *svr_req_buf; 
+       // int svr_req_seq;
 }pxy_agent_t;
 
 typedef struct reg3_s{
@@ -72,6 +73,8 @@ void release_reg3(reg3_t* r3);
 int store_connection_context(pxy_agent_t *a);
 void worker_recycle_reg3();
 void send_to_client(pxy_agent_t*, char*, size_t);
+int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
+                mrpc_message_t msg);
 
 #define pxy_agent_for_each(agent,alist)				\
 	list_for_each_entry((agent),list,&(alist)->list)	

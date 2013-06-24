@@ -3,13 +3,14 @@ CFLAGS = -pipe -Wall -I -g -O0 -ggdb
 LINK =	$(CC)
 
 LIB_OBJS = \
-	./hashtable.o \
 	./rbtree.o \
 	./map.o \
 	./ev.o \
 	./settings.o \
 	./log.o \
 	./tool.o
+#./hashtable.o \
+	./hashtable_itr.o \
 
 MAP_OBJS = \
 	./rbtree.o \
@@ -55,11 +56,13 @@ TEST = \
 
 OUTPUT = mspc
 all : apl 
-apl:  $(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS)
-	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) -Llib -lzookeeper_mt -lprotobuf-c -lm -lroute -lev -lpthread -lpbc
+apl:  $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS)
+	$(LINK) $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) \
+		-Llib -lmclibc -lzookeeper_mt -lprotobuf-c -lm -lroute -lev -lpthread \
+		-lpbc 
 
 ev_test : $(LIB_OBJS) $(EV_TEST)
-	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test -lm
+	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test -lm -lmclibc
 
 clean:
 	rm -f *.o
