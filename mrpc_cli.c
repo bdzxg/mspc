@@ -25,6 +25,34 @@ static int _connect(mrpc_connection_t *c)
                 goto failed;
 	}
 
+        int k = 1;
+        int keepidle = 60 * 8;
+        int keepinterval = 10;
+        int keepcount = 3;
+
+        if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (void*)&k, sizeof(k)) < 0) {
+                E("set keepalive failed, reason %s ",strerror(errno));
+                goto failed;
+        }
+
+        if (setsockopt(fd, SOL_TCP, TCP_KEEPIDLE, (void*)&keepidle,
+                                sizeof(keepidle))) {
+                E("set TCP_KEEPIDLE failed, reason %s ", strerror(errno));
+                goto failed;
+        }
+
+        if (setsockopt(fd, SOL_TCP, TCP_KEEPINTVL,(void*)&keepinterval,
+                                sizeof(keepinterval))) {
+                E("set TCP_KEEPINTVL failed, reason %s", strerror(errno));
+                goto failed;
+        }
+
+        if (setsockopt(fd, SOL_TCP, TCP_KEEPCNT, (void*)&keepcount,
+                                sizeof(keepcount))) {
+                E("set TCP_KEEPCNT failed, reason %s", strerror(errno));
+                goto failed;
+        }
+
 	char *s = c->us->uri;
 	char *r1 = rindex(s, ':');
 	char *r2 = rindex(s, '/');
