@@ -430,8 +430,8 @@ failed:
 	return -1;
 }
 
-static int agent_svr_response(pxy_agent_t *a, rec_msg_t *msg, struct hashtable *table,
-                mrpc_req_buf_t *svr_req_data)
+static int agent_svr_response(pxy_agent_t *a, rec_msg_t *msg, 
+                struct hashtable *table, mrpc_req_buf_t *svr_req_data)
 {
         if (NULL == hashtable_remove(table, &(msg->seq))) {
                 E("remove server request table item error!");                
@@ -440,9 +440,9 @@ static int agent_svr_response(pxy_agent_t *a, rec_msg_t *msg, struct hashtable *
 
         // be attention to connection lost
         if (send_svr_response(svr_req_data, msg) > 0 ) {
-                I("agent send server request OK! cmd, userid, epid "); 
+                I("agent send server request OK! fd uid epid cmd"); 
         } else {
-                E("agent send server request ERROR! cmd userid, epid");
+                E("agent send server request ERROR! fd uid epid cmd ");
         }
 
         free(svr_req_data);
@@ -462,8 +462,8 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 
 	int r = route_get_app_url(msg->cmd, 1, uid, sid, a->ct, a->cv, url);
 	if(r <= 0){
-		I("uid %s cmd %d ct %s cv %s url is null", uid, msg->cmd, 
-                                a->ct, a->cv);
+		I("fd %d uid %s epid %s cmd %d ct %s cv %s, get url is null", 
+                   a->fd, uid, a->epid, msg->cmd, a->ct, a->cv);
 		return -1;
 	}
 
@@ -471,18 +471,19 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 //	msg->uri = __url;
 
 	if(mrpc_us_send(msg) < 0) {
-		W("uid %s, cmd %d url %s mrpc send error", uid, msg->cmd, url);
+		W("fd %d uid %s epid %s cmd %d url %s mrpc send error", 
+                   a->fd, uid, a->epid, msg->cmd, url);
 		return -1;
 	}
 
         if (msg->user_context == NULL || msg->user_context_len == 0) {
-                W("fd %d,epid=%s, uid %s, cmd %d userctx is null", a->fd, 
-                                a->epid, uid, msg->cmd);
+                W("fd %d uid %s epid %s cmd %d userctx is null", 
+                   a->fd, uid, a->epid, msg->cmd);
         }
 
-	I("fd:%d uid %s(%d) sid:%s cmd:%d seq:%u epid:%s ct:%s cv:%s url=%s sent to"
-                " backend", a->fd, uid, msg->userid, sid, msg->cmd, msg->seq, 
-                a->epid, a->ct, a->cv, url);
+	I("fd %d uid %d epid %s cmd %d auid %s sid %s seq %u ct %s cv %s "
+          "url=%s sent to backend", a->fd, msg->userid, a->epid, msg->cmd, 
+          a->user_id, a->sid, msg->seq, a->ct, a->cv, url);
         
 	return 0;
 }
@@ -498,8 +499,9 @@ static int process_client_req(pxy_agent_t *agent)
 				msg.body_len = sizeof(AUTHERROR);
 				msg.format = 128;
 				_send_to_client(&msg, agent);
-				W("user id %d not match with %d", 
-				  msg.userid, agent->user_id);
+				W("userid %d not match, fd %d uid %d epid %s" 
+                                  " cmd %d", msg.userid, agent->fd, 
+                                  agent->user_id, agent->epid, msg.cmd);
 				return -1;
 			}
 		}
@@ -527,13 +529,14 @@ static int process_client_req(pxy_agent_t *agent)
 			msg.format = 128; //response
 			
 			if(_send_to_client(&msg, agent) < 0) {
-				I("send cmd %d BADGATEWAY to uid %d failed",
-				  msg.cmd, agent->user_id);
+				I("send BADGATEWAY to client failed fd %d "
+                                  "uid %d epid %s cmd %d", agent->fd, 
+                                  agent->user_id, agent->epid, msg.cmd);
 				return -1;
 			}
 
-			I("sent cmd %d BADGATEWAY to uid %d",
-			  msg.cmd, agent->user_id);
+			I("sent cmd BADGATEWAY fd %d uid %d epid %s cmd %d",
+			  agent->fd, agent->user_id, agent->epid, msg.cmd);
 
 			continue;
 		}
@@ -558,7 +561,7 @@ void pxy_agent_close(pxy_agent_t *a)
 	agent_send_netstat(a);
 	agent_send_offstate(a);
 
-        I("agent close fd:%d uid:%d, epid:%s", a->fd, a->user_id, a->epid);
+        I("agent close fd %d uid %d epid %s", a->fd, a->user_id, a->epid);
 	free(a->epid);
 	a->epid = NULL;
 	if(a->user_ctx_len > 0) {
@@ -578,7 +581,7 @@ void pxy_agent_close(pxy_agent_t *a)
 
 	if(a->fd > 0){
 		if(ev_del_file_item(worker->ev, a->fd) < 0){
-			I("del file item err, errno is %d",errno);
+			I("del file item err, errno is %d", errno);
 		}
 
 		D("close the socket");
@@ -594,7 +597,8 @@ void close_idle_agent(ev_t* ev, ev_time_item_t* ti) {
         pxy_agent_t* agent = ti->data;
         time_t now = time(NULL);
         if (now - agent->last_active > 10 * 60) {
-                W("close expired idle client!");
+                W("close expired idle client! fd %d uid %d epid %s", agent->fd,
+                                agent->user_id, agent->epid);
                 goto failed;
         }
         else {
@@ -609,7 +613,8 @@ void close_idle_agent(ev_t* ev, ev_time_item_t* ti) {
                 free(ti);
                 agent->timer = item;
                 if(ev_time_item_ctl(worker->ev, EV_CTL_ADD, item) < 0) {
-                        W("cannot add timer");
+                        W("cannot add timer fd %d uid %d epid %s", agent->fd,
+                          agent->user_id, agent->epid);
                         goto failed;
                 }
         }
@@ -648,7 +653,8 @@ void check_svr_req_buf(ev_t *ev, ev_time_item_t* ti) {
         while (*p != 0) {
                 mrpc_req_buf_t *req = hashtable_remove(agent->svr_req_buf, p);
                 if (NULL == req) {
-                        E("remove svr req buf failed! key=%d", *p);
+                        E("remove svr req buf failed! key=%d fd %d uid %d "
+                          "epid %s", *p, agent->fd, agent->user_id, agent->epid);
                         p++; 
                         continue;
                 }
@@ -755,7 +761,7 @@ int agent_send_netstat(pxy_agent_t *agent)
 		return 0;
 	}
 
-	I("fd: %d, epid:%s, user %d send netstat",agent->fd, agent->epid,
+	I("fd %d epid %s uid %d cmd 104 send netstat",agent->fd, agent->epid,
                         agent->user_id);
 	rec_msg_t msg = {0};
 	msg.cmd = CMD_NET_STAT;
@@ -777,7 +783,8 @@ int agent_send_netstat(pxy_agent_t *agent)
 				 &args, 
 				 &s);
 	if(r < 0) {
-		W("pack args error");
+		W("pack args error fd %d uid %d epid %s cmd 104", agent->fd, 
+                                agent->user_id, agent->epid);
 		return -1;
 	}
 
@@ -795,8 +802,8 @@ int agent_send_offstate(pxy_agent_t *agent)
 
 	rec_msg_t msg = {0};
 
-	I("fd:%d, epid:%s, userid %d send offstate", agent->fd, agent->epid, 
-                        agent->user_id);
+	I("fd %d uid %d epid %s cmd 103 send offstate", agent->fd, 
+                        agent->user_id, agent->epid);
 	msg.cmd = CMD_CONNECTION_CLOSED;
 	msg.userid = agent->user_id;
 	msg.logic_pool_id = agent->logic_pool_id;
@@ -808,7 +815,6 @@ int agent_send_offstate(pxy_agent_t *agent)
 	return 0;
 }
 
-
 // client data
 void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 {
@@ -817,14 +823,15 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 
 	int n = mrpc_recv2(agent->recv_buf,agent->fd);
 	if(n == 0) {
-		I("recv uid %d, fd %d == 0",
-		  agent->user_id, agent->fd);
+		I("recv client == 0 fd %d uid %d epid %s", agent->fd, 
+                                agent->user_id, agent->epid);
 		goto failed;
 	}
 	agent->upflow += n;
 
 	if(process_client_req(agent) < 0) {
-		I("prceoss client request failed");
+		I("process client request failed fd %d uid %d epid %s", 
+                                agent->fd, agent->user_id, agent->epid);
 		goto failed;
 	}
 	if(agent->recv_buf->offset == agent->recv_buf->size) {
@@ -840,7 +847,6 @@ failed:
 	return;
 }
 
-
 void agent_send_client(ev_t *ev, ev_file_item_t *fi)
 {
 	UNUSED(ev);
@@ -848,12 +854,14 @@ void agent_send_client(ev_t *ev, ev_file_item_t *fi)
 	int r = mrpc_send2(a->send_buf, a->fd);
 
 	if(r < 0) {
-		I("send to uid %d failed, prepare close!", a->user_id);
+		I("send to client failed, prepare close, fd %d uid %d epid %s", 
+                                a->fd, a->user_id, a->epid);
 		worker_remove_agent(a);
 		pxy_agent_close(a);
 		return;
 	}
 
-	I("succ send %d bytes to uid %d", r , a->user_id);
+	I("succ send %d bytes to fd %d uid %d epid %s", r, a->fd, a->user_id,
+                        a->epid);
 	return;
 }
