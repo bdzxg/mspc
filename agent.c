@@ -160,7 +160,7 @@ _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 #define CMD_CLOSE_CONNECTION 102
 #define CMD_CONNECTION_CLOSED 103
 #define CMD_NET_STAT 104
-#define CMD_REFRESH_EPID 105
+//#define CMD_REFRESH_EPID 105
 #define CMD_USER_UNREG 10105
 
 
@@ -233,15 +233,15 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 		worker_remove_agent(a);
 		pxy_agent_close(a);
 		return 1;
-	case CMD_REFRESH_EPID:
-		if(pbc_pattern_unpack(rpc_pat_retval, &p->content, &r) < 0) {
-			W("unpack args error");
-			return 1;
-		}
-		worker_remove_agent(a);
-		_refresh_agent_epid(a, &r.option);
-		worker_insert_agent(a);
-		return 1;
+//	case CMD_REFRESH_EPID:
+//		if(pbc_pattern_unpack(rpc_pat_retval, &p->content, &r) < 0) {
+//			W("unpack args error");
+//			return 1;
+//		}
+//		worker_remove_agent(a);
+//		_refresh_agent_epid(a, &r.option);
+//		worker_insert_agent(a);
+//		return 1;
 	}
 	
 	return 0;
