@@ -15,11 +15,11 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 	mrpc_connection_t *c = fi->data;
 	D("rpc server recv"); 
 	n = mrpc_recv(c);
-	if(n == 0) {
+	if (n == 0) {
 
 		goto failed;
 	}
-	if( n == -1) {
+	if ( n == -1) {
 		E("recv return -1");
 		return;
 	}
@@ -27,21 +27,23 @@ static void mrpc_svr_recv(ev_t *ev,ev_file_item_t *fi)
 	int r;
 	for(;;) {
 		r = mrpc_process_client_req(c);
-		if(r < 0) {
+		if (r < 0) {
 			W("Process client req error");
 			goto failed;
-		}
-		else if (r == 0) {
+		} else if (r == 0) {
 			break;
-		}
-		else {}
+		} else {
+                        //
+                }
 	}
+
 	return;
 
 failed:
 	W("failed, prepare close!");
 	mrpc_conn_close(c);
 	mrpc_conn_free(c);
+
 	return;
 }
 
@@ -50,8 +52,10 @@ static void mrpc_svr_send(ev_t *ev, ev_file_item_t *ffi)
 	UNUSED(ev);
 	D("mrpc_svr_send begins");
 	mrpc_connection_t *c = ffi->data;
-	if(mrpc_send(c) < 0) 
+	if (mrpc_send(c) < 0) {
+                W("mrpc_send failed, close connection!");
 		goto failed;
+        }
 	return;
 
 failed:
@@ -72,15 +76,15 @@ void mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 	f = accept(ffi->fd,NULL,NULL);
 	D("rpc server: fd#%d accepted",f);
 
-	if(f > 0){
+	if (f > 0) {
 		err = setnonblocking(f);
-		if(err < 0){
+		if (err < 0) {
 			W("set nonblocking error");
 			close(f);
 			return;
 		}
 		c = mrpc_conn_new(NULL);
-		if(!c) {
+		if (!c) {
 			W("cannot malloc new mrpc_connetion");
 			close(f);
 			return;
@@ -94,18 +98,18 @@ void mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 					 mrpc_svr_recv,
 					 mrpc_svr_send);
 
-		if(r < 0) {
+		if (r < 0) {
 			E("add file item failed");
 			goto failed;
 		}
-	}	
-	else {
-		E("accept error %s", strerror(errno));
+        } else {
+                E("accept error %s", strerror(errno));
 	}
+
 	return;
 
 failed:
-	if(c) {
+	if (c) {
 		mrpc_conn_close(c);
 		mrpc_conn_free(c);
 	}

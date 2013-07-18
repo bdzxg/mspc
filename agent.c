@@ -3,14 +3,12 @@
 #include <pthread.h>
 #include "route.h"
 #include "mrpc_msp.h"
-
-
 #include "hashtable_itr.h"
 
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
-
 size_t packet_len;
+
 #define MSP_BUF_LEN 1024
 
 //static char OVERTIME[3] = {8, 248, 3};// 504
@@ -32,7 +30,7 @@ int worker_insert_agent(pxy_agent_t *agent)
 
 void worker_remove_agent(pxy_agent_t *agent)
 {
-	if(agent->epid != NULL) {
+	if (agent->epid != NULL) {
 		map_remove(&worker->root, agent->epid);
 	}
 }
@@ -50,14 +48,14 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 #define __B1 (b->buf + b->offset++)
 	size_t data_len = b->size - b->offset;
 	
-	if(data_len < 2) {
+	if (data_len < 2) {
 		D("length %lu is not enough", data_len);
 		return 0;
 	}
 
 	msg->len = (int)le16toh(*(uint16_t*)__B);
 	D("b->offset is %zu, msg->len %d", b->offset, msg->len);
-	if(data_len < msg->len) {
+	if (data_len < msg->len) {
 		D("%zu < %d, wait for more data",data_len, msg->len);
 		return 0;
 	}	
@@ -78,7 +76,6 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	msg->client_version = le16toh(*(uint16_t*)__B);
 	b->offset += 2;
 
-
 	b->offset ++;	//oimt the empty byte
 	msg->option_len = msg->off - 21; //21 is the fixed length of header
 	b->offset += msg->option_len;
@@ -86,38 +83,38 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	msg->body_len = msg->len - msg->off;
 	D("body_len %zu", msg->body_len);
 
-	if(agent->user_ctx_len == 0){
+	if (agent->user_ctx_len == 0) {
 		msg->user_context_len = 0; 
 		msg->user_context = NULL;
-	}else{
+	} else {
 		msg->user_context_len = agent->user_ctx_len;
 		msg->user_context = agent->user_ctx;
 	}
 
-	if(msg->body_len >0){
+	if (msg->body_len >0) {
 		msg->body = malloc(msg->body_len);
-		if(msg->body == NULL)
+		if (msg->body == NULL)
 			return -1;
 
 		memcpy(msg->body, b->buf + b->offset,msg->body_len);
-	}
-	else{
+	} else {
 		msg->body = NULL;
 		msg->body_len = 0; 
 	}
 	b->offset += msg->body_len;
 
-	if(agent->epid == NULL) {
+	if (agent->epid == NULL) {
 		agent->epid = generate_client_epid(msg->client_type,
 						   msg->client_version);
-		if(!agent->epid) {
-			E("gen epid error");
+		if (!agent->epid) {
+			E("gen epid error fd %d, uid %d, cmd %d", agent->fd,
+                           msg->userid, msg->cmd);
 			goto ERROR_RESPONSE;
 		}
-                I("fill epid fid:%d, cmd:%d, uid:%d, epid:%s", agent->fd, msg->cmd,
+                I("fill epid fd %d, cmd %d, uid %d, epid %s", agent->fd, msg->cmd,
                                 msg->userid, agent->epid);
 		agent->clienttype = msg->client_type;
-		if(worker_insert_agent(agent) < 0) {
+		if (worker_insert_agent(agent) < 0) {
 			E("insert agent error, epid %s",agent->epid);
 			goto ERROR_RESPONSE;
 		}
@@ -125,7 +122,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	msg->epid = agent->epid;
 
 	//user context
-	if(agent->user_ctx != NULL && agent->user_ctx_len > 0) {
+	if (agent->user_ctx != NULL && agent->user_ctx_len > 0) {
 		msg->user_context = agent->user_ctx;
 		msg->user_context_len = agent->user_ctx_len;
 	}
@@ -142,7 +139,6 @@ ERROR_RESPONSE:
 	return -1;
 }
 
-
 static inline void 
 _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 {
@@ -154,7 +150,7 @@ _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 	m->format = p->opt;
 	m->compress = p->zip_flag;
 
-	if(p->content.len > 0) {
+	if (p->content.len > 0) {
 		m->body_len = p->content.len;
 		m->body = p->content.buffer;
 	}
@@ -167,27 +163,26 @@ _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 //#define CMD_REFRESH_EPID 105
 #define CMD_USER_UNREG 10105
 
-
-static int
-_refresh_agent_epid(pxy_agent_t *a, struct pbc_slice *slice)
-{
-	char* t = calloc(slice->len + 1, 1);
-	if(!t) {
-		E("cannnot malloc for new epid");
-		return -1;
-	}
-
-	free(a->epid);
-	strncpy(t, slice->buffer, slice->len);
-	a->epid = t;
-	return 0;
-}
+//static int
+//_refresh_agent_epid(pxy_agent_t *a, struct pbc_slice *slice)
+//{
+//	char* t = calloc(slice->len + 1, 1);
+//	if (!t) {
+//		E("cannnot malloc for new epid");
+//		return -1;
+//	}
+//
+//	free(a->epid);
+//	strncpy(t, slice->buffer, slice->len);
+//	a->epid = t;
+//	return 0;
+//}
 
 //if match the internal cmd return 1,else return 0
 static int 
 _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 {
-        retval r; 
+//        retval r; 
         switch(p->cmd) {
 	case CMD_USER_VALID:
 		a->user_id = p->user_id;
@@ -196,8 +191,9 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 
                 free(a->user_ctx);
                 a->user_ctx = malloc(l);
-                if(!a->user_ctx) {
-                        W("cannot malloc for usercontext");
+                if (!a->user_ctx) {
+                        W("cannot malloc for usercontext uid %d, epid %s",
+                           p->user_id, a->epid);
                         return 1;
                 }
 
@@ -210,7 +206,8 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
                 int r1 = pbc_pattern_unpack(rpc_pat_user_context, 
                                 &slice, &user_ctx);
                 if (r1 < 0) {
-                        E("unpack user context failed!");
+                        E("unpack user context failed! uid %d, epid %s",
+                          p->user_id, a->epid);
                         return 1;
                 } 
 
@@ -228,8 +225,8 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
                 }
 
                 a->sid = user_ctx.sid;
-                I("unpack ctx sid:%d, user_id:%d, cv:%s, cp:%s", user_ctx.sid, 
-                                user_ctx.user_id, a->cv, a->ct); 
+                I("unpack ctx sid %d, uid %d, cv %s, cp %s, epid %s", 
+                  user_ctx.sid, user_ctx.user_id, a->cv, a->ct, a->epid); 
 
 		return 1;
 	case CMD_CLOSE_CONNECTION:
@@ -238,7 +235,7 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
 		return 1;
 //      remove reg3 logic
 //	case CMD_REFRESH_EPID:
-//		if(pbc_pattern_unpack(rpc_pat_retval, &p->content, &r) < 0) {
+//		if (pbc_pattern_unpack(rpc_pat_retval, &p->content, &r) < 0) {
 //			W("unpack args error");
 //			return 1;
 //		}
@@ -272,11 +269,10 @@ static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
 	__SB(rval, &t->version, 1, idx);
 	__SB(rval, &t->userid, 4, idx);
 	__SB(rval, &t->cmd, 4, idx);
-	if(t->format < 128) {
+	if (t->format < 128) {
 		__SB(rval, &a->bn_seq, 2, idx);
 		//++a->bn_seq;
-	}
-	else {
+	} else {
 		__SB(rval, &t->seq, 2, idx);
 	}
 	__SB(rval, &offset, 1, idx);
@@ -289,7 +285,7 @@ static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
 	// option use 0 template
 	//set2buf(&rval, (char*)&padding, 4);
 
-	if(t->body_len > 0) {
+	if (t->body_len > 0) {
 		memcpy(rval + idx, t->body, t->body_len);
 	}
 
@@ -307,7 +303,7 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 	  a->fd, b->len, b->size, size_to_send);
 
 	while(b->len - b->size < size_to_send) {
-		if(mrpc_buf_enlarge(b) < 0) {
+		if (mrpc_buf_enlarge(b) < 0) {
 			W("buf enlarge error");
 			return 0;
 		}
@@ -317,12 +313,12 @@ static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 	b->size += size_to_send;
 
 	int r = mrpc_send2(a->send_buf, a->fd);
-	if(r < 0) {
+	if (r < 0) {
 		I("cmd %d send to uid %d failed, prepare close!",
 		  m->cmd, a->user_id);
 		return -1;
 	}
-	I("cmd %d succ sent to uid %d, epid:%s, fd:%d", m->cmd, a->user_id, 
+	I("cmd %d succ sent to uid %d, epid %s, fd %d", m->cmd, a->user_id, 
                         a->epid, a->fd);
 	return 0;
 }
@@ -342,29 +338,34 @@ void agent_mrpc_handler(mcp_appbean_proto *proto)
 	_msg_from_proto(proto, &m);
 	char ch[64] = {0};
 
-	if(proto->epid.len > sizeof(ch)) {
-		W("bad epid");
+	if (proto->epid.len > sizeof(ch)) {
+                char *badid = calloc(1, proto->epid.len + 1);
+                memcpy(badid, proto->epid.buffer, proto->epid.len);
+		W("bad epid cmd %d, seq %d, opt %d, userid %d, epid %s",
+                  proto->cmd, proto->sequence, proto->opt, proto->user_id, ch);
+                free(badid);
 		return;
 	}
-
-	I("receive backend cmd %d, seq %d, opt %d, userid %d",
-	  proto->cmd, proto->sequence, proto->opt, proto->user_id);
 
 	memcpy(ch, proto->epid.buffer, proto->epid.len);
+	I("receive backend cmd %d, seq %d, opt %d, userid %d, epid %s",
+	  proto->cmd, proto->sequence, proto->opt, proto->user_id, ch);
+
 	pxy_agent_t *a = map_search(&worker->root, ch);
-	if(a == NULL) {
-		I("cannot find the epid %s agent, cmd is %d", ch, m.cmd);
-		return;
+	if (a == NULL) {
+                I("cannot find the epid %s agent, uid %d, cmd is %d", ch, 
+                                m.userid, m.cmd);
+                return;
 	}
 
-	if(_try_process_internal_cmd(a, proto) > 0) {
+	if (_try_process_internal_cmd(a, proto) > 0) {
 		return;
 	}
 
         if (m.format < 128) 
                 a->bn_seq = seq_increment(a->bn_seq);
 
-	if(_send_to_client(&m, a) < 0) {
+	if (_send_to_client(&m, a) < 0) {
 		goto failed;
 	}
         
@@ -383,22 +384,26 @@ int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
 	_msg_from_proto(proto, &m);
 	char ch[64] = {0};
 
-	if(proto->epid.len > sizeof(ch)) {
-		W("bad epid");
+	if (proto->epid.len > sizeof(ch)) {
+                char *badid = calloc(1, proto->epid.len + 1);
+                memcpy(badid, proto->epid.buffer, proto->epid.len);
+                W( "bad epid cmd %d, seq %d, opt %d, userid %d, epid %s",
+                  proto->cmd, proto->sequence, proto->opt, proto->user_id, ch);
+                free(badid);
 		return -1;
 	}
 
-	I("receive server request %d, seq %d, opt %d, userid %d",
-	  proto->cmd, proto->sequence, proto->opt, proto->user_id);
-
 	memcpy(ch, proto->epid.buffer, proto->epid.len);
-	pxy_agent_t *a = map_search(&worker->root, ch);
-	if(a == NULL) {
+        I("receive server request cmd %d seq %d opt %d userid %d epid %s",
+              proto->cmd, proto->sequence, proto->opt, proto->user_id, ch);
+
+        pxy_agent_t *a = map_search(&worker->root, ch);
+	if (a == NULL) {
 		I("cannot find the epid %s agent, cmd is %d", ch, m.cmd);
 		return -1;
 	}
 
-	if(_try_process_internal_cmd(a, proto) > 0) {
+	if (_try_process_internal_cmd(a, proto) > 0) {
 		return 1;
 	}
 
@@ -412,15 +417,15 @@ int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
         svr_req_data->sequence = a->bn_seq;
 
         int r = hashtable_insert(table, &svr_req_data->sequence, svr_req_data);
-        W("proto->sequence=%d, cmd:%d, req:%p", proto->sequence, proto->cmd, 
-                        svr_req_data);
+//        I("proto->sequence=%d, cmd %d, req %p", proto->sequence, proto->cmd, 
+//                        svr_req_data);
 
         if (r != -1) {
              E("server request table insert error!");
              return -1;  
         }
 
-	if(_send_to_client(&m, a) < 0) {
+	if (_send_to_client(&m, a) < 0) {
 		goto failed;
 	}
         
@@ -431,22 +436,25 @@ failed:
 	return -1;
 }
 
-static int agent_svr_response(pxy_agent_t *a, rec_msg_t *msg, 
+static void agent_svr_response(pxy_agent_t *a, rec_msg_t *msg, 
                 struct hashtable *table, mrpc_req_buf_t *svr_req_data)
 {
+        int is_removed = 1;
         if (NULL == hashtable_remove(table, &(msg->seq))) {
                 E("remove server request table item error!");                
-                return -1;
+                is_removed = 0;
         }
 
         // be attention to connection lost
         if (send_svr_response(svr_req_data, msg) > 0 ) {
-                I("agent send server request OK! fd uid epid cmd"); 
+                I("agent send server request OK! fd %d,  uid %d, epid %s, cmd %d",
+                        a->fd, a->user_id, a->epid, msg->cmd); 
         } else {
-                E("agent send server request ERROR! fd uid epid cmd ");
+                E("agent send server request ERROR! fd %d, uid %d, epid %s, "
+                        "cmd %d", a->fd, a->user_id, a->epid, msg->cmd);
         }
 
-        free(svr_req_data);
+        if (is_removed) free(svr_req_data);
 }
 
 char __url[32] = "tcp://10.10.41.9:7700";
@@ -462,8 +470,8 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
         sprintf(sid, "%d", a->sid);
 
 	int r = route_get_app_url(msg->cmd, 1, uid, sid, a->ct, a->cv, url);
-	if(r <= 0){
-		I("fd %d uid %s epid %s cmd %d ct %s cv %s, get url is null", 
+	if (r <= 0) {
+		I("fd %d, uid %s, epid %s, cmd %d, ct %s, cv %s, get url is null", 
                    a->fd, uid, a->epid, msg->cmd, a->ct, a->cv);
 		return -1;
 	}
@@ -471,21 +479,21 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
 	msg->uri = url;
 //	msg->uri = __url;
 
-	if(mrpc_us_send(msg) < 0) {
-		W("fd %d uid %s epid %s cmd %d url %s mrpc send error", 
+	if (mrpc_us_send(msg) < 0) {
+		W("fd %d, uid %s, epid %s, cmd %d, url %s mrpc send error", 
                    a->fd, uid, a->epid, msg->cmd, url);
 		return -1;
 	}
 
         if (msg->user_context == NULL || msg->user_context_len == 0) {
-                W("fd %d uid %s epid %s cmd %d userctx is null", 
+                W("fd %d, uid %s, epid %s, cmd %d userctx is null", 
                    a->fd, uid, a->epid, msg->cmd);
         }
 
-	I("fd %d uid %d epid %s cmd %d auid %s sid %s seq %u ct %s cv %s "
-          "url=%s sent to backend", a->fd, msg->userid, a->epid, msg->cmd, 
-          a->user_id, a->sid, msg->seq, a->ct, a->cv, url);
-        
+        I("fd %d, uid %d, epid %s, cmd %d, auid %d, sid %d, seq %u, ct %s, "
+              "cv %s, url=%s sent to backend", a->fd, msg->userid, a->epid, 
+              msg->cmd, a->user_id, a->sid, msg->seq, a->ct, a->cv, url);
+
 	return 0;
 }
 
@@ -494,13 +502,13 @@ static int process_client_req(pxy_agent_t *agent)
 	rec_msg_t msg;
 	int r;
 	while ((r = parse_client_data(agent, &msg)) > 0) {
-		if(agent->user_id > 0) {
-			if(msg.userid != agent->user_id) {
+		if (agent->user_id > 0) {
+			if (msg.userid != agent->user_id) {
 				msg.body = AUTHERROR;
 				msg.body_len = sizeof(AUTHERROR);
 				msg.format = 128;
 				_send_to_client(&msg, agent);
-				W("userid %d not match, fd %d uid %d epid %s" 
+				W("userid %d not match, fd %d, uid %d, epid %s," 
                                   " cmd %d", msg.userid, agent->fd, 
                                   agent->user_id, agent->epid, msg.cmd);
 				return -1;
@@ -508,7 +516,7 @@ static int process_client_req(pxy_agent_t *agent)
 		}
 
 		//we need to refresh the seq to make sure seq conflict
-//		if(msg.format < 128 && agent->bn_seq <= msg.seq) {
+//		if (msg.format < 128 && agent->bn_seq <= msg.seq) {
 //			agent->bn_seq = msg.seq + 1;
 //		}
 
@@ -520,8 +528,8 @@ static int process_client_req(pxy_agent_t *agent)
  
                 if (svr_req_data != NULL) {
                         agent_svr_response(agent, &msg, table, svr_req_data);
-                } else if(agent_to_beans(agent, &msg, 0) < 0) {
-			if(msg.body_len > 0) {
+                } else if (agent_to_beans(agent, &msg, 0) < 0) {
+			if (msg.body_len > 0) {
 				free(msg.body);
 			}
 			
@@ -529,14 +537,14 @@ static int process_client_req(pxy_agent_t *agent)
 			msg.body_len = sizeof(BADGATEWAY);
 			msg.format = 128; //response
 			
-			if(_send_to_client(&msg, agent) < 0) {
-				I("send BADGATEWAY to client failed fd %d "
-                                  "uid %d epid %s cmd %d", agent->fd, 
+			if (_send_to_client(&msg, agent) < 0) {
+				I("send BADGATEWAY to client failed fd %d, "
+                                  "uid %d, epid %s, cmd %d", agent->fd, 
                                   agent->user_id, agent->epid, msg.cmd);
 				return -1;
 			}
 
-			I("sent cmd BADGATEWAY fd %d uid %d epid %s cmd %d",
+			I("sent cmd BADGATEWAY fd %d, uid %d, epid %s, cmd %d",
 			  agent->fd, agent->user_id, agent->epid, msg.cmd);
 
 			continue;
@@ -546,7 +554,7 @@ static int process_client_req(pxy_agent_t *agent)
                         agent->isunreg = 1;
                 }
 
-		if(msg.body_len > 0) {
+		if (msg.body_len > 0) {
 			free(msg.body);
 		}
 		memset(&msg, 0, sizeof(msg));
@@ -562,10 +570,10 @@ void pxy_agent_close(pxy_agent_t *a)
 	agent_send_netstat(a);
 	agent_send_offstate(a);
 
-        I("agent close fd %d uid %d epid %s", a->fd, a->user_id, a->epid);
+        I("agent close fd %d, uid %d, epid %s", a->fd, a->user_id, a->epid);
 	free(a->epid);
 	a->epid = NULL;
-	if(a->user_ctx_len > 0) {
+	if (a->user_ctx_len > 0) {
 		a->user_ctx_len = 0;
 		free(a->user_ctx);
 	}
@@ -580,8 +588,8 @@ void pxy_agent_close(pxy_agent_t *a)
 	ev_time_item_ctl(worker->ev, EV_CTL_DEL, a->timer);
         free(a->timer);
 
-	if(a->fd > 0){
-		if(ev_del_file_item(worker->ev, a->fd) < 0){
+	if (a->fd > 0) {
+		if (ev_del_file_item(worker->ev, a->fd) < 0) {
 			I("del file item err, errno is %d", errno);
 		}
 
@@ -598,23 +606,22 @@ void close_idle_agent(ev_t* ev, ev_time_item_t* ti) {
         pxy_agent_t* agent = ti->data;
         time_t now = time(NULL);
         if (now - agent->last_active > 10 * 60) {
-                W("close expired idle client! fd %d uid %d epid %s", agent->fd,
+                W("close expired idle client! fd %d, uid %d, epid %s", agent->fd,
                                 agent->user_id, agent->epid);
                 goto failed;
-        }
-        else {
+        } else {
                 ev_time_item_t *item = ev_time_item_new(worker->ev, agent,
                                 agent_timer_handler, 
                                 time(NULL) + AGENT_TIMER_INTERVAL);
-                if(!item) {
+                if (!item) {
                         W("cannot malloc timer item");
                         goto failed;
                 }
 
                 free(ti);
                 agent->timer = item;
-                if(ev_time_item_ctl(worker->ev, EV_CTL_ADD, item) < 0) {
-                        W("cannot add timer fd %d uid %d epid %s", agent->fd,
+                if (ev_time_item_ctl(worker->ev, EV_CTL_ADD, item) < 0) {
+                        W("cannot add timer fd %d, uid %d, epid %s", agent->fd,
                           agent->user_id, agent->epid);
                         goto failed;
                 }
@@ -685,19 +692,19 @@ static int svr_req_cmp_f(void* d1, void*d2)
 pxy_agent_t * pxy_agent_new(int fd, int userid, char *client_ip)
 {
 	pxy_agent_t *agent = calloc(1, sizeof(*agent));
-	if(!agent){
+	if (!agent) {
 		E("no mempry for agent"); 
 		goto failed;
 	}
 
 	agent->send_buf = mrpc_buf_new(MSP_BUF_LEN);
-	if(!agent->send_buf) {
+	if (!agent->send_buf) {
 		E("no mem for agent send_buf");
 		goto failed;
 	}
         
 	agent->recv_buf = mrpc_buf_new(MSP_BUF_LEN);
-	if(!agent->recv_buf) {
+	if (!agent->recv_buf) {
 		mrpc_buf_free(agent->send_buf);
 		E("no mem for agent recv_buf");
 		free(agent);
@@ -709,14 +716,14 @@ pxy_agent_t * pxy_agent_new(int fd, int userid, char *client_ip)
 	agent->timer = ev_time_item_new(worker->ev, agent,
 					agent_timer_handler, 
 					time(NULL) + 10);
-	if(!agent->timer) {
+	if (!agent->timer) {
 		W("no mem for agent timer");
 		mrpc_buf_free(agent->send_buf);
 		mrpc_buf_free(agent->recv_buf);
 		free(agent);
 		goto failed;
 	}	
-	if(ev_time_item_ctl(worker->ev, EV_CTL_ADD, agent->timer) < 0) {
+	if (ev_time_item_ctl(worker->ev, EV_CTL_ADD, agent->timer) < 0) {
 		W("add timer error");
 		mrpc_buf_free(agent->send_buf);
 		mrpc_buf_free(agent->recv_buf);
@@ -758,11 +765,11 @@ failed:
 
 int agent_send_netstat(pxy_agent_t *agent)
 {
-	if(agent->user_id<=0) {
+	if (agent->user_id <= 0) {
 		return 0;
 	}
 
-	I("fd %d epid %s uid %d cmd 104 send netstat",agent->fd, agent->epid,
+	I("fd %d, epid %s, uid %d, cmd 104 send netstat",agent->fd, agent->epid,
                         agent->user_id);
 	rec_msg_t msg = {0};
 	msg.cmd = CMD_NET_STAT;
@@ -783,8 +790,8 @@ int agent_send_netstat(pxy_agent_t *agent)
 	int r = pbc_pattern_pack(rpc_pat_mobile_flow_event_args, 
 				 &args, 
 				 &s);
-	if(r < 0) {
-		W("pack args error fd %d uid %d epid %s cmd 104", agent->fd, 
+	if (r < 0) {
+		W("pack args error fd %d, uid %d, epid %s, cmd 104", agent->fd, 
                                 agent->user_id, agent->epid);
 		return -1;
 	}
@@ -797,13 +804,13 @@ int agent_send_netstat(pxy_agent_t *agent)
 
 int agent_send_offstate(pxy_agent_t *agent)
 {
-	if(agent->user_id <= 0 || agent->isunreg == 1 ) {
+	if (agent->user_id <= 0 || agent->isunreg == 1 ) {
 		return 0;
 	}
 
 	rec_msg_t msg = {0};
 
-	I("fd %d uid %d epid %s cmd 103 send offstate", agent->fd, 
+	I("fd %d, uid %d, epid %s, cmd 103 send offstate", agent->fd, 
                         agent->user_id, agent->epid);
 	msg.cmd = CMD_CONNECTION_CLOSED;
 	msg.userid = agent->user_id;
@@ -823,19 +830,19 @@ void agent_recv_client(ev_t *ev,ev_file_item_t *fi)
 	pxy_agent_t *agent = fi->data;
 
 	int n = mrpc_recv2(agent->recv_buf,agent->fd);
-	if(n == 0) {
-		I("recv client == 0 fd %d uid %d epid %s", agent->fd, 
+	if (n == 0) {
+		I("recv client == 0 fd %d, uid %d, epid %s", agent->fd, 
                                 agent->user_id, agent->epid);
 		goto failed;
 	}
 	agent->upflow += n;
 
-	if(process_client_req(agent) < 0) {
-		I("process client request failed fd %d uid %d epid %s", 
+	if (process_client_req(agent) < 0) {
+		I("process client request failed fd %d, uid %d, epid %s", 
                                 agent->fd, agent->user_id, agent->epid);
 		goto failed;
 	}
-	if(agent->recv_buf->offset == agent->recv_buf->size) {
+	if (agent->recv_buf->offset == agent->recv_buf->size) {
 		mrpc_buf_reset(agent->recv_buf);
 	}
         time_t now = time(NULL); 
@@ -854,15 +861,15 @@ void agent_send_client(ev_t *ev, ev_file_item_t *fi)
 	pxy_agent_t *a = fi->data;
 	int r = mrpc_send2(a->send_buf, a->fd);
 
-	if(r < 0) {
-		I("send to client failed, prepare close, fd %d uid %d epid %s", 
+	if (r < 0) {
+		I("send to client failed, prepare close, fd %d, uid %d, epid %s", 
                                 a->fd, a->user_id, a->epid);
 		worker_remove_agent(a);
 		pxy_agent_close(a);
 		return;
 	}
 
-	I("succ send %d bytes to fd %d uid %d epid %s", r, a->fd, a->user_id,
+	I("succ send %d bytes to fd %d, uid %d, epid %s", r, a->fd, a->user_id,
                         a->epid);
 	return;
 }

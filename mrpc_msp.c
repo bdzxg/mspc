@@ -24,7 +24,7 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->sequence = msg->seq;
 	args->opt = msg->format;
 
-	if(msg->user_context_len > 0){
+	if (msg->user_context_len > 0) {
 		args->user_context.len = msg->user_context_len;
 		args->user_context.buffer = msg->user_context;
 	} else { 
@@ -32,12 +32,12 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 		args->user_context.buffer = NULL;
 	}
 
-	D("request user_context.len %d, body_len %zu", args->user_context.len, msg->body_len);
-	if(msg->body_len > 0){	
+	D("request user_context.len %d, body_len %zu", args->user_context.len, 
+                        msg->body_len);
+	if (msg->body_len > 0) {	
 		args->content.len = msg->body_len;
 		args->content.buffer = msg->body;
-	}
-	else{
+	} else {
 		args->content.len = 0;
 		args->content.buffer = NULL;
 	}
@@ -47,73 +47,73 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->zip_flag = msg->compress;
 }	
 
-static int _svr_send(rec_msg_t *msg, mrpc_connection_t *c)
-{
-	mcp_appbean_proto body;
-	get_rpc_arg(&body, msg);
-
-	size_t buf_len = body.content.len + 1024;
-	char *body_buf = malloc(buf_len);
-	if(!body_buf) {
-		E("cannot malloc body_buf");
-		return -1;
-	}
-	struct pbc_slice s = { body_buf, buf_len };
-	D("the buf size is %lu", buf_len);
-	int r =	pbc_pattern_pack(rpc_pat_mcp_appbean_proto, &body, &s);
-	if(r < 0) {
-		E("pack body error");
-		goto failed;
-	}
-
-	int body_len = buf_len - r;
-	D("body_len is %d", body_len);
-	mrpc_request_header header;
-	memset(&header, 0, sizeof(header));
-	header.sequence = ++c->seq;
-	header.body_length = body_len + 1; // by protocol we need plus 1
-
-	char header_buf[128];
-	struct pbc_slice s2 = {header_buf, 128};
-	r = pbc_pattern_pack(rpc_pat_mrpc_request_header, &header, &s2);
-	if(r < 0) {
-		E("pack header error");
-		goto failed;
-	}
-	int head_len = 128 - r;
-	size_t pkg_len = 12 + body_len + head_len;
-	while(c->send_buf->len - c->send_buf->size < pkg_len) {
-		if(mrpc_buf_enlarge(c->send_buf) < 0) {
-			E("enlarge error");
-			goto failed;
-		}
-	}
-
-	*(uint32_t*)(c->send_buf->buf + c->send_buf->size) = htonl(0x0badbee0);
-	c->send_buf->size += 4;
-	*(uint32_t*)(c->send_buf->buf + c->send_buf->size) = htonl(pkg_len);
-	c->send_buf->size += 4;
-	*(uint16_t*)(c->send_buf->buf + c->send_buf->size) = htons((short)head_len);
-	c->send_buf->size += 2;
-	*(uint16_t*)(c->send_buf->buf + c->send_buf->size) = 0;
-	c->send_buf->size += 2;
-
-	memcpy(c->send_buf->buf + c->send_buf->size, header_buf, head_len);
-	c->send_buf->size += head_len;
-	
-	memcpy(c->send_buf->buf + c->send_buf->size, body_buf, body_len);
-	c->send_buf->size += body_len;
-
-	if(mrpc_send(c) < 0) {
-		goto failed;
-	}
-	free(body_buf);
-	return 0;
-failed:
-	free(body_buf);
-	return -1;
-}
-
+//static int _svr_send(rec_msg_t *msg, mrpc_connection_t *c)
+//{
+//	mcp_appbean_proto body;
+//	get_rpc_arg(&body, msg);
+//
+//	size_t buf_len = body.content.len + 1024;
+//	char *body_buf = malloc(buf_len);
+//	if (!body_buf) {
+//		E("cannot malloc body_buf");
+//		return -1;
+//	}
+//	struct pbc_slice s = { body_buf, buf_len };
+//	D("the buf size is %lu", buf_len);
+//	int r =	pbc_pattern_pack(rpc_pat_mcp_appbean_proto, &body, &s);
+//	if (r < 0) {
+//		E("pack body error");
+//		goto failed;
+//	}
+//
+//	int body_len = buf_len - r;
+//	D("body_len is %d", body_len);
+//	mrpc_request_header header;
+//	memset(&header, 0, sizeof(header));
+//	header.sequence = ++c->seq;
+//	header.body_length = body_len + 1; // by protocol we need plus 1
+//
+//	char header_buf[128];
+//	struct pbc_slice s2 = {header_buf, 128};
+//	r = pbc_pattern_pack(rpc_pat_mrpc_request_header, &header, &s2);
+//	if (r < 0) {
+//		E("pack header error");
+//		goto failed;
+//	}
+//	int head_len = 128 - r;
+//	size_t pkg_len = 12 + body_len + head_len;
+//	while(c->send_buf->len - c->send_buf->size < pkg_len) {
+//		if (mrpc_buf_enlarge(c->send_buf) < 0) {
+//			E("enlarge error");
+//			goto failed;
+//		}
+//	}
+//
+//	*(uint32_t*)(c->send_buf->buf + c->send_buf->size) = htonl(0x0badbee0);
+//	c->send_buf->size += 4;
+//	*(uint32_t*)(c->send_buf->buf + c->send_buf->size) = htonl(pkg_len);
+//	c->send_buf->size += 4;
+//	*(uint16_t*)(c->send_buf->buf + c->send_buf->size) = htons((short)head_len);
+//	c->send_buf->size += 2;
+//	*(uint16_t*)(c->send_buf->buf + c->send_buf->size) = 0;
+//	c->send_buf->size += 2;
+//
+//	memcpy(c->send_buf->buf + c->send_buf->size, header_buf, head_len);
+//	c->send_buf->size += head_len;
+//	
+//	memcpy(c->send_buf->buf + c->send_buf->size, body_buf, body_len);
+//	c->send_buf->size += body_len;
+//
+//	if (mrpc_send(c) < 0) {
+//		goto failed;
+//	}
+//	free(body_buf);
+//	return 0;
+//failed:
+//	free(body_buf);
+//	return -1;
+//}
+//
 static inline 
 void mrpc_resp_from_req(mrpc_message_t *req, mrpc_message_t *resp)
 {
@@ -155,7 +155,7 @@ int send_svr_response(mrpc_req_buf_t *svr_req_data, rec_msg_t *client_msg)
 	char temp[32];
 	struct pbc_slice obuf = {temp, 32};
 	int r = pbc_pattern_pack(rpc_pat_mrpc_response_header, &resp.h.resp_head, &obuf);
-	if(r < 0) {
+	if (r < 0) {
 		E("rpc pack response header error");
                 return -1;
 	}
@@ -203,7 +203,7 @@ int send_direct_response(mrpc_connection_t *c, mrpc_message_t msg)
 	char temp[32];
 	struct pbc_slice obuf = {temp, 32};
 	int r = pbc_pattern_pack(rpc_pat_mrpc_response_header, &resp.h.resp_head, &obuf);
-	if(r < 0) {
+	if (r < 0) {
 		E("rpc pack response header error");
                 return -1;
 	}
@@ -242,11 +242,11 @@ int mrpc_process_client_req(mrpc_connection_t *c)
 
 	int r = mrpc_parse(b, &msg, &proto);
 	
-	if(r < 0) {
+	if (r < 0) {
 		goto failed;
 	}
 
-	if(r == 0) {
+	if (r == 0) {
 		return 0;
 	}
 
