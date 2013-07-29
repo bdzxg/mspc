@@ -13,6 +13,14 @@ void init_log() {
         log_buf->len = LOG_BUF_SIZE;
 }
 
+void realloc_logbuffer(size_t len)
+{
+        free(log_buf);
+        log_buf = calloc(1, len);
+        log_buf->size = 0;
+        log_buf->len = len;
+}
+
 int flush_log()
 {
         if (strcmp(setting.log_file, "stdout") == 0 ||
@@ -52,11 +60,16 @@ failed:
 }
 
 void write_log(char *log_info) {
-        if (log_buf->len - log_buf->size <= strlen(log_info)) {      
+
+        size_t log_len = strlen(log_info);
+        if (log_buf->len - log_buf->size <= log_len) {      
                 if (flush_log() == 0) {
                         goto failed;
                 }
         }                                        
+        
+        if (log_buf->len <= log_len)
+                realloc_logbuffer(log_len + 1);
 
         sprintf(log_buf->buf + log_buf->size, "%s", log_info);             
         log_buf->size += strlen(log_info);     

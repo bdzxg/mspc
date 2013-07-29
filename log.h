@@ -21,7 +21,7 @@ typedef struct log_buffer_s {
 #define LOG_LEVEL_ERROR 3
 
 #define TIME_NOW_BUF_SIZE 256 
-#define TEMP_LOG_BUF_SIZE 2048 
+#define TEMP_LOG_BUF_SIZE 160000 
 #define LOG_LEVEL LOG_LEVEL_ERROR
 #define NOOP(x) do{} while(0)
 #define UNUSE(x) (void)(x)

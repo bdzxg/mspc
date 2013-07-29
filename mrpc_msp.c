@@ -131,6 +131,10 @@ int send_svr_response(mrpc_req_buf_t *svr_req_data, rec_msg_t *client_msg)
 {
         mcp_appbean_proto body;
         get_rpc_arg(&body, client_msg);
+        body.ip.buffer = NULL;
+        body.ip.len = 0;
+        body.category_name.buffer = NULL;
+        body.category_name.len = 0;
         size_t buf_len = body.content.len + 1024;
         char *body_buf = malloc(buf_len);
         if (!body_buf) {

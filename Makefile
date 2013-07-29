@@ -1,5 +1,5 @@
 CC = 	gcc
-CFLAGS = -pipe -Wall -I -g -O0 -ggdb
+CFLAGS = -pipe -Wall -I -g -O2 -ggdb
 LINK =	$(CC)
 
 LIB_OBJS = \
@@ -36,7 +36,7 @@ MRPC_OBJS = \
 	./mrpc_msp.o
 
 PXY_TEST = \
-	./pxy_test.o \
+	./pxy_test.o $(LIB_OBJS) \
 
 HT_TEST = \
 	./hashtable_test.o \
@@ -46,6 +46,9 @@ MAP_TEST = \
 
 EV_TEST = \
 	./ev_test.o
+
+HASH_TEST = \
+	./test_hash.o
 
 FUNC_TEST = \
 	./func_test.o
@@ -64,6 +67,9 @@ apl:  $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS)
 ev_test : $(LIB_OBJS) $(EV_TEST)
 	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test -lm -lmclibc
 
+hash_test :  $(HASH_TEST)
+	$(LINK) $(HASH_TEST) -o hash_test  -Llib -lmclibc -lm
+	 
 clean:
 	rm -f *.o
 	rm -f $(PXY_OBJS)

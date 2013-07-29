@@ -40,6 +40,24 @@ void worker_insert_reg3(reg3_t* r3)
 	map_insert_reg3(&worker->r3_root, r3);	
 }
 
+void log_mcp_message(pxy_agent_t *a, rec_msg_t *msg, int direction)
+{
+        char body[150000] = {0};
+	to_hex(msg->body, msg->body_len, body);
+        char *to_client = "Send";
+        char *to_server = "Receive";
+        char *dir = NULL;
+
+        if (!direction) dir = to_server;
+        else dir = to_client;
+
+        I("%s MCP/3.0 %s: len %d, version %d, uid %d, cmd %d, seq %u, offset %d, "
+          "format %d, cmp %d, ct %u, cv %u, opt (null), epid %s, body %s", dir, 
+          msg->format == 0 ? "request" : "response", msg->len, msg->version, 
+          msg->userid, msg->cmd, msg->seq, msg->off, msg->format, msg->compress, 
+          msg->client_type, msg->client_version, a->epid, body);
+}
+
 //ok 1, not finish 0, error -1
 int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 {
@@ -129,6 +147,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
 	
 	D("msp->epid %s", msg->epid);
 	msg->logic_pool_id = agent->logic_pool_id;
+        log_mcp_message(agent, msg, 0);
 	return 1;
 
 ERROR_RESPONSE:
@@ -252,6 +271,8 @@ static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
 {
 	int hl = 21;
 	int length = hl + t->body_len;
+        t->len = length;
+        t->off = hl;
 	int offset = hl;
 	char padding = 0;
 	int idx = 0;
@@ -292,6 +313,7 @@ static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
 //	char tmp[102400] = {0};
 //	to_hex(t->body, t->body_len, tmp);
 //	D("body is %s", tmp);
+        log_mcp_message(a, t, 1);
 }
 
 static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
@@ -411,14 +433,14 @@ int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
         mrpc_req_buf_t *svr_req_data = calloc(1, sizeof(*svr_req_data));
         svr_req_data->c = c;
         svr_req_data->msg = msg;
-        svr_req_data->time = time(NULL) + 5;
+        svr_req_data->time = time(NULL) + 10;
         a->bn_seq = seq_increment(a->bn_seq);
         proto->sequence = a->bn_seq; 
         svr_req_data->sequence = a->bn_seq;
 
-        int r = hashtable_insert(table, &svr_req_data->sequence, svr_req_data);
-//        I("proto->sequence=%d, cmd %d, req %p", proto->sequence, proto->cmd, 
-//                        svr_req_data);
+        int r = hashtable_insert(table, &(svr_req_data->sequence), svr_req_data);
+        I("server request insert buffer seq %d, cmd %d, data=%p, table=%p", proto->sequence,
+                        proto->cmd, svr_req_data, table);
 
         if (r != -1) {
              E("server request table insert error!");
@@ -440,17 +462,19 @@ static void agent_svr_response(pxy_agent_t *a, rec_msg_t *msg,
                 struct hashtable *table, mrpc_req_buf_t *svr_req_data)
 {
         int is_removed = 1;
-        if (NULL == hashtable_remove(table, &(msg->seq))) {
+        int key = msg->seq;
+        //if (NULL == hashtable_remove(table, &(msg->seq))) {
+        if (NULL == hashtable_remove(table, &key)) {
                 E("remove server request table item error!");                
                 is_removed = 0;
         }
 
         // be attention to connection lost
         if (send_svr_response(svr_req_data, msg) > 0 ) {
-                I("agent send server request OK! fd %d,  uid %d, epid %s, cmd %d",
+                I("agent send server response OK! fd %d,  uid %d, epid %s, cmd %d",
                         a->fd, a->user_id, a->epid, msg->cmd); 
         } else {
-                E("agent send server request ERROR! fd %d, uid %d, epid %s, "
+                E("agent send server response ERROR! fd %d, uid %d, epid %s, "
                         "cmd %d", a->fd, a->user_id, a->epid, msg->cmd);
         }
 
@@ -522,8 +546,14 @@ static int process_client_req(pxy_agent_t *agent)
 
                 struct hashtable *table = agent->svr_req_buf;
                 mrpc_req_buf_t *svr_req_data = NULL;
-                if (msg.format == 128) {
-                       svr_req_data = hashtable_search(table, &(msg.seq));
+
+                if (msg.format == -128) {
+                       int key = msg.seq;
+                       svr_req_data = hashtable_search(table, &key);
+                       I("search server request by fd %d, uid %d, epid %s, "
+                         "cmd %d, seq=%d, data=%p, table=%p", agent->fd, 
+                         agent->user_id, agent->epid, msg.cmd, msg.seq, 
+                         svr_req_data, table);
                 }
  
                 if (svr_req_data != NULL) {
@@ -652,7 +682,6 @@ void check_svr_req_buf(ev_t *ev, ev_time_item_t* ti) {
                 
                 if (req != NULL && now - req->time > 0) {
                         *p = req->sequence; p++;
-                        D("req:%p, key=%d", req, req->sequence);
                }
         } while (hashtable_iterator_advance(itr));
         if (itr != NULL) free(itr);
@@ -665,6 +694,10 @@ void check_svr_req_buf(ev_t *ev, ev_time_item_t* ti) {
                           "epid %s", *p, agent->fd, agent->user_id, agent->epid);
                         p++; 
                         continue;
+                } else {
+                        I("remove svr req buf ok, key=%d fd %d uid %d epid %s",
+                                        *p, agent->fd, agent->user_id,
+                                        agent->epid);
                 }
 
                 free(req);
@@ -680,12 +713,14 @@ void agent_timer_handler(ev_t* ev, ev_time_item_t* ti)
 
 static unsigned int svr_req_hash(void* id) 
 {
-	return murmur_hash2(id, sizeof(unsigned int));
+	unsigned int ret = murmur_hash2(id, sizeof(unsigned int));
+        //I("hashvalue: %u", ret);
+        return ret;
 }
 
 static int svr_req_cmp_f(void* d1, void*d2) 
 {
-        D("k1=%d, k2=%d", *((int*)d1), *((int*)d2));
+        //I("k1=%d, k2=%d", *((int*)d1), *((int*)d2));
         return *((int*)d1) - *((int*)d2) == 0 ? 1 : 0;
 }
 
