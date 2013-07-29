@@ -27,26 +27,26 @@ pxy_setting_init(char *conf_file)
 { 
 	int r;
 	config_item *item = calloc(1, sizeof(*item));
-	if(!item) {
+	if (!item) {
 		E("malloc config_item error");
 		return -1;
 	}
 	FILE *file = fopen(conf_file, "r");
-	if(file == NULL) {
+	if (file == NULL) {
 		file = stdin;
 	}
 
 	while((r = load_config(file,item)) != 0) {
-		if(r == -1) {
+		if (r == -1) {
 			continue;
 		}
 
-		if(strcmp(item->name,"log_level") == 0) { 
+		if (strcmp(item->name,"log_level") == 0) { 
 			setting.log_level = atoi(item->value);
                         log_level = setting.log_level;
                 }
 
-		if(strcmp(item->name,"log_file") == 0) {
+		if (strcmp(item->name,"log_file") == 0) {
 			int len =  strlen(item->value) + 1;
 			strncpy(setting.log_file, item->value, len);
                         if (strcmp(setting.log_file, "stdout") == 0 ||
@@ -65,26 +65,26 @@ pxy_setting_init(char *conf_file)
                         }
 		}
 
-		if(strcmp(item->name,"client_port") == 0) 
+		if (strcmp(item->name,"client_port") == 0) 
 			setting.client_port= atoi(item->value);		
-                if(strcmp(item->name,"backend_port") == 0) 
+                if (strcmp(item->name,"backend_port") == 0) 
 			setting.backend_port = atoi(item->value);
-		if(strcmp(item->name,"ip") == 0) 
+		if (strcmp(item->name,"ip") == 0) 
 			strcpy(setting.ip, item->value);
-		if(strcmp(item->name,"route_log_level") == 0) {
+		if (strcmp(item->name,"route_log_level") == 0) {
 			setting.route_log_level = atoi(item->value);
 			route_set_loglevel(setting.route_log_level);
 		}
-		if(strcmp(item->name,"route_log_file") == 0) {
+		if (strcmp(item->name,"route_log_file") == 0) {
 			strcpy(setting.route_log_file, item->value);
 		}
-                if(strcmp(item->name, "route_server_port") == 0) {
+                if (strcmp(item->name, "route_server_port") == 0) {
                         setting.route_server_port = atoi(item->value);
                 }
-                if(strcmp(item->name, "flush_log") == 0) {
+                if (strcmp(item->name, "flush_log") == 0) {
                         setting.is_flush_log = atoi(item->value);
                 }
-		if(strcmp(item->name, "zk_url") == 0)
+		if (strcmp(item->name, "zk_url") == 0)
 			strcpy(setting.zk_url, item->value);
 		memset(item, 0, sizeof(*item));
 	}
@@ -104,11 +104,11 @@ pxy_setting_init(char *conf_file)
 	
 	return 0;
 ERROR:
-	if(file != stdin) {
+	if (file != stdin) {
 		fclose(file);
 	}
 	
-	if(item) {
+	if (item) {
 		free(item);
 	}
 
@@ -118,7 +118,7 @@ ERROR:
 void
 pxy_master_close()
 {
-	if(master->listen_fd > 0){
+	if (master->listen_fd > 0) {
 		D("close the listen fd");
 		close(master->listen_fd);
 	}
@@ -131,7 +131,7 @@ pxy_send_command(pxy_worker_t *w,int cmd,int fd)
 	struct iovec iov[1];
 	pxy_command_t *c = malloc(sizeof(*c));
 
-	if(!c) {
+	if (!c) {
 		D("no memory");
 		return -1;
 	}
@@ -152,7 +152,7 @@ pxy_send_command(pxy_worker_t *w,int cmd,int fd)
 	m.msg_iovlen = 1;
 
 	int a;
-	if((a=sendmsg(w->socket_pair[0],&m,0)) < 0) {
+	if ((a=sendmsg(w->socket_pair[0],&m,0)) < 0) {
 		free(c);
 		D("send failed%d",a);
 		return  -1 ;
@@ -169,7 +169,7 @@ pxy_start_listen()
 	struct sockaddr_in addr1;
 
 	master->listen_fd = socket(AF_INET,SOCK_STREAM,0);
-	if(master->listen_fd < 0){
+	if (master->listen_fd < 0) {
 		D("create listen fd error");
 		return -1;
 	}
@@ -181,7 +181,7 @@ pxy_start_listen()
 		   &reuse,
 		   sizeof(int));
 	
-	if(setnonblocking(master->listen_fd) < 0){
+	if (setnonblocking(master->listen_fd) < 0) {
 		D("set nonblocling error");
 		return -1;
 	}
@@ -190,14 +190,14 @@ pxy_start_listen()
 	addr1.sin_port = htons(setting.client_port);
 	inet_aton(setting.ip, &addr1.sin_addr);
 	
-	if(bind(master->listen_fd, (struct sockaddr*)&addr1,
-		sizeof(addr1)) < 0){
+	if (bind(master->listen_fd, (struct sockaddr*)&addr1,
+		sizeof(addr1)) < 0) {
 		E("bind address %s:%d error", setting.ip,
 		  setting.client_port);
 		return -1;
 	}
 
-	if(listen(master->listen_fd,1000) < 0){
+	if (listen(master->listen_fd,1000) < 0) {
 		E("listen error");
 		return -1;
 	}
@@ -209,7 +209,7 @@ int
 pxy_init_master()
 {
 	master = (pxy_master_t*)malloc(sizeof(*master));
-	if(!master){
+	if (!master) {
 		E("no memory for master");
 		return -1;
 	}
@@ -233,7 +233,7 @@ char* get_send_data(rec_msg_t* t, int* length)
 	int offset = 24;
 	*length = 25 + t->body_len;
 	char* ret = calloc(sizeof(char), *length);
-	if(ret == NULL)
+	if (ret == NULL)
 		return ret;
 
 	t->version = 0;//msp use 0.
@@ -265,7 +265,7 @@ char* get_send_data(rec_msg_t* t, int* length)
 	set2buf(&rval, (char*)&padding, 4);
 	/*
 	  int i;
-	  if(t->option_len != 0)
+	  if (t->option_len != 0)
 	  for(i = 0; i < t->option_len; i++)
 	  *(rval++) = *(t->option++);
 	  else rval += 4;*/
@@ -303,7 +303,7 @@ int main(int argc, char** argv)
                 return -1;
         }
 
-	if(pxy_init_master() < 0){
+	if (pxy_init_master() < 0) {
 		E("master initialize failed");
 		return -1;
 	}
@@ -314,20 +314,20 @@ int main(int argc, char** argv)
 	   seems useless
 	 */
 
-	if(worker_init()<0) {
+	if (worker_init()<0) {
 		E("worker #%d initialized failed" , getpid());
 		return -1;
 	}
 	D("worker inited");
 
-	if(worker_start() < 0) {
+	if (worker_start() < 0) {
 		E("worker #%d started failed", getpid()); 
 		return -1;
 	}
 	D("worker started");
 
 
-	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0){ 
+	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0) { 
 	}
 
 	sleep(5);

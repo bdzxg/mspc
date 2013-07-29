@@ -1,15 +1,16 @@
 CC = 	gcc
-CFLAGS = -pipe -Wall -I -g -O0 -ggdb
+CFLAGS = -pipe -Wall -I -g -O2 -ggdb
 LINK =	$(CC)
 
 LIB_OBJS = \
-	./hashtable.o \
 	./rbtree.o \
 	./map.o \
 	./ev.o \
 	./settings.o \
 	./log.o \
 	./tool.o
+#./hashtable.o \
+	./hashtable_itr.o \
 
 MAP_OBJS = \
 	./rbtree.o \
@@ -31,10 +32,11 @@ MRPC_OBJS = \
 	./mrpc_cli.o \
 	./mrpc_svr.o \
 	./mrpc_common.o \
-	./mrpc_pb.o
+	./mrpc_pb.o \
+	./mrpc_msp.o
 
 PXY_TEST = \
-	./pxy_test.o \
+	./pxy_test.o $(LIB_OBJS) \
 
 HT_TEST = \
 	./hashtable_test.o \
@@ -45,6 +47,9 @@ MAP_TEST = \
 EV_TEST = \
 	./ev_test.o
 
+HASH_TEST = \
+	./test_hash.o
+
 FUNC_TEST = \
 	./func_test.o
 
@@ -54,12 +59,17 @@ TEST = \
 
 OUTPUT = mspc
 all : apl 
-apl:  $(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS)
-	$(LINK)	$(LIB_OBJS) $(PXY_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) -Llib -lzookeeper_mt -lprotobuf-c -lm -lroute -lev -lpthread -lpbc
+apl:  $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS)
+	$(LINK) $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) \
+		-Llib -lmclibc -lzookeeper_mt -lprotobuf-c -lm -lroute -lev -lpthread \
+		-lpbc 
 
 ev_test : $(LIB_OBJS) $(EV_TEST)
-	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test -lm
+	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test -lm -lmclibc
 
+hash_test :  $(HASH_TEST)
+	$(LINK) $(HASH_TEST) -o hash_test  -Llib -lmclibc -lm
+	 
 clean:
 	rm -f *.o
 	rm -f $(PXY_OBJS)

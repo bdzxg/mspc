@@ -19,28 +19,28 @@ int worker_init()
 {
 	worker = calloc(1, sizeof(*worker));
 
-	if(worker) {
+	if (worker) {
 		worker->ev = ev_create2(NULL, 1024 * 100);
-		if(!worker->ev){
+		if (!worker->ev) {
 			D("create ev error"); 
 			return -1;
 		}
 		worker->ev->after = worker_ev_after;
 
 		upstream_root = (upstream_map_t*) calloc(1, sizeof(*upstream_root));
-		if(!upstream_root) {
+		if (!upstream_root) {
 			E("cannnot malloc for upstream_root");
 			return -1;
 		}
 		upstream_root->root = RB_ROOT;
 
 		worker->root = RB_ROOT;
-		if(mrpc_init() < 0) {
+		if (mrpc_init() < 0) {
 			E("mrpc init error");
 			return -1;
 		}
 		
-		if(msp_args_init() < 0) {
+		if (msp_args_init() < 0) {
 			E("rpc args init error");
 			return -1;
 		}
@@ -61,12 +61,12 @@ int worker_start()
 				 EV_READABLE, 
 				 NULL, 
 				 worker_accept, NULL);
-	if(r < 0) {
+	if (r < 0) {
 		E("add listen fd ev error %s", strerror(errno));
 		goto start_failed;
 	}
 
-	if(mrpc_start() < 0) {
+	if (mrpc_start() < 0) {
 		E("mrpc start error");
 		goto start_failed;
 	}
@@ -113,9 +113,9 @@ void worker_accept(ev_t *ev, ev_file_item_t *ffi)
 	socklen_t sin_size = sizeof(master->addr);
 	f = accept(ffi->fd,&(master->addr),&sin_size);
 	
-        if(f>0){
+        if (f>0) {
         	int k = 1;
-        	if(setsockopt(f, SOL_SOCKET, SO_KEEPALIVE, (void *)&k, sizeof(k)) < 0) {
+        	if (setsockopt(f, SOL_SOCKET, SO_KEEPALIVE, (void *)&k, sizeof(k)) < 0) {
         		E("set keep alive failed, reason %s ",
         		  strerror(errno));
         		close(f);
@@ -126,7 +126,7 @@ void worker_accept(ev_t *ev, ev_file_item_t *ffi)
 		/* FIXME:maybe we should try best to accept and 
 		 * delay add events */
 		err = setnonblocking(f);
-		if(err < 0){
+		if (err < 0) {
 			W("set nonblocking error"); return;
 		}
 
@@ -134,10 +134,10 @@ void worker_accept(ev_t *ev, ev_file_item_t *ffi)
                 memcpy(&sin, &(master->addr), sizeof(sin));
                 char client_ip[16];
                 memset(client_ip, 0, sizeof(client_ip));
-                sprintf(client_ip, inet_ntoa(sin.sin_addr));
+                sprintf(client_ip, "%s", inet_ntoa(sin.sin_addr));
 		agent = pxy_agent_new(f, 0, client_ip);
 
-		if(!agent){
+		if (!agent) {
 			W("create new agent error"); return;
 		}
 		
@@ -148,7 +148,7 @@ void worker_accept(ev_t *ev, ev_file_item_t *ffi)
 					 agent_recv_client, 
 					 agent_send_client);
 		
-		if(r < 0) {
+		if (r < 0) {
 			W("add file item failed");
 			return;
 		}

@@ -5,13 +5,13 @@ int map_insert(struct rb_root *root, pxy_agent_t *q)
 {
 	struct rb_node **new = &(root->rb_node), *parent = NULL;
 
-	while(*new) {
+	while (*new) {
 		pxy_agent_t *data = rb_entry(*new,struct pxy_agent_s,rbnode);
 		int result = strcmp(data->epid,q->epid);
 		parent = *new;
-		if(result < 0)
+		if (result < 0)
 			new = &((*new)->rb_left);
-		else if(result > 0)
+		else if (result > 0)
 			new = &((*new)->rb_right);
 		else 
 			return -1;
@@ -26,7 +26,7 @@ pxy_agent_t* map_search(struct rb_root *root,char *name)
 {
 	struct rb_node *node = root->rb_node;
 
-	while(node) {
+	while (node) {
 		pxy_agent_t *q = rb_entry(node,struct pxy_agent_s,rbnode);
 		int result = strcmp(q->epid,name);
 
@@ -45,7 +45,7 @@ pxy_agent_t* map_remove(struct rb_root *root, char *name)
 {
 	pxy_agent_t *data = map_search(root,name);
 
-	if(data) {
+	if (data) {
 		rb_erase(&data->rbnode,root);
 	}
 	return data;
@@ -55,13 +55,13 @@ int map_insert_reg3(struct rb_root *root, reg3_t *q)
 {
 	struct rb_node **new = &(root->rb_node), *parent = NULL;
 
-	while(*new) {
+	while (*new) {
 		reg3_t* data = rb_entry(*new, struct reg3_s, rbnode);
 		int result = strcmp(data->epid,q->epid);
 		parent = *new;
-		if(result < 0)
+		if (result < 0)
 			new = &((*new)->rb_left);
-		else if(result > 0)
+		else if (result > 0)
 			new = &((*new)->rb_right);
 		else 
 			return -1;
@@ -76,7 +76,7 @@ reg3_t* map_search_reg3(struct rb_root *root, char *name)
 {
 	struct rb_node *node = root->rb_node;
 
-	while(node) {
+	while (node) {
 		reg3_t* q = rb_entry(node, struct reg3_s, rbnode);
 		int result = strcmp(q->epid,name);
 
@@ -95,7 +95,7 @@ reg3_t* map_remove_reg3(struct rb_root *root, char *name)
 {
 	reg3_t* data = map_search_reg3(root,name);
 
-	if(data) {
+	if (data) {
 		rb_erase(&data->rbnode,root);
 	}
 	return data;

@@ -15,12 +15,12 @@ static int _connect(mrpc_connection_t *c)
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
 	struct sockaddr_in addr;
 
-	if(fd < 0) {
+	if (fd < 0) {
 		E("socket() error, %s",strerror(errno));
 		return -1;
 	}
 
-	if(setnonblocking(fd) < 0) {
+	if (setnonblocking(fd) < 0) {
 		E("set nonblocking error");
                 goto failed;
 	}
@@ -60,14 +60,13 @@ static int _connect(mrpc_connection_t *c)
 	int addr_len = r1 - r2 -1;
 	struct in_addr inp;
 
-	if(addr_len > 0 && addr_len <= 15) {
+	if (addr_len > 0 && addr_len <= 15) {
 		strncpy(r3, r2 + 1, addr_len);
-		if(inet_aton(r3, &inp) == 0) {
+		if (inet_aton(r3, &inp) == 0) {
 			E("address for aton error");
                         goto failed;
 		}
-	}
-	else {
+	} else {
 		E("address format error");
                 goto failed;
 	}
@@ -79,21 +78,18 @@ static int _connect(mrpc_connection_t *c)
 	addr.sin_addr   = inp;
 
 	int r = connect(fd,(struct sockaddr*)&addr, sizeof(addr));
-	if(r < 0) {
-		if(errno == EINPROGRESS) {
+	if (r < 0) {
+		if (errno == EINPROGRESS) {
                         c->conn_status = MRPC_CONN_CONNECTING;
-		}
-		else {
-			E("connect error, %s", strerror(errno));
+		} else {
+			E("connect error, %s uri %s", strerror(errno), c->us->uri);
                         goto failed;
 		}
-	}
-        else if (r == 0) {
- 		E("connect succ immediately");
+	} else if (r == 0) {
+ 		E("connect succ immediately uri %s", c->us->uri);
 		c->conn_status = MRPC_CONN_CONNECTED;
 		c->connected = time(NULL);
                 _send_pending(c);
-	       
         }
 	
 	int re = ev_add_file_item(worker->ev, fd, 
@@ -101,14 +97,13 @@ static int _connect(mrpc_connection_t *c)
 			     c,
 			     mrpc_cli_ev_in,
 			     mrpc_cli_ev_out);
-	if(re < 0) {
+	if (re < 0) {
 		W("add ev error");
                 goto failed;
 	}
         
 	c->fd = fd;
 	return 0;
-
 failed:
         close(fd);
         c->conn_status = MRPC_CONN_DISCONNECTED;
@@ -125,23 +120,21 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 		int index = us->current_conn++ % UP_CONN_COUNT;
 		c = us->conns[index];
 
-		if(c == NULL) {
+		if (c == NULL) {
 			c = mrpc_conn_new(us);
-			if(!c) {
+			if (!c) {
 				W("cannot malloc mrpc_conn");
-			}
-			else {
+			} else {
 				us->conns[index] = c;
 				_connect(c);
 			}
 			continue;
 		}
 		
-		if(c->conn_status == MRPC_CONN_CONNECTED) {
+		if (c->conn_status == MRPC_CONN_CONNECTED) {
 			r = c;
 			break;
-		}
-		else if(c->conn_status == MRPC_CONN_DISCONNECTED) {
+		} else if (c->conn_status == MRPC_CONN_DISCONNECTED) {
 			_connect(c);
 		}
 	}
@@ -152,7 +145,7 @@ static mrpc_connection_t* _get_conn(mrpc_us_item_t *us)
 static mrpc_us_item_t* _get_us(char *uri)
 {
 	upstream_t *up = us_get_upstream(upstream_root, uri);
-	if(!up) {
+	if (!up) {
 		return NULL;
 	}
 	return (mrpc_us_item_t*)up->data;
@@ -161,7 +154,7 @@ static mrpc_us_item_t* _get_us(char *uri)
 static mrpc_us_item_t* _us_new(char *uri)
 {
 	upstream_t *up = calloc(1, sizeof(*up));
-	if(!up) {
+	if (!up) {
 		E("cannot malloc for upstream_t");
 		return NULL;
 	}
@@ -169,7 +162,7 @@ static mrpc_us_item_t* _us_new(char *uri)
 	D("uri %s", uri);
 	
 	mrpc_us_item_t *us = calloc(1, sizeof(*us));
-	if(!us) {
+	if (!us) {
 		W("cannot malloc for mrpc_us_item");
 		free(up);
 		return NULL;
@@ -181,15 +174,15 @@ static mrpc_us_item_t* _us_new(char *uri)
 	int i = 0;
 	for(; i < UP_CONN_COUNT ; i++) {
 		mrpc_connection_t *c = mrpc_conn_new(us);
-		if(!c) {
-			E("create connection error");
+		if (!c) {
+			E("create connection error, uri %s", uri);
 			break;
 		}
 		us->conns[i] = c;
 		_connect(c);
 	}
 
-	if(us_add_upstream(upstream_root, up) < 0){
+	if (us_add_upstream(upstream_root, up) < 0) {
 		E("cannot add the up to the RBTree");
 		free(up);
 		free(us);
@@ -203,7 +196,7 @@ static mrpc_us_item_t* _us_new(char *uri)
 static rec_msg_t* _clone_msg(rec_msg_t *msg)
 {
 	rec_msg_t *r = malloc(sizeof(*r));
-	if(!r) {
+	if (!r) {
 		E("no memory for rec_msg_t");
 		return NULL;
 	}
@@ -211,10 +204,10 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 
 /*
   TODO: we ignore option now
-	if(r->option_len > 0) {
+	if (r->option_len > 0) {
 	       r->option = malloc(r->option_len);
 	       D("opt len %d", r->option_len);
-	       if(!r->option) {
+	       if (!r->option) {
 		 E("no memory for r->option");
 		 free(r);
 		 return NULL;
@@ -224,7 +217,7 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 */
 
 	r->body = malloc(r->body_len);
-	if(!r->body) {
+	if (!r->body) {
 		E("no mem for r->body");
 		free(r->option);	       
 		free(r);
@@ -232,9 +225,9 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 	}
 	memcpy(r->body, msg->body, r->body_len);
 
-        if(r->user_context_len > 0) {
+        if (r->user_context_len > 0) {
                 r->user_context = malloc(r->user_context_len);
-                if(!r->user_context) {
+                if (!r->user_context) {
                         E("no mem for r->user_content");
                         free(r->body);
                         free(r->option);
@@ -245,7 +238,7 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
         }
 
 	r->epid = malloc(strlen(msg->epid) + 1);
-	if(!r->epid) {
+	if (!r->epid) {
 		E("no mem for r->epid");
 		free(r->body);
 		free(r->option);
@@ -257,7 +250,7 @@ static rec_msg_t* _clone_msg(rec_msg_t *msg)
 	strcpy(r->epid, msg->epid);
 
         if (r->user_context_len == 0 || r->user_context == NULL) {
-                W("uid %s, cmd %d userctx is null", r->userid, r->cmd);
+                W("uid %d, cmd %d userctx is null", r->userid, r->cmd);
         }
 	return r;
 }
@@ -274,9 +267,9 @@ static int _map_add(mrpc_connection_t *c, mrpc_stash_req_t *req)
 		mrpc_stash_req_t *data = rb_entry(*new, struct mrpc_stash_req_s, rbnode);
 		int result = data->seq - req->seq;
 		parent = *new;
-		if(result < 0)
+		if (result < 0)
 			new = &((*new)->rb_left);
-		else if(result > 0)
+		else if (result > 0)
 			new = &((*new)->rb_right);
 		else 
 			return -1;
@@ -285,7 +278,6 @@ static int _map_add(mrpc_connection_t *c, mrpc_stash_req_t *req)
 	rb_link_node(&req->rbnode,parent,new);
 	rb_insert_color(&req->rbnode,root);
 	return 1;
-
 }
 
 static mrpc_stash_req_t* _map_get(mrpc_connection_t *c, uint32_t seq)
@@ -312,7 +304,7 @@ static mrpc_stash_req_t* _map_get(mrpc_connection_t *c, uint32_t seq)
 static mrpc_stash_req_t* _map_remove(mrpc_connection_t *c, uint32_t seq)
 {
 	mrpc_stash_req_t *r = _map_get(c, seq);
-	if(r) {
+	if (r) {
 		rb_erase(&r->rbnode, &c->root);
 	}
 	return r;
@@ -338,21 +330,19 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->sequence = msg->seq;
 	args->opt = msg->format;
 
-	if(msg->user_context_len > 0){
+	if (msg->user_context_len > 0) {
 		args->user_context.len = msg->user_context_len;
 		args->user_context.buffer = msg->user_context;
-	}
-	else{ 
+	} else { 
 		args->user_context.len = 0;
 		args->user_context.buffer = NULL;
 	}
 
 	D("request user_context.len %d, body_len %zu", args->user_context.len, msg->body_len);
-	if(msg->body_len > 0){	
+	if (msg->body_len > 0) {	
 		args->content.len = msg->body_len;
 		args->content.buffer = msg->body;
-	}
-	else{
+	} else {
 		args->content.len = 0;
 		args->content.buffer = NULL;
 	}
@@ -367,16 +357,15 @@ static void get_rpc_arg(mcp_appbean_proto* args, rec_msg_t* msg)
 	args->ip.buffer = __endpoint;
 }	
 
-
 static mrpc_stash_req_t* _stash_req_new(rec_msg_t *msg)
 {
 	mrpc_stash_req_t *r = malloc(sizeof(*r));
-	if(!r) {
+	if (!r) {
 		E("no mem for mrpc_stash_req");
 		return NULL;
 	}
 	r->epid = malloc(strlen(msg->epid) + 1);
-	if(!r->epid) {
+	if (!r->epid) {
 		E("no mem for r->epid");
 		free(r);
 		return NULL;
@@ -404,27 +393,26 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	get_rpc_arg(&body, msg);
 
 	char name[128] = {0};
-	if(route_get_app_category_minus_name(msg->cmd, 1, name) > 0){
+	if (route_get_app_category_minus_name(msg->cmd, 1, name) > 0) {
 		body.category_name.len = strlen(name);
 		body.category_name.buffer = name;
 		D("minus name %s", name);
-	}
-	else{
+	} else {
 		//TODO, we should handle this error
-		E("get catetory minus name error");
+		E("get catetory minus name error cmd %d", msg->cmd);
 	}	
 
 	size_t buf_len = body.content.len + 1024;
 	char *body_buf = malloc(buf_len);
-	if(!body_buf) {
+	if (!body_buf) {
 		E("cannot malloc body_buf");
 		return -1;
 	}
 	struct pbc_slice s = { body_buf, buf_len };
 	D("the buf size is %lu", buf_len);
 	int r =	pbc_pattern_pack(rpc_pat_mcp_appbean_proto, &body, &s);
-	if(r < 0) {
-		E("pack body error");
+	if (r < 0) {
+		E("pack body error cmd %d", msg->cmd);
 		goto failed;
 	}
 
@@ -443,14 +431,14 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	char header_buf[128];
 	struct pbc_slice s2 = {header_buf, 128};
 	r = pbc_pattern_pack(rpc_pat_mrpc_request_header, &header, &s2);
-	if(r < 0) {
-		E("pack header error");
+	if (r < 0) {
+		E("pack header error cmd %d", msg->cmd);
 		goto failed;
 	}
 	int head_len = 128 - r;
 	size_t pkg_len = 12 + body_len + head_len;
 	while(c->send_buf->len - c->send_buf->size < pkg_len) {
-		if(mrpc_buf_enlarge(c->send_buf) < 0) {
+		if (mrpc_buf_enlarge(c->send_buf) < 0) {
 			E("enlarge error");
 			goto failed;
 		}
@@ -471,7 +459,7 @@ static int _cli_send(rec_msg_t *msg, mrpc_connection_t *c)
 	memcpy(c->send_buf->buf + c->send_buf->size, body_buf, body_len);
 	c->send_buf->size += body_len;
 
-	if(mrpc_send(c) < 0) {
+	if (mrpc_send(c) < 0) {
 		goto failed;
 	}
 	free(body_buf);
@@ -485,19 +473,19 @@ failed:
 static int _send_inner(rec_msg_t *msg, mrpc_connection_t *c) 
 {
 	//send it
-	if(_cli_send(msg, c) < 0) {
+	if (_cli_send(msg, c) < 0) {
 		E("cli_send return < 0");
 		return -1;
 	}
 	mrpc_stash_req_t *r = _stash_req_new(msg);
-	if(!r) {
+	if (!r) {
 		E("no mem for mrpc_stash_req_t");
 		return -1;
 	}
 
 	r->seq = c->seq;
 	//save to the sent map
-	if(_map_add(c, r) < 0) {
+	if (_map_add(c, r) < 0) {
 		E("save the stash_req failed");
 		_stash_req_free(r);
 	}
@@ -509,7 +497,7 @@ static void _send_pending(mrpc_connection_t *c)
 {
 	rec_msg_t *iter, *n;
 	list_for_each_entry_safe(iter, n, &c->us->pending_list, head) {
-		if(_send_inner(iter, c) < 0) {
+		if (_send_inner(iter, c) < 0) {
 			E("send pending request error");
 			break;
 		}
@@ -517,12 +505,12 @@ static void _send_pending(mrpc_connection_t *c)
 
 /*
   TODO
-		if(iter->option_len > 0) 
+		if (iter->option_len > 0) 
 		  free(iter->option);
 */
-		if(iter->user_context_len > 0)
+		if (iter->user_context_len > 0)
 		  free(iter->user_context);
-		if(iter->body_len > 0)
+		if (iter->body_len > 0)
 		  free(iter->body);
 
 		free(iter->epid);
@@ -538,10 +526,10 @@ void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 	D("mrpc_cli_ev_in");
 
 	n = mrpc_recv(c);
-	if(n == 0) {
+	if (n == 0) {
 		goto failed;
 	}
-	if(n == -1) {
+	if (n == -1) {
 		E("recv return -1, wired");
 		return;
 	}
@@ -552,29 +540,29 @@ void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 	for( ;; ) {
 		n = mrpc_parse(c->recv_buf, &msg, &proto);
 
-		if(n < 0) {
+		if (n < 0) {
 			E("parse error");
 			goto failed;
 		}
-		if(n == 0) {
+		if (n == 0) {
 			break;
 		}
 
 		//find the sent request
 		uint32_t seq = msg.h.resp_head.sequence;
 		mrpc_stash_req_t *r = _map_remove(c, seq);
-		if(!r) {
+		if (!r) {
 			E("cannot find the seq %u sent request", seq);
 			continue;
 		}
-		if(msg.h.resp_head.response_code != 200) {
+		if (msg.h.resp_head.response_code != 200) {
 		        W("resp code %d", msg.h.resp_head.response_code);
 			//TODO find the agent, and send the error response
 		}
 		_stash_req_free(r);
 	}
 
-	if(c->recv_buf->offset == c->recv_buf->size) {
+	if (c->recv_buf->offset == c->recv_buf->size) {
 		mrpc_buf_reset(c->recv_buf);
 	}
 
@@ -592,27 +580,26 @@ void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 	int err = -1;
 	socklen_t err_len = sizeof(err);
 
-	if(c->conn_status == MRPC_CONN_CONNECTING) {
-		if(getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len) < 0) {
+	if (c->conn_status == MRPC_CONN_CONNECTING) {
+		if (getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &err_len) < 0) {
 			W("fd %d getsockopt error, reason %s",c->fd,
 			  strerror(errno));
 			return;
 		}
 
-		if(err == 0 || err_len == 0) {
+		if (err == 0 || err_len == 0) {
 			W("connected!");
 			c->conn_status = MRPC_CONN_CONNECTED;
 			c->connected = time(NULL);
 			_send_pending(c);
-		}
-		else {
+		} else {
 			W("err is %d", err);
 			c->conn_status = MRPC_CONN_DISCONNECTED;
 			goto failed;
 		}
 	}
 
-	if(mrpc_send(c) < 0) {
+	if (mrpc_send(c) < 0) {
 		W("send error, close connection");
 		goto failed;
 	}
@@ -620,7 +607,6 @@ void mrpc_cli_ev_out(ev_t *ev, ev_file_item_t *fi)
 failed :
 	mrpc_conn_close(c);
 }
-
 
 //error code :
 // 0 OK
@@ -635,10 +621,10 @@ int mrpc_us_send(rec_msg_t *msg)
 
 	//1. get the us_item by address
 	us = _get_us(msg->uri);
-	if(!us) {
+	if (!us) {
 		W("new upstream for %s", msg->uri);
 		us = _us_new(msg->uri);
-		if(!us) {
+		if (!us) {
 			E("cannnot create us item");
 			return -3;
 		}
@@ -646,22 +632,21 @@ int mrpc_us_send(rec_msg_t *msg)
 	
 	//2. get the connection from the us_item
 	c = _get_conn(us);
-	if(c != NULL)  {
+	if (c != NULL)  {
                 //try send pending first
                 _send_pending(c);
-		if(_send_inner(msg, c) < 0) {
+		if (_send_inner(msg, c) < 0) {
 			E("send inner return -1");
 			return -1;
 		}
-	}
-	else {
+	} else {
 		//save to the pending list
-		if(us->pend_count >= MRPC_MAX_PENDING) {
+		if (us->pend_count >= MRPC_MAX_PENDING) {
 			W("max pending");
 			return -4;
 		}
 		rec_msg_t *m = _clone_msg(msg);
-		if(!m) {
+		if (!m) {
 			W("clone msg error");
 			return -1;
 		}

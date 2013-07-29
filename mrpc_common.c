@@ -4,17 +4,16 @@ extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 //static char* PROTOCOL = "MCP/3.0";
 
-
 mrpc_buf_t* mrpc_buf_new(size_t size)
 {
 	mrpc_buf_t *b = calloc(1, sizeof(*b));
-	if(!b) {
+	if (!b) {
 		E("no mem for mrpc_buf_t");
 		return NULL;
 	}
 	
 	b->buf = malloc(size);
-	if(!b->buf) {
+	if (!b->buf) {
 		E("no mem for buf");
 		free(b);
 		return NULL;
@@ -27,7 +26,7 @@ mrpc_buf_t* mrpc_buf_new(size_t size)
 int mrpc_buf_enlarge(mrpc_buf_t *buf) 
 {
 	void *n = realloc(buf->buf, buf->len * 2);
-	if(n) {
+	if (n) {
 		buf->buf = n;
 		buf->len = buf->len * 2;
 		return 0;
@@ -41,13 +40,12 @@ void mrpc_buf_reset(mrpc_buf_t *buf)
 	buf->size = 0;
 
 	//shrink the buf
-	if(buf->len > MRPC_BUF_SIZE) {
+	if (buf->len > MRPC_BUF_SIZE) {
 		void *t = realloc(buf->buf, MRPC_BUF_SIZE);
-		if(t) {
+		if (t) {
 			buf->buf = t;
 			buf->len = MRPC_BUF_SIZE;
-		}
-		else {
+		} else {
 			E("realloc for buf reset error");
 		}
 	}
@@ -65,18 +63,18 @@ mrpc_connection_t* mrpc_conn_new(mrpc_us_item_t* us)
 	mrpc_connection_t *c = NULL;
 
 	c = calloc(1, sizeof(*c));
-	if(!c) {
+	if (!c) {
 		E("malloc upstream connection error");
 		return NULL;
 	}
 	c->send_buf = mrpc_buf_new(MRPC_BUF_SIZE);
-	if(!c->send_buf) {
+	if (!c->send_buf) {
 		E("cannot malloc send_buf!");
 		free(c);
 		return NULL;
 	}
 	c->recv_buf = mrpc_buf_new(MRPC_BUF_SIZE);
-	if(!c->recv_buf) {
+	if (!c->recv_buf) {
 		E("cannot malloc recv_buf");
 		mrpc_buf_free(c->send_buf);
 		free(c);
@@ -94,7 +92,7 @@ mrpc_connection_t* mrpc_conn_new(mrpc_us_item_t* us)
 
 void mrpc_conn_close(mrpc_connection_t *c)
 {
-	if(ev_del_file_item(worker->ev, c->fd) < 0){
+	if (ev_del_file_item(worker->ev, c->fd) < 0) {
 		E("remove event file item error fd %d, reason %s", 
 		  c->fd, strerror(errno));
 	}	
@@ -114,32 +112,28 @@ void mrpc_conn_free(mrpc_connection_t *c)
 int mrpc_send2(mrpc_buf_t *b, int fd)
 {
 	int r = 0,n;
-	while(b->offset < b->size) {
+	while (b->offset < b->size) {
 		n = send(fd, b->buf + b->offset, b->size - b->offset, MSG_NOSIGNAL);
 		D("sent %d bytes, b->offset %lu, b->size %lu", n, b->offset, b->size);
-		if(n > 0) {
+		if (n > 0) {
 			b->offset += n;
 			r += n;
-		}
-		else if(n == 0) {
+		} else if (n == 0) {
 			E("send return 0");
 			break;
-		}
-		else {
-			if(errno == EAGAIN || errno == EWOULDBLOCK) {
+		} else {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				break;
-			}
-			else if(errno == EINTR) {
+			} else if (errno == EINTR) {
 				E("errno is EINTR");
-			}
-			else {
+			} else {
 				E("send return error, reason %s", strerror(errno));
 				goto failed;
 			}
 		}
 	}
 
-	if(b->offset == b->size) {
+	if (b->offset == b->size) {
 		mrpc_buf_reset(b);
 	}
 	return r;
@@ -156,9 +150,9 @@ int mrpc_send(mrpc_connection_t *c)
 int mrpc_recv2(mrpc_buf_t *b, int fd)
 {
 	int r = 0, n, buf_avail;
-	while(1) {
-		if(b->len - b->size <= 0) {
-			if(mrpc_buf_enlarge(b) < 0) {
+	while (1) {
+		if (b->len - b->size <= 0) {
+			if (mrpc_buf_enlarge(b) < 0) {
 				E("enlarge the recv buf error");
 				return 0;
 			}
@@ -168,18 +162,17 @@ int mrpc_recv2(mrpc_buf_t *b, int fd)
 		n = recv(fd, b->buf + b->size, buf_avail, 0);
 		D("recv %d bytes",n);
 
-		if(n < 0) {
-			if(errno == EAGAIN || errno == EWOULDBLOCK ) {
-				if(r > 0) return r;
+		if (n < 0) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK ) {
+				if (r > 0) return r;
 				return -1;
-			}
-			else {
+			} else {
 				I("read error,errno is %d,reason %s",errno, strerror(errno));
 				return 0;
 			}
 		}
 
-		if(n == 0) {
+		if (n == 0) {
 			I("reset by peer");
 			return 0;
 		}
@@ -187,7 +180,7 @@ int mrpc_recv2(mrpc_buf_t *b, int fd)
 		b->size += n;
 		r += n;
 
-		if((size_t)n < buf_avail) {	
+		if ((size_t)n < buf_avail) {	
 			D("break from receive loop, recv enough");	
 			break;
 		}
@@ -206,7 +199,7 @@ int mrpc_recv(mrpc_connection_t *c)
 int mrpc_parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 {
 	//parse the rpc packet
-	if((b->size - b->offset) < 12) {
+	if ((b->size - b->offset) < 12) {
 		//not a full package
 		return 0;
 	}
@@ -214,7 +207,7 @@ int mrpc_parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 	//mask:
 	msg->mask = ntohl(*(uint32_t*)(b->buf + b->offset));
 	b->offset += 4;
-	if(msg->mask != 0x0badbee0 && msg->mask != 0x0badbee1) { 
+	if (msg->mask != 0x0badbee0 && msg->mask != 0x0badbee1) { 
 		E("mask error, %x", msg->mask);
 		goto failed;
 	}
@@ -224,7 +217,7 @@ int mrpc_parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 	b->offset += 4;
 
 	//not a full package
-	if(b->size - b->offset < msg->package_length - 8) {
+	if (b->size - b->offset < msg->package_length - 8) {
 		b->offset -= 8;
 		return 0;
 	}
@@ -239,16 +232,15 @@ int mrpc_parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 	D("unpack the req/resp header");
 	struct pbc_slice str = {b->buf + b->offset, msg->header_length};
 	int r;
-	if(msg->mask == 0x0badbee0) {
+	if (msg->mask == 0x0badbee0) {
 		r = pbc_pattern_unpack(rpc_pat_mrpc_request_header, &str, 
 				       &msg->h.req_head);
-	}
-	else {
+	} else {
 		r = pbc_pattern_unpack(rpc_pat_mrpc_response_header, &str, 
 				       &msg->h.resp_head);
 		D("resp_head.code %d", msg->h.resp_head.response_code);
 	}
-	if(r < 0) {
+	if (r < 0) {
 		E("rpc unpack request header fail");
 		goto failed;
 	}
@@ -257,17 +249,16 @@ int mrpc_parse(mrpc_buf_t *b, mrpc_message_t *msg, mcp_appbean_proto *proto)
 
 	//body
 	int32_t body_len = 0;
-	if(msg->mask == 0x0badbee0) {
+	if (msg->mask == 0x0badbee0) {
 		body_len = msg->h.req_head.body_length -1;
-	}
-	else {
+	} else {
 		body_len = msg->h.resp_head.body_length -1;
 	}
-	if(body_len < 0)  {
+	if (body_len < 0) {
 		body_len = 0;
 		D("body_len == 0");
 	}
-	if(body_len > 0) {
+	if (body_len > 0) {
 		D("unpack the body, body_len is %d",body_len);
 		struct pbc_slice str1 = {b->buf + b->offset, body_len};
 		r =pbc_pattern_unpack(rpc_pat_mcp_appbean_proto, &str1, proto);
