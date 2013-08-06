@@ -433,7 +433,7 @@ int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
         mrpc_req_buf_t *svr_req_data = calloc(1, sizeof(*svr_req_data));
         svr_req_data->c = c;
         svr_req_data->msg = msg;
-        svr_req_data->time = time(NULL) + 10;
+        svr_req_data->time = time(NULL) + 60;
         a->bn_seq = seq_increment(a->bn_seq);
         proto->sequence = a->bn_seq; 
         svr_req_data->sequence = a->bn_seq;
@@ -554,10 +554,12 @@ static int process_client_req(pxy_agent_t *agent)
                          "cmd %d, seq=%d, data=%p, table=%p", agent->fd, 
                          agent->user_id, agent->epid, msg.cmd, msg.seq, 
                          svr_req_data, table);
-                }
- 
-                if (svr_req_data != NULL) {
-                        agent_svr_response(agent, &msg, table, svr_req_data);
+
+                       if (svr_req_data != NULL) {
+                               agent_svr_response(agent, &msg, table, svr_req_data);
+                       } 
+
+                       goto finish;
                 } else if (agent_to_beans(agent, &msg, 0) < 0) {
 			if (msg.body_len > 0) {
 				free(msg.body);
@@ -583,10 +585,12 @@ static int process_client_req(pxy_agent_t *agent)
                 if (msg.cmd == CMD_USER_UNREG) {
                         agent->isunreg = 1;
                 }
+finish:
 
 		if (msg.body_len > 0) {
 			free(msg.body);
 		}
+
 		memset(&msg, 0, sizeof(msg));
 	}
 	
