@@ -128,6 +128,7 @@ static char* get_inner_cltype(char* client)
 	if(!strcasecmp(client, "PCMAC")) return "PCMC";
 	if(!strcasecmp(client, "SMSDEP")) return "SMSD";
 	if(!strcasecmp(client, "SMSBP")) return "SMSB";
+	if(!strcasecmp(client, "LAUNCHER")) return "LACH";
 
 	return "ANDR";
 }
@@ -176,6 +177,7 @@ static inline char* get_client_type(int num)
 	case 38: return "PCMAC"; 
 	case 39: return "SMSDEP"; 
 	case 40: return "SMSBP"; 
+        case 41: return "LAUNCHER";
 	}
 	return "ANDROID";
 }

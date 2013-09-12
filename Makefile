@@ -61,7 +61,7 @@ OUTPUT = mspc
 all : apl 
 apl:  $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS)
 	$(LINK) $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) \
-		-Llib -lmclibc -lzookeeper_mt -lprotobuf-c -lm -lroute -lev -lpthread \
+		-Llib -lmclibc -lzookeeper_mt -lprotobuf-c -lm -lroute  -lpthread \
 		-lpbc 
 
 ev_test : $(LIB_OBJS) $(EV_TEST)
