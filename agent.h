@@ -244,6 +244,28 @@ static inline char* get_client_version(int version)
 	case 8: return "0507";
 	case 9: return "0508";
 	case 10: return "0509";
+
+        case 100: return "0100";
+        case 101: return "0101";
+        case 102: return "0102";
+        case 103: return "0103";
+        case 104: return "0104";
+        case 105: return "0105";
+        case 106: return "0106";
+        case 107: return "0107";
+        case 108: return "0108";
+        case 109: return "0109";
+
+        case 200: return "0200";
+        case 201: return "0201";
+        case 202: return "0202";
+        case 203: return "0203";
+        case 204: return "0204";
+        case 205: return "0205";
+        case 206: return "0206";
+        case 207: return "0207";
+        case 208: return "0208";
+        case 209: return "0209";
 				 
 //	case 11: return "0600";
 //	case 12: return "0601";
