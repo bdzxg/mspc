@@ -42,6 +42,7 @@ void worker_insert_reg3(reg3_t* r3)
 
 void log_mcp_message(pxy_agent_t *a, rec_msg_t *msg, int direction)
 {
+        return;
         char body[150000] = {0};
 	to_hex(msg->body, msg->body_len, body);
         char *to_client = "Send";
