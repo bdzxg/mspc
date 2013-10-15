@@ -63,7 +63,7 @@ void write_log(char *log_info) {
 
         size_t log_len = strlen(log_info);
         if (log_buf->len - log_buf->size <= log_len) {      
-                if (flush_log() == 0) {
+                if (flush_log() < 0) {
                         goto failed;
                 }
         }                                        

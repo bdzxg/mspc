@@ -10,5 +10,6 @@ pxy_settings setting = {
 	"route_log.txt",
         10000,
 	"192.168.110.125:8998",
-        0
+        0,
+        5
 };

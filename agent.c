@@ -6,6 +6,7 @@
 #include "hashtable_itr.h"
 
 extern pxy_worker_t *worker;
+extern pxy_settings setting;
 extern upstream_map_t *upstream_root;
 size_t packet_len;
 
@@ -572,13 +573,13 @@ static int process_client_req(pxy_agent_t *agent)
 			msg.format = 128; //response
 			
 			if (_send_to_client(&msg, agent) < 0) {
-				I("send BADGATEWAY to client failed fd %d, "
+				E("send BADGATEWAY to client failed fd %d, "
                                   "uid %d, epid %s, cmd %d", agent->fd, 
                                   agent->user_id, agent->epid, msg.cmd);
 				return -1;
 			}
 
-			I("sent cmd BADGATEWAY fd %d, uid %d, epid %s, cmd %d",
+			E("sent cmd BADGATEWAY fd %d, uid %d, epid %s, cmd %d",
 			  agent->fd, agent->user_id, agent->epid, msg.cmd);
 
 			continue;
@@ -641,7 +642,9 @@ void pxy_agent_close(pxy_agent_t *a)
 void close_idle_agent(ev_t* ev, ev_time_item_t* ti) {
         pxy_agent_t* agent = ti->data;
         time_t now = time(NULL);
-        if (now - agent->last_active > 10 * 60) {
+        D("check_client_alive_time:%d", setting.check_client_alive_time);
+
+        if (now - agent->last_active > setting.check_client_alive_time * 60) {
                 W("close expired idle client! fd %d, uid %d, epid %s", agent->fd,
                                 agent->user_id, agent->epid);
                 goto failed;

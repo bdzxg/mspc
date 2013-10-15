@@ -84,14 +84,18 @@ pxy_setting_init(char *conf_file)
                 if (strcmp(item->name, "flush_log") == 0) {
                         setting.is_flush_log = atoi(item->value);
                 }
-		if (strcmp(item->name, "zk_url") == 0)
+                if (strcmp(item->name, "check_client_alive_time") == 0) {
+                        setting.check_client_alive_time = atoi(item->value);
+                }
+                if (strcmp(item->name, "zk_url") == 0)
 			strcpy(setting.zk_url, item->value);
 		memset(item, 0, sizeof(*item));
 	}
 	
 	E("setting inited: setting.log_level %d, log_file %s, client_port %d,"
                         "backend_port %d, ip %s, route_log_level %d, "
-                        "route_log_file %s, route_server_port %d, zk_url %s",
+                        "route_log_file %s, route_server_port %d, zk_url %s, "
+                        "check_client_alive_time %d",
 	  setting.log_level,
 	  setting.log_file,
 	  setting.client_port,
@@ -100,7 +104,8 @@ pxy_setting_init(char *conf_file)
 	  setting.route_log_level,
 	  setting.route_log_file,
           setting.route_server_port,
-	  setting.zk_url);
+	  setting.zk_url,
+          setting.check_client_alive_time);
 	
 	return 0;
 ERROR:
