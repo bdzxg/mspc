@@ -5,6 +5,7 @@
 #include "proxy.h"
 #include "agent.h"
 #include "settings.h"
+#include "datalog.h"
 
 pxy_master_t* master;
 pxy_worker_t* worker;
@@ -89,13 +90,34 @@ pxy_setting_init(char *conf_file)
                 }
                 if (strcmp(item->name, "zk_url") == 0)
 			strcpy(setting.zk_url, item->value);
+			
+		if (strcmp(item->name,"dblog_host") == 0) {
+			strcpy(setting.dblog_host, item->value);
+		}
+		if (strcmp(item->name,"dblog_user") == 0) {
+			strcpy(setting.dblog_user, item->value);
+		}
+		if (strcmp(item->name,"dblog_passwd") == 0) {
+			strcpy(setting.dblog_passwd, item->value);
+		}
+		if (strcmp(item->name,"dblog_db") == 0) {
+			strcpy(setting.dblog_db, item->value);
+		}
+		if (strcmp(item->name,"dblog_port") == 0) {
+			setting.dblog_port = atoi(item->value);
+		}
 		memset(item, 0, sizeof(*item));
 	}
 	
 	E("setting inited: setting.log_level %d, log_file %s, client_port %d,"
                         "backend_port %d, ip %s, route_log_level %d, "
                         "route_log_file %s, route_server_port %d, zk_url %s, "
-                        "check_client_alive_time %d",
+                        "check_client_alive_time %d"
+						"dblog_host %s"
+                        "dblog_user %s"
+                        "dblog_passwd %s"
+                        "dblog_db %s"
+                        "dblog_port %d",
 	  setting.log_level,
 	  setting.log_file,
 	  setting.client_port,
@@ -105,7 +127,12 @@ pxy_setting_init(char *conf_file)
 	  setting.route_log_file,
           setting.route_server_port,
 	  setting.zk_url,
-          setting.check_client_alive_time);
+          setting.check_client_alive_time,
+          setting.dblog_host, 
+		  setting.dblog_user,
+		  setting.dblog_passwd,
+		  setting.dblog_db,
+		  setting.dblog_port);
 	
 	return 0;
 ERROR:
@@ -118,6 +145,41 @@ ERROR:
 	}
 
 	return -1;
+}
+
+int 
+pxy_init_logdb()
+{
+	int result = 0;
+	result = db_init(setting.dglog_host,
+					setting.dblog_user,
+					setting.dblog_passwd,
+					setting.dblog_db,
+					setting.dblog_port);
+	if (result) {
+		E("db_init() failed:%d", result);
+		return result;
+	}
+
+	result = db_open_connection();
+	if (result) {
+		E("db_open_connection() failed:%d", result);
+		return result;
+	}
+
+	result = db_create_logdb();
+	if (result) {
+		E("db_create_logdb() failed:%d", result);
+		return result;
+	}
+
+	result = db_use_logdb();
+	if (result) {
+		E("db_use_logdb() failed:%d", result);
+		return result;
+	}
+
+	return 0;
 }
 
 void
@@ -308,6 +370,12 @@ int main(int argc, char** argv)
                 return -1;
         }
 
+
+    if (pxy_init_logdb()) {
+		E("init logdb failed!\n");
+		return -1;
+	}
+	
 	if (pxy_init_master() < 0) {
 		E("master initialize failed");
 		return -1;
@@ -331,6 +399,19 @@ int main(int argc, char** argv)
 	}
 	D("worker started");
 
+    char time[32];
+	db_gettimestr(time, sizeof(time));
+	db_insert_log(30000, 
+					11111,
+					22222,
+					time,
+					"loggername",
+					"message",
+					"error",
+					"marker",
+					"threadname",
+					"servicename",
+					"computer");
 
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0) { 
 	}
