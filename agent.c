@@ -4,6 +4,7 @@
 #include "route.h"
 #include "mrpc_msp.h"
 #include "hashtable_itr.h"
+#include "datalog.h"
 
 extern pxy_worker_t *worker;
 extern pxy_settings setting;
@@ -564,6 +565,22 @@ static int process_client_req(pxy_agent_t *agent)
 
                        goto finish;
                 } else if (agent_to_beans(agent, &msg, 0) < 0) {
+                    char time[32];
+                    char loggername[64];
+                    db_gettimestr(time, sizeof(time));
+                    sprintf(loggername, "%s:%s:%d", __FILE__, __FUNCTION__, __LINE__);
+                    db_insert_log(80000, 
+                                  0,
+                                  getpid(),
+                                  time,
+                                  loggername,
+                                  "mspc started successfully.",
+                                  "",
+                                  "00000",
+                                  "",
+                                  "mspc",
+                                  setting.ip);
+
 			if (msg.body_len > 0) {
 				free(msg.body);
 			}

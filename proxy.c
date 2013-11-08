@@ -413,7 +413,7 @@ int main(int argc, char** argv)
                   "00000",
                   "",
                   "mspc",
-                  setting.ip;
+                  setting.ip);
 
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0) { 
 	}
