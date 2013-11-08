@@ -51,6 +51,9 @@ int db_execute_nonquery(char *query, unsigned int length)
         result = db_open_connection();
         if (!result) {
             result = mysql_real_query(&(database.mysql), query, length);
+			if (!result) {
+				result = db_use_logdb();
+			}
         }
     }
 	

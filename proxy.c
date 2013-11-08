@@ -400,18 +400,20 @@ int main(int argc, char** argv)
 	D("worker started");
 
     char time[32];
+	char loggername[64];
 	db_gettimestr(time, sizeof(time));
+	sprintf(loggername, "%s:%s:%d", __FILE__, __FUNCTION__, __LINE__);
 	db_insert_log(30000, 
-					11111,
-					22222,
-					time,
-					"loggername",
-					"message",
-					"error",
-					"marker",
-					"threadname",
-					"servicename",
-					"computer");
+                  0,
+                  getpid(),
+                  time,
+                  loggername,
+                  "mspc started successfully.",
+                  "",
+                  "00000",
+                  "",
+                  "mspc",
+                  setting.ip;
 
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0) { 
 	}
