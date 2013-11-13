@@ -7,6 +7,7 @@
 extern pxy_master_t *master;
 extern pxy_worker_t *worker;
 extern pxy_settings setting;
+extern void reload_config();
 upstream_map_t *upstream_root;
 
 int worker_init();
@@ -54,7 +55,8 @@ int worker_init()
 int worker_start()
 {
 	route_init(setting.zk_url, setting.route_server_port, 
-                        setting.route_log_file);
+                        setting.route_log_file, setting.is_flush_log, 
+                        reload_config);
 	int fd = master->listen_fd;
 	int r = ev_add_file_item(worker->ev, 
 				 fd, 
@@ -102,7 +104,6 @@ worker_close()
 	return 0;
 } 
  
-
 void worker_accept(ev_t *ev, ev_file_item_t *ffi)
 {
 	UNUSED(ev);

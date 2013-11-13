@@ -4,7 +4,11 @@
 typedef struct mrpc_req_buf_s {
       mrpc_connection_t *c;
       mrpc_message_t msg;
+      int userid;
       int sequence;
+      int cmd;
+      int format;
+      int compress;
       time_t time;
 }mrpc_req_buf_t;
 

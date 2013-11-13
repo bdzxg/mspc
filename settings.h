@@ -16,6 +16,7 @@ typedef struct pxy_settings{
 	char zk_url[CONFIG_MAX];
         int is_flush_log;
         int check_client_alive_time;
+        int transaction_timeout;
 } pxy_settings;
 
 #endif

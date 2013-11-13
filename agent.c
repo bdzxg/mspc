@@ -12,7 +12,7 @@ size_t packet_len;
 
 #define MSP_BUF_LEN 1024
 
-//static char OVERTIME[3] = {8, 248, 3};// 504
+static char OVERTIME[3] = {8, 248, 3};// 504
 static char BADGATEWAY[3] = {8, 246, 3};// 502
 static char SERVERERROR[3] = {8, 244, 3};// 500
 //static char REQERROR[3] = {8, 144, 3};// 400
@@ -181,23 +181,7 @@ _msg_from_proto(mcp_appbean_proto *p, rec_msg_t *m)
 #define CMD_CLOSE_CONNECTION 102
 #define CMD_CONNECTION_CLOSED 103
 #define CMD_NET_STAT 104
-//#define CMD_REFRESH_EPID 105
 #define CMD_USER_UNREG 10105
-
-//static int
-//_refresh_agent_epid(pxy_agent_t *a, struct pbc_slice *slice)
-//{
-//	char* t = calloc(slice->len + 1, 1);
-//	if (!t) {
-//		E("cannnot malloc for new epid");
-//		return -1;
-//	}
-//
-//	free(a->epid);
-//	strncpy(t, slice->buffer, slice->len);
-//	a->epid = t;
-//	return 0;
-//}
 
 //if match the internal cmd return 1,else return 0
 static int 
@@ -436,7 +420,11 @@ int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
         mrpc_req_buf_t *svr_req_data = calloc(1, sizeof(*svr_req_data));
         svr_req_data->c = c;
         svr_req_data->msg = msg;
-        svr_req_data->time = time(NULL) + 60;
+        svr_req_data->userid = m.userid;
+        svr_req_data->cmd = m.cmd;
+        svr_req_data->format = m.format;
+        svr_req_data->compress = m.compress;
+        svr_req_data->time = time(NULL) + setting.transaction_timeout;
         a->bn_seq = seq_increment(a->bn_seq);
         proto->sequence = a->bn_seq; 
         svr_req_data->sequence = a->bn_seq;
@@ -707,6 +695,24 @@ void check_svr_req_buf(ev_t *ev, ev_time_item_t* ti) {
                         I("remove svr req buf ok, key=%d fd %d uid %d epid %s",
                                         *p, agent->fd, agent->user_id,
                                         agent->epid);
+                        rec_msg_t m;
+                        m.userid = req->userid;
+                        m.seq = req->sequence;
+                        m.cmd = req->cmd;
+                        m.compress = req->compress;
+                        m.logic_pool_id = agent->logic_pool_id;
+                        m.epid = agent->epid;
+
+                        if (agent->user_ctx != NULL && agent->user_ctx_len > 0) {
+                                m.user_context = agent->user_ctx;
+                                m.user_context_len = agent->user_ctx_len;
+                        }
+
+                        m.body = OVERTIME;
+                        m.body_len = sizeof(OVERTIME);
+			m.format = 128; 
+	
+                        send_svr_response(req, &m);
                 }
 
                 free(req);

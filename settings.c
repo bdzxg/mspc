@@ -11,5 +11,6 @@ pxy_settings setting = {
         10000,
 	"192.168.110.125:8998",
         0,
-        5
+        5,  //close_idle client_time
+        30  //transaction timeout value
 };
