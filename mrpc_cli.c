@@ -557,6 +557,28 @@ void mrpc_cli_ev_in(ev_t *ev, ev_file_item_t *fi)
 		}
 		if (msg.h.resp_head.response_code != 200) {
 		        W("resp code %d", msg.h.resp_head.response_code);
+                char time[32];
+                char marker[32];
+                char loggername[64];
+                char message[128];
+                db_gettimestr(time, sizeof(time));
+				sprintf(marker, "%d", proto.user_id);
+                sprintf(loggername, "%s:%s:%d", __FILE__, __FUNCTION__, __LINE__);
+                sprintf(message, "rpc resp code:%d. cmd:%d.", msg.h.resp_head.response_code, proto.cmd);
+                db_insert_log(80000, 
+                              0,
+                              getpid(),
+                              time,
+                              loggername,
+                              message,
+                              "",
+                              marker,
+                              "",
+                              "mspc",
+                              setting.ip);
+
+
+
 			//TODO find the agent, and send the error response
 		}
 		_stash_req_free(r);

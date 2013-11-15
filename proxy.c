@@ -5,22 +5,14 @@
 #include "proxy.h"
 #include "agent.h"
 #include "settings.h"
+#include "log.h"
+#include "datalog.h"
 
 pxy_master_t* master;
 pxy_worker_t* worker;
 FILE* log_file;
 int log_level = 0;
 extern pxy_settings setting;
-//pxy_settings setting = {
-//        LOG_LEVEL_DEBUG,
-//	"mspc.txt",
-//        9014,
-//        9015,
-//	"0.0.0.0",
-//	LOG_LEVEL_DEBUG,
-//	"route_log.txt",
-//	"192.168.110.125:8998"
-//};
 
 char conf_file[1024];
 int pxy_setting_init()
@@ -92,6 +84,22 @@ int pxy_setting_init()
                 }
                 if (strcmp(item->name, "zk_url") == 0)
 			strcpy(setting.zk_url, item->value);
+			
+		if (strcmp(item->name,"dblog_host") == 0) {
+			strcpy(setting.dblog_host, item->value);
+		}
+		if (strcmp(item->name,"dblog_user") == 0) {
+			strcpy(setting.dblog_user, item->value);
+		}
+		if (strcmp(item->name,"dblog_passwd") == 0) {
+			strcpy(setting.dblog_passwd, item->value);
+		}
+		if (strcmp(item->name,"dblog_db") == 0) {
+			strcpy(setting.dblog_db, item->value);
+		}
+		if (strcmp(item->name,"dblog_port") == 0) {
+			setting.dblog_port = atoi(item->value);
+		}
 		memset(item, 0, sizeof(*item));
 	}
 
@@ -101,19 +109,14 @@ int pxy_setting_init()
                         "backend_port %d, ip %s, route_log_level %d, "
                         "route_log_file %s, route_server_port %d, zk_url %s, "
                         "check_client_alive_time %d, transaction_timeout %d, "
-                        "flush_log %d" ,
-	  setting.log_level,
-	  setting.log_file,
-	  setting.client_port,
-	  setting.backend_port,
-	  setting.ip,
-	  setting.route_log_level,
-	  setting.route_log_file,
-          setting.route_server_port,
-	  setting.zk_url,
-          setting.check_client_alive_time,
-          setting.transaction_timeout,
-          setting.is_flush_log);
+                        "flush_log %d, dblog_host %s, dblog_user %s, "
+                        "dblog_passwd %s, dblog_db %s, dblog_port %d",
+	  setting.log_level, setting.log_file, setting.client_port,
+	  setting.backend_port, setting.ip, setting.route_log_level,
+	  setting.route_log_file, setting.route_server_port, setting.zk_url,
+          setting.check_client_alive_time, setting.transaction_timeout,
+          setting.is_flush_log, setting.dblog_host, setting.dblog_user,
+          setting.dblog_passwd, setting.dblog_db, setting.dblog_port);
 	
 	return 0;
 ERROR:
@@ -132,6 +135,40 @@ void reload_config()
 {
         pxy_setting_init();
         E("reload config OK!");
+}
+
+int 
+pxy_init_logdb()
+{
+	int result = 0;
+	result = db_init(setting.dblog_host,
+					setting.dblog_user,
+					setting.dblog_passwd,
+					setting.dblog_db,
+					setting.dblog_port);
+	if (result) {
+		E("db_init() failed:%d", result);
+		return result;
+	}
+
+	result = db_open_connection();
+	if (result) {
+		E("db_open_connection() failed:%d", result);
+		return result;
+	}
+
+	result = db_create_logdb();
+	if (result) {
+		E("db_create_logdb() failed:%d", result);
+		return result;
+	}
+
+	result = db_use_logdb();
+	if (result) {
+		E("db_use_logdb() failed:%d", result);
+		return result;
+	}
+	return 0;
 }
 
 void
@@ -321,6 +358,28 @@ int main(int argc, char** argv)
                 return -1;
         }
 
+
+        if (pxy_init_logdb()) {
+		E("init logdb failed!\n");
+		return -1;
+	}
+    
+        char time[32];
+	char loggername[64];
+	db_gettimestr(time, sizeof(time));
+	sprintf(loggername, "%s:%s:%d", __FILE__, __FUNCTION__, __LINE__);
+	db_insert_log(30000, 
+                  0,
+                  getpid(),
+                  time,
+                  loggername,
+                  "mspc start...",
+                  "",
+                  "00000",
+                  "",
+                  "mspc",
+                  setting.ip);
+	
 	if (pxy_init_master() < 0) {
 		E("master initialize failed");
 		return -1;
@@ -343,7 +402,6 @@ int main(int argc, char** argv)
 		return -1;
 	}
 	D("worker started");
-
 
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0) { 
 	}

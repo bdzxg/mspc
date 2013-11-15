@@ -17,6 +17,11 @@ typedef struct pxy_settings{
         int is_flush_log;
         int check_client_alive_time;
         int transaction_timeout;
+	char dblog_host[CONFIG_MAX];
+	char dblog_user[CONFIG_MAX];
+	char dblog_passwd[CONFIG_MAX];
+	char dblog_db[CONFIG_MAX];
+	int dblog_port;
 } pxy_settings;
 
 #endif

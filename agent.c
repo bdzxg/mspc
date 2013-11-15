@@ -4,6 +4,7 @@
 #include "route.h"
 #include "mrpc_msp.h"
 #include "hashtable_itr.h"
+#include "datalog.h"
 
 extern pxy_worker_t *worker;
 extern pxy_settings setting;
@@ -552,6 +553,26 @@ static int process_client_req(pxy_agent_t *agent)
 
                        goto finish;
                 } else if (agent_to_beans(agent, &msg, 0) < 0) {
+                    char time[32];
+                    char marker[32];
+                    char loggername[64];
+                    char message[128];
+                    db_gettimestr(time, sizeof(time));
+					sprintf(marker, "%d", msg.userid);
+                    sprintf(loggername, "%s:%s:%d", __FILE__, __FUNCTION__, __LINE__);
+                    sprintf(message, "bad gateway. cmd:%d.", msg.cmd);
+                    db_insert_log(80000, 
+                                  0,
+                                  getpid(),
+                                  time,
+                                  loggername,
+                                  message,
+                                  "",
+                                  marker,
+                                  "",
+                                  "mspc",
+                                  setting.ip);
+
 			if (msg.body_len > 0) {
 				free(msg.body);
 			}
@@ -632,7 +653,7 @@ void close_idle_agent(ev_t* ev, ev_time_item_t* ti) {
         time_t now = time(NULL);
         D("check_client_alive_time:%d", setting.check_client_alive_time);
 
-        if (now - agent->last_active > setting.check_client_alive_time * 60) {
+        if (now - agent->last_active > setting.check_client_alive_time) {
                 W("close expired idle client! fd %d, uid %d, epid %s", agent->fd,
                                 agent->user_id, agent->epid);
                 goto failed;

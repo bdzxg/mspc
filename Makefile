@@ -1,5 +1,5 @@
-CC = 	gcc
-CFLAGS = -pipe -Wall -I -g -O0 -ggdb
+CC = 	gcc 
+CFLAGS = -pipe -Wall  -g -O0 -ggdb -I/usr/include/mysql
 LINK =	$(CC)
 
 LIB_OBJS = \
@@ -8,7 +8,8 @@ LIB_OBJS = \
 	./ev.o \
 	./settings.o \
 	./log.o \
-	./tool.o
+	./tool.o \
+	./datalog.o
 #./hashtable.o \
 	./hashtable_itr.o \
 
@@ -60,9 +61,9 @@ TEST = \
 OUTPUT = mspc
 all : apl 
 apl:  $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS)
-	$(LINK) $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS) -I./include -o $(OUTPUT) \
+	$(LINK) $(PXY_OBJS) $(LIB_OBJS) $(MRPC_OBJS) -o $(OUTPUT) \
 		-Llib -lmclibc -lzookeeper_mt -lprotobuf-c -lm -lroute  -lpthread \
-		-lpbc 
+		-lpbc -lmysqlclient
 
 ev_test : $(LIB_OBJS) $(EV_TEST)
 	$(LINK) $(LIB_OBJS) $(EV_TEST) -o ev_test -lm -lmclibc
