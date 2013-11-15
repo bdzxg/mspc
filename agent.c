@@ -712,7 +712,13 @@ void check_svr_req_buf(ev_t *ev, ev_time_item_t* ti) {
                         m.body_len = sizeof(OVERTIME);
 			m.format = 128; 
 	
-                        send_svr_response(req, &m);
+                        W("client response timeout code 504 cmd %d userid %d epid %s",
+                                        m.cmd, m.userid, m.epid);
+                        int ret = send_svr_response(req, &m);
+                        if (ret < 0) {
+                                W("send response code 504 failed: cmd %d userid %d epid %s",
+                                                m.cmd, m.userid, m.epid);
+                        }
                 }
 
                 free(req);
