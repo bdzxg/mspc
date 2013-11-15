@@ -566,17 +566,21 @@ static int process_client_req(pxy_agent_t *agent)
                        goto finish;
                 } else if (agent_to_beans(agent, &msg, 0) < 0) {
                     char time[32];
+                    char marker[32];
                     char loggername[64];
+                    char message[128];
                     db_gettimestr(time, sizeof(time));
+					sprintf(marker, "%d", msg.userid);
                     sprintf(loggername, "%s:%s:%d", __FILE__, __FUNCTION__, __LINE__);
+                    sprintf(message, "bad gateway. cmd:%d.", msg.cmd);
                     db_insert_log(80000, 
                                   0,
                                   getpid(),
                                   time,
                                   loggername,
-                                  "mspc started successfully.",
+                                  message,
                                   "",
-                                  "00000",
+                                  marker,
                                   "",
                                   "mspc",
                                   setting.ip);
