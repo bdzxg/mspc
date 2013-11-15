@@ -37,7 +37,7 @@ typedef struct
     char db[32];
     char tb[32];
     unsigned int port;
-	MYSQL mysql;
+    MYSQL mysql;
 } db_database;
 
 

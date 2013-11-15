@@ -3,6 +3,7 @@
 #include <time.h>
 #include <mysql.h>
 #include <errmsg.h>
+#include "log.h"
 #include "datalog.h"
 
 db_database database;
@@ -48,12 +49,20 @@ int db_execute_nonquery(char *query, unsigned int length)
     // printf("db_execute_nonquery:%s\n", query);
     int result = mysql_real_query(&(database.mysql), query, length);
     if (result == CR_SERVER_LOST) {
+        E("db_execute_nonquery() reconnect database. host:%s user:%s passwd:%s port:%d", 
+                        database.host,
+                        database.user,
+                        database.passwd,
+                        database.port);
         result = db_open_connection();
         if (!result) {
-            result = mysql_real_query(&(database.mysql), query, length);
-			if (!result) {
-				result = db_use_logdb();
-			}
+            E("db_execute_nonquery() reconnect database successfully."); 
+            result = db_use_logdb();
+            if (!result) {
+                result = mysql_real_query(&(database.mysql), query, length);
+            }
+        } else {
+            E("db_execute_nonquery() reconnect database failed. result:%d", result); 
         }
     }
 	
@@ -292,81 +301,81 @@ int db_insert_log(int level,
 
 // -----------------------------------------------------------------------------
 
-int main(int argc, char *argv[])
-{                  
-    printf("QUERY_BUFFER_SIZE:%d\n", QUERY_BUFFER_SIZE);
-    // printf("strlen(NULL):%d\n", strlen(NULL));
-    
-	int result = 0;
-	printf("datalog test...\n");
-
-	result = db_init("192.168.199.8", "root", "amigo123", "mydb66666", 3306);
-	if (result) {
-		printf("db_init() failed...\n");
-		return result;
-	}
-	
-	printf("db_init() ok...\n");
-
-	result = db_open_connection();
-	if (result) {
-		printf("db_open_connection() failed...\n");
-		return result;
-	}
-	
-	printf("db_open_connection() ok...\n");	
-	
-
-	result = db_create_logdb();
-	if (result) {
-		printf("db_create_logdb() failed:%d\n", result);
-		return result;
-	}
-		
-	printf("db_create_logdb() ok...\n");
-	
-	
-	result = db_use_logdb();
-	if (result) {
-		printf("db_use_logdb() failed:%d\n", result);
-		return result;
-	}
-		
-	printf("db_use_logdb() ok...\n");
-	
-	
-	
-	char time[32];	
-	db_gettimestr(time, 32);
-	printf("the time is : %s\n", time);	
-	
-    char tablename[32];	
-	db_gettablename(tablename, 32, time);
-	printf("the tablename is : %s\n", tablename);
-	
-	
-    
-    result = db_insert_log(80000,
-                           12345,
-                           67890,
-                           time,
-                           "com.feinno.mcore.reg2",
-                           "Reg2 M'essag\ne.",
-                           "Reg2 E'rro\nr.",
-                           "333333333",
-                           "mcp-threadname",
-                           "mcp-servicename",
-                           "mcp-computername");
-    if (result) {
-        printf("db_insert_log() failed:%d\n", result);
-		return result;
-    }
-
-    printf("db_insert_log() ok...\n");
-   
-
-	db_close_connection();
-	printf("db_close_connection()...\n");	
-	return 0;
-
-}
+//int main(int argc, char *argv[])
+//{                  
+//    printf("QUERY_BUFFER_SIZE:%d\n", QUERY_BUFFER_SIZE);
+//    // printf("strlen(NULL):%d\n", strlen(NULL));
+//    
+//	int result = 0;
+//	printf("datalog test...\n");
+//
+//	result = db_init("192.168.199.8", "root", "amigo123", "mydb66666", 3306);
+//	if (result) {
+//		printf("db_init() failed...\n");
+//		return result;
+//	}
+//	
+//	printf("db_init() ok...\n");
+//
+//	result = db_open_connection();
+//	if (result) {
+//		printf("db_open_connection() failed...\n");
+//		return result;
+//	}
+//	
+//	printf("db_open_connection() ok...\n");	
+//	
+//
+//	result = db_create_logdb();
+//	if (result) {
+//		printf("db_create_logdb() failed:%d\n", result);
+//		return result;
+//	}
+//		
+//	printf("db_create_logdb() ok...\n");
+//	
+//	
+//	result = db_use_logdb();
+//	if (result) {
+//		printf("db_use_logdb() failed:%d\n", result);
+//		return result;
+//	}
+//		
+//	printf("db_use_logdb() ok...\n");
+//	
+//	
+//	
+//	char time[32];	
+//	db_gettimestr(time, 32);
+//	printf("the time is : %s\n", time);	
+//	
+//    char tablename[32];	
+//	db_gettablename(tablename, 32, time);
+//	printf("the tablename is : %s\n", tablename);
+//	
+//	
+//    
+//    result = db_insert_log(80000,
+//                           12345,
+//                           67890,
+//                           time,
+//                           "com.feinno.mcore.reg2",
+//                           "Reg2 M'essag\ne.",
+//                           "Reg2 E'rro\nr.",
+//                           "333333333",
+//                           "mcp-threadname",
+//                           "mcp-servicename",
+//                           "mcp-computername");
+//    if (result) {
+//        printf("db_insert_log() failed:%d\n", result);
+//		return result;
+//    }
+//
+//    printf("db_insert_log() ok...\n");
+//   
+//
+//	db_close_connection();
+//	printf("db_close_connection()...\n");	
+//	return 0;
+//
+//}

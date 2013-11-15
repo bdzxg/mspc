@@ -5,6 +5,7 @@
 #include "proxy.h"
 #include "agent.h"
 #include "settings.h"
+#include "log.h"
 #include "datalog.h"
 
 pxy_master_t* master;
@@ -151,7 +152,7 @@ int
 pxy_init_logdb()
 {
 	int result = 0;
-	result = db_init(setting.dglog_host,
+	result = db_init(setting.dblog_host,
 					setting.dblog_user,
 					setting.dblog_passwd,
 					setting.dblog_db,
@@ -371,10 +372,26 @@ int main(int argc, char** argv)
         }
 
 
-    if (pxy_init_logdb()) {
+        if (pxy_init_logdb()) {
 		E("init logdb failed!\n");
 		return -1;
 	}
+    
+        char time[32];
+	char loggername[64];
+	db_gettimestr(time, sizeof(time));
+	sprintf(loggername, "%s:%s:%d", __FILE__, __FUNCTION__, __LINE__);
+	db_insert_log(30000, 
+                  0,
+                  getpid(),
+                  time,
+                  loggername,
+                  "mspc start...",
+                  "",
+                  "00000",
+                  "",
+                  "mspc",
+                  setting.ip);
 	
 	if (pxy_init_master() < 0) {
 		E("master initialize failed");
@@ -398,22 +415,6 @@ int main(int argc, char** argv)
 		return -1;
 	}
 	D("worker started");
-
-    char time[32];
-	char loggername[64];
-	db_gettimestr(time, sizeof(time));
-	sprintf(loggername, "%s:%s:%d", __FILE__, __FUNCTION__, __LINE__);
-	db_insert_log(30000, 
-                  0,
-                  getpid(),
-                  time,
-                  loggername,
-                  "mspc started successfully.",
-                  "",
-                  "00000",
-                  "",
-                  "mspc",
-                  setting.ip);
 
 	while(scanf("%s",ch) >= 0 && strcmp(ch,"quit") !=0) { 
 	}
