@@ -179,6 +179,7 @@ static inline char* get_client_type(int num)
 	case 39: return "SMSDEP"; 
 	case 40: return "SMSBP"; 
         case 41: return "LAUNCHER";
+        case 42: return "ANDROIDPAD";
 	}
 	return "ANDROID";
 }
