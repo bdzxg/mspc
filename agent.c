@@ -420,6 +420,8 @@ int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
         struct hashtable *table = a->svr_req_buf;
         mrpc_req_buf_t *svr_req_data = calloc(1, sizeof(*svr_req_data));
         svr_req_data->c = c;
+        svr_req_data->conn_status = 1;
+        c->svr_req_buf = svr_req_data;
         svr_req_data->msg = msg;
         svr_req_data->userid = m.userid;
         svr_req_data->cmd = m.cmd;
@@ -462,7 +464,7 @@ static void agent_svr_response(pxy_agent_t *a, rec_msg_t *msg,
         }
 
         // be attention to connection lost
-        if (send_svr_response(svr_req_data, msg) > 0 ) {
+        if (svr_req_data->conn_status != -1 && send_svr_response(svr_req_data, msg) > 0 ) {
                 I("agent send server response OK! fd %d,  uid %d, epid %s, cmd %d",
                         a->fd, a->user_id, a->epid, msg->cmd); 
         } else {
@@ -712,7 +714,7 @@ void check_svr_req_buf(ev_t *ev, ev_time_item_t* ti) {
                           "epid %s", *p, agent->fd, agent->user_id, agent->epid);
                         p++; 
                         continue;
-                } else {
+                } else if (req != NULL && req->conn_status != -1) {
                         I("remove svr req buf ok, key=%d fd %d uid %d epid %s",
                                         *p, agent->fd, agent->user_id,
                                         agent->epid);
@@ -740,6 +742,9 @@ void check_svr_req_buf(ev_t *ev, ev_time_item_t* ti) {
                                 W("send response code 504 failed: cmd %d userid %d epid %s",
                                                 m.cmd, m.userid, m.epid);
                         }
+                } else if (req != NULL && req->conn_status == -1) {
+                        W("send response code 504 failed, backend conn broken! cmd %d "
+                                "userid %d epid %s", req->cmd, req->userid, agent->epid);
                 }
 
                 free(req);

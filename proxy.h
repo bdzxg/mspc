@@ -27,7 +27,7 @@
 #include "hashtable.h"
 //#include "hashtable_itr.h"
 #include "include/pbc.h"
-
+#include "mrpc_msp.h"
 
 typedef struct {
 	char *data;

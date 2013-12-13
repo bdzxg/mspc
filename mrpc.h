@@ -5,6 +5,7 @@
 #include "msp_pb.h"
 #include "mrpc_pb.h"
 #include "proxy.h"
+//#include "mrpc_msp.h"
 
 #define MRPC_BUF_SIZE 4096
 #define UP_CONN_COUNT 3
@@ -67,6 +68,7 @@ typedef struct mrpc_connection_s {
 	list_head_t list_to;
 	int conn_status;
 	mrpc_us_item_t * us;
+        void *svr_req_buf;
 }mrpc_connection_t;
 
 typedef struct mrpc_stash_req_s {

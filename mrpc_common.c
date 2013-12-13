@@ -106,6 +106,10 @@ void mrpc_conn_free(mrpc_connection_t *c)
 	mrpc_buf_free(c->recv_buf);
 	list_del(&c->list_us);
 	list_del(&c->list_to);
+        if (c->svr_req_buf != NULL) {
+                ((mrpc_req_buf_t*)(c->svr_req_buf))->conn_status = -1;
+        }
+
 	free(c);
 }
 
