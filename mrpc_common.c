@@ -1,8 +1,10 @@
 #include "proxy.h"
+#include "hashtable_itr.h"
 
 extern pxy_worker_t *worker;
 extern upstream_map_t *upstream_root;
 //static char* PROTOCOL = "MCP/3.0";
+static struct hashtable *stash_conns_table = NULL;
 
 mrpc_buf_t* mrpc_buf_new(size_t size)
 {
@@ -57,7 +59,6 @@ void mrpc_buf_free(mrpc_buf_t *buf)
 	free(buf);
 }
 
-
 mrpc_connection_t* mrpc_conn_new(mrpc_us_item_t* us)
 {
 	mrpc_connection_t *c = NULL;
@@ -81,6 +82,7 @@ mrpc_connection_t* mrpc_conn_new(mrpc_us_item_t* us)
 		return NULL;
 	}
 	c->fd = -1;
+        c->refs = 0;
 	c->us = us;
 	c->conn_status = MRPC_CONN_DISCONNECTED;
 	
@@ -106,11 +108,60 @@ void mrpc_conn_free(mrpc_connection_t *c)
 	mrpc_buf_free(c->recv_buf);
 	list_del(&c->list_us);
 	list_del(&c->list_to);
-        if (c->svr_req_buf != NULL) {
-                ((mrpc_req_buf_t*)(c->svr_req_buf))->conn_status = -1;
+
+        if (c->refs != 0) {
+                int r = hashtable_insert(stash_conns_table, &(c->fd), c);
+                if (r != -1) {
+                        E("stash conns insert error!");
+                }
+                
+                return;
         }
 
 	free(c);
+}
+
+//static int conn_idx = 0;
+
+void mrpc_init_stash_conns()
+{
+        stash_conns_table = calloc(1, sizeof(*stash_conns_table));
+}
+
+void mrpc_check_stash_conns()
+{
+       D("check stash conns!");
+       int keycount = hashtable_count(stash_conns_table);
+       if (keycount <= 0) return;
+       
+       struct hashtable_itr *itr = hashtable_iterator(stash_conns_table);        
+       if (itr == NULL) return;
+
+       int *keys = calloc(keycount + 1, sizeof(*keys));
+       int *p = keys;
+
+       do {
+               mrpc_connection_t *con = hashtable_iterator_value(itr);
+               if (con->conn_status == MRPC_CONN_DISCONNECTED && con->refs == 0) {
+                       *p = con->fd; p++;
+               }
+       } while (hashtable_iterator_advance(itr));
+       
+       p = keys;
+
+      while (*p != 0) {
+              mrpc_connection_t *conn = hashtable_remove(stash_conns_table, p);
+              if (conn == NULL) {
+                      E("remove stash connection failed!");
+                      ++p; 
+                      continue;
+              }
+
+              free(conn);
+              ++p;
+      }
+
+      free(keys);
 }
 
 int mrpc_send2(mrpc_buf_t *b, int fd)
@@ -196,7 +247,6 @@ int mrpc_recv(mrpc_connection_t *c)
 {
 	return mrpc_recv2(c->recv_buf, c->fd);
 }
-
 
 //return:
 //1 OK, 0 not finish, -1 error

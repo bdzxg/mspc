@@ -10,7 +10,7 @@ typedef struct mrpc_req_buf_s {
       int format;
       int compress;
       time_t time;
-      int conn_status;
+//      int conn_status;
 }mrpc_req_buf_t;
 
 int mrpc_process_client_req(mrpc_connection_t *c);

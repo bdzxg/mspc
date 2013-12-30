@@ -68,7 +68,7 @@ typedef struct mrpc_connection_s {
 	list_head_t list_to;
 	int conn_status;
 	mrpc_us_item_t * us;
-        void *svr_req_buf;
+        int refs;
 }mrpc_connection_t;
 
 typedef struct mrpc_stash_req_s {

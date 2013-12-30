@@ -91,6 +91,7 @@ void mrpc_svr_accept(ev_t *ev, ev_file_item_t *ffi)
 		}
 
 		c->fd = f;
+                c->conn_status = MRPC_CONN_CONNECTED;
 		int r = ev_add_file_item(worker->ev,
 					 f,
 					 EV_WRITABLE | EV_READABLE | EPOLLET,
