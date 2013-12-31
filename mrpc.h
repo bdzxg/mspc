@@ -5,7 +5,6 @@
 #include "msp_pb.h"
 #include "mrpc_pb.h"
 #include "proxy.h"
-//#include "mrpc_msp.h"
 
 #define MRPC_BUF_SIZE 4096
 #define UP_CONN_COUNT 3

@@ -121,11 +121,24 @@ void mrpc_conn_free(mrpc_connection_t *c)
 	free(c);
 }
 
-//static int conn_idx = 0;
+static unsigned int svr_req_hash(void* id) 
+{
+	unsigned int ret = murmur_hash2(id, sizeof(unsigned int));
+        //I("hashvalue: %u", ret);
+        return ret;
+}
+
+static int svr_req_cmp_f(void* d1, void*d2) 
+{
+        //I("k1=%d, k2=%d", *((int*)d1), *((int*)d2));
+        return *((int*)d1) - *((int*)d2) == 0 ? 1 : 0;
+}
+
 
 void mrpc_init_stash_conns()
 {
-        stash_conns_table = calloc(1, sizeof(*stash_conns_table));
+        //stash_conns_table = calloc(1, sizeof(*stash_conns_table));
+        stash_conns_table = create_hashtable(8, svr_req_hash, svr_req_cmp_f);
 }
 
 void mrpc_check_stash_conns()

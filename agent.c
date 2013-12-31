@@ -417,7 +417,6 @@ int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
 		return 1;
 	}
 
-        I("1 conn_status = %d %p %p", c->conn_status, c, &(c->conn_status));
         struct hashtable *table = a->svr_req_buf;
         mrpc_req_buf_t *svr_req_data = calloc(1, sizeof(*svr_req_data));
         svr_req_data->c = c;
@@ -445,7 +444,6 @@ int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
 		goto failed;
 	}
         
-        I("2 conn_status = %d %p %p", c->conn_status, c, &(c->conn_status));
 	return 1;
 failed:
 	worker_remove_agent(a);
@@ -476,8 +474,6 @@ static void agent_svr_response(pxy_agent_t *a, rec_msg_t *msg,
 
         if (is_removed) {
                 svr_req_data->c->refs -= 1;
-                I("3 conn_status %d %p %p", svr_req_data->c->conn_status, 
-                                svr_req_data->c, &(svr_req_data->c));
                 free(svr_req_data);
         }
 }
