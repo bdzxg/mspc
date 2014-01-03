@@ -113,6 +113,8 @@ void mrpc_conn_free(mrpc_connection_t *c)
                 int r = hashtable_insert(stash_conns_table, &(c->fd), c);
                 if (r != -1) {
                         E("stash conns insert error!");
+                } else {
+                        I("insert stash conn ok!");
                 }
                 
                 return;
@@ -143,7 +145,6 @@ void mrpc_init_stash_conns()
 
 void mrpc_check_stash_conns()
 {
-       D("check stash conns!");
        int keycount = hashtable_count(stash_conns_table);
        if (keycount <= 0) return;
        
@@ -175,6 +176,7 @@ void mrpc_check_stash_conns()
       }
 
       free(keys);
+      free(itr);
 }
 
 int mrpc_send2(mrpc_buf_t *b, int fd)
