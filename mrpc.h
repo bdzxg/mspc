@@ -19,63 +19,63 @@
 
 
 typedef struct mrpc_upstreamer_s {
-	int listen_fd;
-	list_head_t conn_list; //connecting list
-	size_t conn_count;
+        int listen_fd;
+        list_head_t conn_list; //connecting list
+        size_t conn_count;
 }mrpc_upstreamer_t;
 
 typedef struct mrpc_us_item_s {
-	char *uri;
-	struct rb_node rbnode;
-	struct mrpc_connection_s* conns[UP_CONN_COUNT];
-	uint64_t current_conn;
-	list_head_t pending_list; // pending request list 
-	size_t pend_count;
+        char *uri;
+        struct rb_node rbnode;
+        struct mrpc_connection_s* conns[UP_CONN_COUNT];
+        uint64_t current_conn;
+        list_head_t pending_list; // pending request list 
+        size_t pend_count;
 }mrpc_us_item_t;
 
 typedef struct mrpc_message_s {
-	uint32_t mask;
-	uint32_t package_length;
-	short header_length;
-	short packet_options;
+        uint32_t mask;
+        uint32_t package_length;
+        short header_length;
+        short packet_options;
         char method_name[32];
-	union {
-		mrpc_request_header req_head;
-		mrpc_response_header resp_head;
-	}h;
-	short is_resp;
-	struct 	pbc_slice body;
+        union {
+                mrpc_request_header req_head;
+                mrpc_response_header resp_head;
+        }h;
+        short is_resp;
+        struct 	pbc_slice body;
 }mrpc_message_t;
 
 typedef struct mrpc_buf_s {
-	char *buf;
-	size_t len;  //buf len
-	size_t size; //data size
-	size_t offset;
+        char *buf;
+        size_t len;  //buf len
+        size_t size; //data size
+        size_t offset;
 }mrpc_buf_t;
 
 typedef struct mrpc_connection_s {
-	int fd;
-	mrpc_buf_t *send_buf;
-	mrpc_buf_t *recv_buf;
-	mrpc_message_t req;
-	time_t connecting;
-	time_t connected;
-	uint32_t seq;
-	struct rb_root root;
-	list_head_t list_us;
-	list_head_t list_to;
-	int conn_status;
-	mrpc_us_item_t * us;
+        int fd;
+        mrpc_buf_t *send_buf;
+        mrpc_buf_t *recv_buf;
+        mrpc_message_t req;
+        time_t connecting;
+        time_t connected;
+        uint32_t seq;
+        struct rb_root root;
+        list_head_t list_us;
+        list_head_t list_to;
+        int conn_status;
+        mrpc_us_item_t * us;
         int refs;
 }mrpc_connection_t;
 
 typedef struct mrpc_stash_req_s {
-	struct rb_node rbnode;
-	uint32_t seq;
-	int32_t user_id;
-	char *epid;
-	uint32_t mcp_seq;
+        struct rb_node rbnode;
+        uint32_t seq;
+        int32_t user_id;
+        char *epid;
+        uint32_t mcp_seq;
 } mrpc_stash_req_t;
 
 int mrpc_init();
