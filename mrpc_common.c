@@ -97,7 +97,7 @@ void mrpc_conn_close(mrpc_connection_t *c)
         if (ev_del_file_item(worker->ev, c->fd) < 0) {
                 E("remove event file item error fd %d, reason %s", 
                                 c->fd, strerror(errno));
-        }	
+        }       
         close(c->fd);
         c->conn_status = MRPC_CONN_DISCONNECTED;
 }
@@ -205,7 +205,7 @@ int mrpc_send2(mrpc_buf_t *b, int fd)
         }
         return r;
 failed:
-        return -1;	
+        return -1;      
 }
 
 int mrpc_send(mrpc_connection_t *c)
@@ -247,12 +247,12 @@ int mrpc_recv2(mrpc_buf_t *b, int fd)
                 b->size += n;
                 r += n;
 
-                if ((size_t)n < buf_avail) {	
-                        D("break from receive loop, recv enough");	
+                if ((size_t)n < buf_avail) {    
+                        D("break from receive loop, recv enough");      
                         break;
                 }
         }
-        return r;	
+        return r;       
 }
 
 int mrpc_recv(mrpc_connection_t *c) 

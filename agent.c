@@ -39,7 +39,7 @@ void worker_remove_agent(pxy_agent_t *agent)
 
 void worker_insert_reg3(reg3_t* r3)
 {
-        map_insert_reg3(&worker->r3_root, r3);	
+        map_insert_reg3(&worker->r3_root, r3);  
 }
 
 void log_mcp_message(pxy_agent_t *a, rec_msg_t *msg, int direction)
@@ -79,7 +79,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
         if (data_len < msg->len) {
                 D("%zu < %d, wait for more data",data_len, msg->len);
                 return 0;
-        }	
+        }       
         b->offset += 2;
 
         msg->version = *__B1;
@@ -97,7 +97,7 @@ int parse_client_data(pxy_agent_t *agent, rec_msg_t* msg)
         msg->client_version = le16toh(*(uint16_t*)__B);
         b->offset += 2;
 
-        b->offset ++;	//oimt the empty byte
+        b->offset ++;   //oimt the empty byte
         msg->option_len = msg->off - 21; //21 is the fixed length of header
         b->offset += msg->option_len;
 
@@ -241,15 +241,15 @@ _try_process_internal_cmd(pxy_agent_t *a, mcp_appbean_proto *p)
                         return 1;
 
                         //      remove reg3 logic
-                        //	case CMD_REFRESH_EPID:
-                        //		if (pbc_pattern_unpack(rpc_pat_retval, &p->content, &r) < 0) {
-                        //			W("unpack args error");
-                        //			return 1;
-                        //		}
-                        //		worker_remove_agent(a);
-                        //		_refresh_agent_epid(a, &r.option);
-                        //		worker_insert_agent(a);
-                        //		return 1;
+                        //      case CMD_REFRESH_EPID:
+                        //              if (pbc_pattern_unpack(rpc_pat_retval, &p->content, &r) < 0) {
+                        //                      W("unpack args error");
+                        //                      return 1;
+                        //              }
+                        //              worker_remove_agent(a);
+                        //              _refresh_agent_epid(a, &r.option);
+                        //              worker_insert_agent(a);
+                        //              return 1;
         }
 
         return 0;
@@ -265,13 +265,13 @@ static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
         char padding = 0;
         int idx = 0;
 
-#define __SB(b, d, l, idx)			\
-        ({					\
-         char *__d = (char*)d;		\
-         int j;				\
-         for(j = 0;j < l;j++) {		\
-         b[idx++] = __d[j];	\
-         }				\
+#define __SB(b, d, l, idx)                      \
+        ({                                      \
+         char *__d = (char*)d;          \
+         int j;                         \
+         for(j = 0;j < l;j++) {         \
+         b[idx++] = __d[j];     \
+         }                              \
          })
 
         __SB(rval, &length, 2, idx);
@@ -298,16 +298,16 @@ static void get_send_data2(rec_msg_t *t, char* rval, pxy_agent_t *a)
                 memcpy(rval + idx, t->body, t->body_len);
         }
 
-        //	char tmp[102400] = {0};
-        //	to_hex(t->body, t->body_len, tmp);
-        //	D("body is %s", tmp);
+        //      char tmp[102400] = {0};
+        //      to_hex(t->body, t->body_len, tmp);
+        //      D("body is %s", tmp);
         log_mcp_message(a, t, 1);
 }
 
 static int _send_to_client(rec_msg_t *m, pxy_agent_t *a)
 {
         mrpc_buf_t *b = a->send_buf;
-        size_t size_to_send = 21 + m->body_len;	//21 is the fixed header length
+        size_t size_to_send = 21 + m->body_len; //21 is the fixed header length
 
         D("agent fd %d, b->len %zu b->size %zu size_to send %zu", 
                         a->fd, b->len, b->size, size_to_send);
@@ -344,7 +344,7 @@ uint16_t seq_increment(uint16_t seq)
 
 void agent_mrpc_handler(mcp_appbean_proto *proto)
 {
-        rec_msg_t m;	
+        rec_msg_t m;    
         _msg_from_proto(proto, &m);
         char ch[64] = {0};
 
@@ -390,7 +390,7 @@ failed:
 int agent_mrpc_handler2(mcp_appbean_proto *proto, mrpc_connection_t *c,
                 mrpc_message_t msg)
 {
-        rec_msg_t m;	
+        rec_msg_t m;    
         _msg_from_proto(proto, &m);
         char ch[64] = {0};
 
@@ -498,7 +498,7 @@ static int agent_to_beans(pxy_agent_t *a, rec_msg_t* msg, int msp_unreg)
         }
 
         msg->uri = url;
-        //	msg->uri = __url;
+        //      msg->uri = __url;
 
         if (mrpc_us_send(msg) < 0) {
                 W("fd %d, uid %s, epid %s, cmd %d, url %s mrpc send error", 
@@ -537,9 +537,9 @@ static int process_client_req(pxy_agent_t *agent)
                 }
 
                 //we need to refresh the seq to make sure seq conflict
-                //		if (msg.format < 128 && agent->bn_seq <= msg.seq) {
-                //			agent->bn_seq = msg.seq + 1;
-                //		}
+                //              if (msg.format < 128 && agent->bn_seq <= msg.seq) {
+                //                      agent->bn_seq = msg.seq + 1;
+                //              }
 
                 struct hashtable *table = agent->svr_req_buf;
                 mrpc_req_buf_t *svr_req_data = NULL;
@@ -812,7 +812,7 @@ pxy_agent_t * pxy_agent_new(int fd, int userid, char *client_ip)
                 mrpc_buf_free(agent->recv_buf);
                 free(agent);
                 goto failed;
-        }	
+        }       
         if (ev_time_item_ctl(worker->ev, EV_CTL_ADD, agent->timer) < 0) {
                 W("add timer error");
                 mrpc_buf_free(agent->send_buf);
