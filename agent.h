@@ -1,6 +1,7 @@
 #ifndef _AGENT_H_
 #define _AGENT_H_
 #include "proxy.h"
+ 
 
 typedef struct pxy_agent_s{
 	int fd;
